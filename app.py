@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import json
 import os
-import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -12,8 +11,15 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from speechmatics_test.cleanliness import inspect_text
-from speechmatics_test.evaluation import evaluate
+from speechmatics_test.evaluation import evaluate_stages
 from speechmatics_test.medical_layer import MedicalLayer
+from speechmatics_test.realtime import (
+    DEFAULT_MAX_DELAY,
+    DEFAULT_MAX_DELAY_MODE,
+    DEFAULT_MODEL,
+    MAX_MAX_DELAY,
+    MIN_MAX_DELAY,
+)
 from speechmatics_test.text import normalize_text
 
 
@@ -29,12 +35,28 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--test-id")
     p.add_argument("--no-vocab", action="store_true")
     p.add_argument("--no-medical-layer", action="store_true")
-    p.add_argument("--inject", action="store_true", help="Inject final text into a foreground target selected during countdown.")
-    p.add_argument("--inject-delay", type=int, default=5, help="Seconds to give you to select the target cursor before injection.")
-    p.add_argument("--reject-arrows", action="store_true", help="Do not inject if arrow characters are detected.")
+    p.add_argument("--inject", action="store_true",
+                   help="Inject final text into a foreground target selected during countdown.")
+    p.add_argument("--inject-delay", type=int, default=5,
+                   help="Seconds to give you to select the target cursor before injection.")
+    p.add_argument("--reject-arrows", action="store_true",
+                   help="Do not inject if arrow characters are detected.")
     p.add_argument("--no-overlay", action="store_true")
-    p.add_argument("--device-index", type=int)
+    p.add_argument("--device-index", type=int,
+                   help="PyAudio input device index (default: system default device)")
     p.add_argument("--max-seconds", type=float, default=300.0)
+    p.add_argument("--model", choices=["standard", "enhanced"], default=DEFAULT_MODEL,
+                   help="Speechmatics model (default: %(default)s)")
+    p.add_argument("--max-delay", type=float, default=DEFAULT_MAX_DELAY,
+                   help=f"Final-transcript delay in seconds, valid {MIN_MAX_DELAY}-{MAX_MAX_DELAY} "
+                        f"(default: %(default)s, docs-recommended)")
+    p.add_argument("--max-delay-mode", choices=["fixed", "flexible"],
+                   default=DEFAULT_MAX_DELAY_MODE,
+                   help="flexible lets the engine finish spoken entities (numbers) "
+                        "(default: %(default)s)")
+    p.add_argument("--save-report", action="store_true",
+                   help="Save the text/metadata session report as JSON "
+                        "(always saved when --test-id is given)")
     return p.parse_args()
 
 
@@ -49,17 +71,18 @@ def load_benchmark(test_id: str | None) -> dict | None:
 
 
 def load_vocab() -> list:
-    if not (ROOT / "medical_knowledge" / "speechmatics_additional_vocab.json").exists():
+    path = ROOT / "medical_knowledge" / "speechmatics_additional_vocab.json"
+    if not path.exists():
         return []
-    return json.loads((ROOT / "medical_knowledge" / "speechmatics_additional_vocab.json").read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 async def audio_source(recorder, max_seconds: float):
+    """Yield microphone chunks in memory only - never stored on disk."""
     started = time.perf_counter()
     while time.perf_counter() - started < max_seconds:
         chunk = await asyncio.to_thread(recorder.read)
         if chunk:
-            recorder.frames.append(chunk)
             yield chunk
 
 
@@ -143,10 +166,10 @@ async def main() -> int:
     from speechmatics_test.realtime import SpeechmaticsRealtime
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    wav_path = ROOT / "recordings" / f"session_{stamp}_{args.language}.wav"
-    json_path = ROOT / "results" / f"session_{stamp}_{args.language}.json"
-    wav_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path = (
+        ROOT / "results" / f"session_{stamp}_{args.language}.json"
+        if (args.save_report or args.test_id) else None
+    )
 
     vocab = [] if args.no_vocab else load_vocab()
     medical = MedicalLayer(ROOT)
@@ -154,79 +177,89 @@ async def main() -> int:
     overlay = create_overlay(args.no_overlay)
     injector = create_injector(args.inject)
 
-    final_segments: list[str] = []
     result = None
 
     print("=" * 72)
-    print(" SwiftMedics / Speechmatics Mixed Medical ASR Test v2")
+    print(" SwiftMedics / Speechmatics Mixed Medical ASR Test v3")
     print("=" * 72)
     print(f"Language stream : {args.language}")
+    print(f"Model           : {args.model}")
+    print(f"Max delay       : {args.max_delay:.1f}s ({args.max_delay_mode})")
     print(f"Medical vocab   : {'ON' if vocab else 'OFF'}")
-    print(f"Medical layer   : {'ON' if not args.no_medical_layer else 'OFF'}")
-    print(f"Injection       : {'ON' if injector else 'OFF'}")
+    print(f"FST layer       : {'ON' if not args.no_medical_layer else 'OFF'}")
+    print(f"Device index    : {args.device_index if args.device_index is not None else 'default'}")
+    print(f"Audio storage   : NONE (in-memory streaming only)")
+    print(f"Report          : {json_path.name if json_path else 'not saved (use --save-report)'}")
     print(f"Max duration    : {args.max_seconds:.1f} sec")
-    print(f"Recording       : {wav_path.name}")
     print("=" * 72)
     print("Speak naturally. Press Ctrl+C to stop recording.")
     print()
 
     def on_partial(text: str):
+        # UI/overlay only. Partials are never treated as final text.
         clean = normalize_text(text)
-        print("\\r[partial] " + clean[:200].ljust(200), end="", flush=True)
+        print("\r[partial] " + clean[:200].ljust(200), end="", flush=True)
         if overlay:
             overlay.set_partial(clean)
 
     def on_final(text: str):
+        # Finalized segment only: normalize -> FST canonical -> display as FINAL.
         clean = normalize_text(text)
         if not clean:
             return
-        final_segments.append(clean)
-        print("\
-[final]   " + clean)
+        segment, _hits = (
+            medical.canonicalize(clean) if not args.no_medical_layer
+            else (clean, [])
+        )
+        print("\n[final]   " + segment)
         if overlay:
-            overlay.set_partial(clean)
+            overlay.set_final(segment)
 
-    recorder = MicrophoneRecorder(wav_path, device_index=args.device_index)
+    recorder = MicrophoneRecorder(device_index=args.device_index)
     try:
         with recorder:
             stt = SpeechmaticsRealtime(
                 api_key=api_key,
                 language=args.language,
                 additional_vocab=vocab,
-                max_delay=1.0,
+                max_delay=args.max_delay,
+                model=args.model,
+                max_delay_mode=args.max_delay_mode,
             )
+            audio = audio_source(recorder, args.max_seconds)
             try:
-                result = await stt.run(
-                    audio_source(recorder, args.max_seconds),
-                    on_partial,
-                    on_final,
-                )
+                result = await stt.run(audio, on_partial, on_final)
             except KeyboardInterrupt:
-                print("\
-[session] Ctrl+C received.")
+                print("\n[session] Ctrl+C received - stopping.")
                 result = stt.result
+            finally:
+                await audio.aclose()
     finally:
         if overlay:
             overlay.close()
 
-    raw = " ".join(final_segments).strip()
-    if not raw and result is not None:
-        raw = (result.final_text or "").strip()
-
+    # ------------------------------------------------------------------ text
+    # Stage 1: true Speechmatics RAW final transcript (no normalization).
+    raw = (result.final_text or "").strip() if result is not None else ""
+    # Stage 2: generic text normalization.
     normalized = normalize_text(raw)
-    canonical = normalized
-    medical_hits = []
-
+    # Stage 3: deterministic medical FST canonicalization.
     if not args.no_medical_layer:
-        canonical, medical_hits = medical.normalize(normalized)
+        canonical, medical_hits = medical.canonicalize(normalized)
+    else:
+        canonical, medical_hits = normalized, []
 
     raw_clean = print_cleanliness("RAW TRANSCRIPT", raw)
+    normalized_clean = print_cleanliness("NORMALIZED TRANSCRIPT", normalized)
     canonical_clean = print_cleanliness("CANONICALIZED TRANSCRIPT", canonical)
 
     evaluation_result = (
-        evaluate(benchmark["expected"], canonical)
-        if benchmark
-        else None
+        evaluate_stages(benchmark["expected"], {
+            "raw": raw,
+            "normalized": normalized,
+            "fst_canonical": canonical,
+        })
+        if benchmark else None
     )
 
     injection_info = None
@@ -242,67 +275,71 @@ async def main() -> int:
             print(repr(canonical))
             print("The visible transcript above is what will be pasted; no arrows are added by the injector.")
 
-            injection_info = injection_countdown(
-                injector,
-                args.inject_delay,
-            )
+            injection_info = injection_countdown(injector, args.inject_delay)
 
-            ok = injector.paste_text(
-                canonical,
-                add_rtl_mark=False,
-            )
+            ok = injector.paste_text(canonical, add_rtl_mark=False)
 
             injection_info["success"] = bool(ok)
             print()
-            print(
-                "[injector] "
-                + ("Paste command sent successfully." if ok else "Paste failed.")
-            )
+            print("[injector] "
+                  + ("Paste command sent successfully." if ok else "Paste failed."))
 
-    report = {
-        "created_at": datetime.now().isoformat(timespec="seconds"),
-        "language": args.language,
-        "test_id": args.test_id,
-        "medical_vocab_enabled": bool(vocab),
-        "medical_layer_enabled": not args.no_medical_layer,
-        "audio_path": str(wav_path.relative_to(ROOT)),
-        "first_partial_latency_ms": getattr(result, "first_partial_ms", None),
-        "partials": getattr(result, "partials", []),
-        "final_segments": getattr(result, "final_segments", []),
-        "final_transcript_raw": raw,
-        "final_transcript_normalized": normalized,
-        "final_transcript_canonicalized": canonical,
-        "medical_hits": medical_hits,
-        "cleanliness": {
-            "raw": raw_clean,
-            "canonicalized": canonical_clean,
-        },
-        "injection": injection_info,
-        "benchmark_expected": benchmark["expected"] if benchmark else None,
-        "evaluation": evaluation_result,
-    }
-
-    json_path.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    if json_path is not None:
+        report = {
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "language": args.language,
+            "test_id": args.test_id,
+            "medical_vocab_enabled": bool(vocab),
+            "medical_layer_enabled": not args.no_medical_layer,
+            "model": args.model,
+            "max_delay": args.max_delay,
+            "max_delay_mode": args.max_delay_mode,
+            "device_index": args.device_index,
+            "first_partial_latency_ms": getattr(result, "first_partial_ms", None),
+            "session_error": getattr(result, "error", None),
+            "partials": getattr(result, "partials", []),
+            "final_segments": getattr(result, "final_segments", []),
+            "final_transcript_raw": raw,
+            "final_transcript_normalized": normalized,
+            "final_transcript_canonical": canonical,
+            "medical_hits": medical_hits,
+            "fst_warnings": medical.warnings,
+            "cleanliness": {
+                "raw": raw_clean,
+                "normalized": normalized_clean,
+                "canonical": canonical_clean,
+            },
+            "injection": injection_info,
+            "benchmark_expected": benchmark["expected"] if benchmark else None,
+            "evaluation": evaluation_result,
+        }
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     print()
     print("=" * 72)
     print("FINAL RAW:")
     print(raw or "[empty]")
     print()
-    print("FINAL CANONICALIZED:")
+    print("FINAL NORMALIZED:")
+    print(normalized or "[empty]")
+    print()
+    print("FINAL CANONICAL:")
     print(canonical or "[empty]")
 
     if evaluation_result:
         print()
-        print("EVALUATION:")
+        print("EVALUATION (raw / normalized / fst_canonical):")
         print(json.dumps(evaluation_result, ensure_ascii=False, indent=2))
 
     print()
-    print(f"WAV : {wav_path}")
-    print(f"JSON: {json_path}")
+    if json_path is not None:
+        print(f"JSON: {json_path}")
+    else:
+        print("No report saved (use --save-report or --test-id to save).")
 
     return 0
 

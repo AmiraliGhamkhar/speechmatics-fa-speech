@@ -203,7 +203,7 @@ class TranscriptOverlay:
             self._label.config(anchor="nw", justify="left")
 
     def set_partial(self, text: str) -> None:
-        """Real-time streaming hypothesis update."""
+        """Real-time streaming hypothesis update (UI/overlay only)."""
         def _():
             display_text = text or "..."
             self._apply_text_alignment(display_text)
@@ -211,6 +211,21 @@ class TranscriptOverlay:
                 self._label.config(text=display_text, fg="#cdd6f4")
             if self._status:
                 self._status.config(text="● در حال شنیدن...", fg="#a6e3a1", anchor="e")
+        self._ui(_)
+
+    def set_final(self, text: str) -> None:
+        """A finalized ASR segment (post-FST canonical).
+
+        Final results must be displayed through this API, never through
+        ``set_partial``: partials are revisable hypotheses, finals are not.
+        """
+        def _():
+            display_text = text or "..."
+            self._apply_text_alignment(display_text)
+            if self._label:
+                self._label.config(text=display_text, fg="#f9e2af")
+            if self._status:
+                self._status.config(text="✓ نهایی شد", fg="#f9e2af", anchor="e")
         self._ui(_)
 
     def set_done(self, text: str) -> None:
