@@ -1,0 +1,1417 @@
+{
+  "source": "اصطلاحات رایج پرستاری.xlsx",
+  "count": 122,
+  "entries": [
+    {
+      "canonical": "V/S",
+      "english": "Vital Sign",
+      "persian": "علائم حیاتی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "BP",
+      "english": "Blood Pressure",
+      "persian": "فشار خون",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "T",
+      "english": "Temperature",
+      "persian": "درجه حرارت",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "P",
+      "english": "Pulse",
+      "persian": "نبض",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "BS",
+      "english": "Blood Sugar",
+      "persian": "قند خون",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "FBS",
+      "english": "Fast Blood Sugar",
+      "persian": "قند خون ناشتا",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "CBC",
+      "english": "Cell Blood Count",
+      "persian": "شمارش سلولهای خون",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Ax",
+      "english": "Axillary",
+      "persian": "زیر بغل",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "I.V",
+      "english": "Intravenous",
+      "persian": "وریدی(از طریق ورید)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "I.M",
+      "english": "Intramuscular",
+      "persian": "درون عضلانی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "S.C",
+      "english": "Subcutaneous",
+      "persian": "زیر جلدی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "SBP",
+      "english": "Systolic blood pressure",
+      "persian": "فشار خون سیستولیک (حداکثر)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "U/A",
+      "english": "Urin analysis",
+      "persian": "تجزیه ادرار",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "HTN",
+      "english": "Hypertension(-sive)",
+      "persian": "افزایش فشار خون (مبتلا به آن)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "I.D",
+      "english": "Intra dermal",
+      "persian": "داخل جلدی(پوستی)(تست پنی سیلین)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "C.R",
+      "english": "Controlled Respiration",
+      "persian": "تنفس کنترل شده",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "C.R",
+      "english": "Cardio Respiratory",
+      "persian": "قلبی تنفسی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "N.G Tube",
+      "english": "Nasogastric Tube",
+      "persian": "لوله بینی- معده ای",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "ETT",
+      "english": "Endo Tracheal Tube",
+      "persian": "لوله داخل نای",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "ETT",
+      "english": "Exercise Tolerance Test",
+      "persian": "تست تحمل ورزش",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Fx",
+      "english": "Fracture",
+      "persian": "شکستگی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "D.S",
+      "english": "Dis Continue",
+      "persian": "عدم پیگیری",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "O.b",
+      "english": "Occult blood",
+      "persian": "خون در مدفوع(مخفی) (تست گایاک)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "N&V",
+      "english": "Nausea and Vomiting",
+      "persian": "تهوع و استفراغ",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "R.O.S",
+      "english": "Review of systems",
+      "persian": "بررسی دستگاه ها",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "HF",
+      "english": "Heart Failure",
+      "persian": "نارسایی قلبی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "CHF",
+      "english": "Congestive heart failure",
+      "persian": "نارسایی احتقانی قلبی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "P.E",
+      "english": "Pulmonary Embolism",
+      "persian": "آمبولی ریوی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "DVT",
+      "english": "Deep Venous Thrombosis",
+      "persian": "ترومبوز(تشکیل لخته) وریدی عمقی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "MI",
+      "english": "Myocardial Infarction",
+      "persian": "انفارکتوس میوکارد (سکته قلبی)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "CVA",
+      "english": "Cerebrovascular accident",
+      "persian": "حادثه عروق مغزی (سکته مغزی)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "NPO",
+      "english": "Non per oral",
+      "persian": "از راه دهان چیزی نخورد (ناشتا)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "ECG",
+      "english": "Electrocardiogram (-ograph)",
+      "persian": "الکتروکاردیوگرام (نوار قلب)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "PSA",
+      "english": "Prostate specific antigen",
+      "persian": "آنتی ژن اختصاصی پروستات",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "LDL",
+      "english": "Low Density Lipoprotein",
+      "persian": "لیپوپروتئین با چگالی کم",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "HDL",
+      "english": "High Density Lipoprotein",
+      "persian": "لیپوپروتئین با چگالی زیاد",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "HBV",
+      "english": "Hepatitis B virus",
+      "persian": "ویروس هپاتیت ب",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "AM",
+      "english": "ante meridiem(L) before noon",
+      "persian": "قبل از ظهر",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "MD",
+      "english": "Median Day",
+      "persian": "میانه(وسط) روز",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "MN",
+      "english": "Median Night",
+      "persian": "میانه(وسط) شب",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "M&N",
+      "english": "Morning and Night",
+      "persian": "صبح و شب",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "PM",
+      "english": "Post mortem(L) after death",
+      "persian": "بعد از ظهر",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "OR",
+      "english": "Operating Room",
+      "persian": "اتاق عمل",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "ABG",
+      "english": "Arterial blood gasses",
+      "persian": "گازهای خون شریانی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "BMI",
+      "english": "Body Mass Index",
+      "persian": "شاخص توده بدن",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "BPH",
+      "english": "Benign Prostatic Hypertrophy",
+      "persian": "بزرگی خوش خیم پروستات",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Amp",
+      "english": "Ampoule",
+      "persian": "آمپول",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Tab",
+      "english": "Tablet",
+      "persian": "قرص",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "PT",
+      "english": "Prothrombin Time",
+      "persian": "زمان پروترومبین",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "PTT",
+      "english": "Partial Thromboplastin Time",
+      "persian": "زمان نسبی ترومبوپلاستین",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "INR",
+      "english": "International Normal Range",
+      "persian": "رنج نرمال بین المللی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "PRN",
+      "english": "Pro-Ri-Nata(L) as required",
+      "persian": "در صورت نیاز(لزوم)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "q.s",
+      "english": "Quantum sufficit(L) as much as will suffice",
+      "persian": "به اندازه(مقدار) کافی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "H.V.D",
+      "english": "Hypoxic Ventilatory Decline",
+      "persian": "زوال(تخریب) تهویه ای هیپوکسیک",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "H.P.V",
+      "english": "Hypoxic Pulmonary Vasocostriction",
+      "persian": "تنگ کننده عروق ریوی هیپوکسیک",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "ARDS",
+      "english": "Acute Respiratory Desteres Syndrom",
+      "persian": "سندرم دسترس(فشار) تنفس بزرگسال",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "HL",
+      "english": "Heparin Luck",
+      "persian": "هپارین لاک",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "COPD",
+      "english": "Chronic Obstructive Pulmonary Disease",
+      "persian": "بیماری مزمن انسدادی ریوی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "N.S",
+      "english": "Normal Saline",
+      "persian": "نرمال سالین",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "DW",
+      "english": "Distilled Water",
+      "persian": "آب مقطر",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "D-5-W",
+      "english": "Dextrose 5% in water",
+      "persian": "دکستروز 5% در آب",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "D10W",
+      "english": "10% dextrose(in water) injection",
+      "persian": "تزریق دکستروز 10 درصد(در آب)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "D20W",
+      "english": "20% dextrose(in water) injection",
+      "persian": "20 تزریق دکستروز درصد(در آب)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "D50W",
+      "english": "50% dextrose(in water) injection",
+      "persian": "تزریق دکستروز 50 درصد(در آب)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "D70W",
+      "english": "70% dextrose(in water) injection",
+      "persian": "تزریق دکستروز 70 درصد(در آب)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "5DW",
+      "english": "5% dextrose(in water) injection",
+      "persian": "تزریق دکستروز 5 درصد(در آب)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "D/S",
+      "english": "Dextrose and Saline",
+      "persian": "دکستروز سالین",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "D-5-S",
+      "english": "Dextrose 5% in Saline",
+      "persian": "دکستروز 5% در سالین",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "TUR",
+      "english": "Transurethral resection(of prostate)",
+      "persian": "عمل برداشتن (پروستات) از طریق پیشابراه",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "ABC",
+      "english": "Airway, Breathing and Circulation",
+      "persian": "راه هوایی، تنفس و گردش خون",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "RBC",
+      "english": "Red Blood Cell",
+      "persian": "سلول(گلبول) قرمز خون",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "WBC",
+      "english": "Whole Blood Cell Count; White Blood Cell",
+      "persian": "شمارش کامل سلولهای خونی؛ گلبول های سفید خون",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "BUN",
+      "english": "Blood urea nitrogen",
+      "persian": "نیتروژن اوره خون",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "FFP",
+      "english": "Fresh Frozen Plasma",
+      "persian": "پلاسمای تازه منجمد شده",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Ab",
+      "english": "Antibody",
+      "persian": "آنتی بادی (پادتن)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "HGB",
+      "english": "Haemoglobin",
+      "persian": "هموگلوبین",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Hg",
+      "english": "Hydrargyrum(L)mercury",
+      "persian": "(لاتین) جیوه",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "T3",
+      "english": "Triiodothyronin",
+      "persian": "تری یدوتیرونین",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "T4",
+      "english": "Thyroxine",
+      "persian": "تیروکسین",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "TSH",
+      "english": "Thyroid–stimulating (thyrotrophic) hormone",
+      "persian": "هورمون محرک تیرویید (تیروتروفیک)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "ESR",
+      "english": "Erythrocyte Sedimentation Rate",
+      "persian": "میزان رسوب گلبول قرمز",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "DZP",
+      "english": "Diazepam",
+      "persian": "دیازپام",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "K",
+      "english": "Kalium(L) potassium",
+      "persian": "پتاسیم",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Ca",
+      "english": "Calcium",
+      "persian": "کلسیم",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Na",
+      "english": "Natrium(L) sodium",
+      "persian": "سدیم",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Mg",
+      "english": "Magnesium",
+      "persian": "منیزیم",
+      "aliases": [],
+      "spoken_forms": [
+        "میلی گرم"
+      ],
+      "common_asr_forms": [
+        "میلی گرم",
+        "میلی گرم به"
+      ],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Cr",
+      "english": "Creatinine",
+      "persian": "کراتینین",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "TG",
+      "english": "Triglyceride",
+      "persian": "تری گلیسرید",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Chol",
+      "english": "Cholesterol",
+      "persian": "کلسترول",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "Pen",
+      "english": "Penicillin",
+      "persian": "پنی سیلین",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "MCH",
+      "english": "Mean Corpuscular Haemoglobin",
+      "persian": "هموگلوبین متوسط گویچه ای",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "MCV",
+      "english": "Mean Corpuscular Volume",
+      "persian": "حجم متوسط گویچه ای",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "inj",
+      "english": "Injectable,inject(ion)",
+      "persian": "قابل تزریق، تزریق کردن",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "FHR",
+      "english": "Fetal Heart Rate",
+      "persian": "میزان ضربان قلب جنین",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "CCU",
+      "english": "Cardiac Care Unit",
+      "persian": "واحد مراقبت قلبی",
+      "aliases": [],
+      "spoken_forms": [
+        "سی سی یو"
+      ],
+      "common_asr_forms": [
+        "سی سی یو",
+        "سی سی یو،"
+      ],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "ICU",
+      "english": "Intensive Care Unit",
+      "persian": "واحد مراقبت های ویژه",
+      "aliases": [],
+      "spoken_forms": [
+        "آی سی یو"
+      ],
+      "common_asr_forms": [
+        "آی سی یو"
+      ],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "ENT",
+      "english": "Ear,Nose and Throat",
+      "persian": "گوش، حلق و بینی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "ARF",
+      "english": "Acute Rheumatic Fever",
+      "persian": "تب روماتیسمی حاد",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "EMS",
+      "english": "Emergency Medical Service",
+      "persian": "خدمات فوریت های پزشکی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "bd",
+      "english": "Bis die(L)twice a day",
+      "persian": "(لاتین) دو بار در روز",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "qh",
+      "english": "quaque hora(L) every hour",
+      "persian": "هر ساعت (لاتین)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "q2h",
+      "english": "quaque secunda hora(L) every two hours",
+      "persian": "هر دو ساعت (لاتین)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "q3h",
+      "english": "quaque tetria hora(L) every three hours",
+      "persian": "هر سه ساعت (لاتین)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "qid",
+      "english": "Quarter in die(L) four rimes a day",
+      "persian": "چهار بار در روز (لاتین)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "tds",
+      "english": "Ter die sumendum(L) tobe taken three times a day",
+      "persian": "روزی سه بار خورده شود(روزی سه بار) (لاتین)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "syr",
+      "english": "Syrupus(L) syrup",
+      "persian": "شربت (لاتین)",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "DC",
+      "english": "Decrease",
+      "persian": "کم شدن",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "CXR",
+      "english": "Chest X-Ray",
+      "persian": "رادیوگرافی قفسه سینه",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "CPR",
+      "english": "Cardio Pulmonary Resuscitation",
+      "persian": "احیاء قلبی ریوی",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "CBR",
+      "english": "Complete Bed Rest",
+      "persian": "استراحت مطلق در بستر",
+      "aliases": [],
+      "spoken_forms": [],
+      "common_asr_forms": [],
+      "category": "nursing",
+      "source": "اصطلاحات رایج پرستاری.xlsx",
+      "source_trust": "user_provided"
+    },
+    {
+      "canonical": "CT scan",
+      "english": "CT scan",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "سی تی اسکن"
+      ],
+      "common_asr_forms": [
+        "سی تی اسکن",
+        "سی تی اسکن یا"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    },
+    {
+      "canonical": "lesion",
+      "english": "lesion",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "لیژن"
+      ],
+      "common_asr_forms": [
+        "لیژن"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    },
+    {
+      "canonical": "right lung",
+      "english": "right lung",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "رایت لانگ"
+      ],
+      "common_asr_forms": [
+        "رایت لانگ"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    },
+    {
+      "canonical": "cyst",
+      "english": "cyst",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "کیست"
+      ],
+      "common_asr_forms": [
+        "کیست"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    },
+    {
+      "canonical": "hemorrhagic",
+      "english": "hemorrhagic",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "هموراژیک"
+      ],
+      "common_asr_forms": [
+        "هموراژیک"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    },
+    {
+      "canonical": "cystic",
+      "english": "cystic",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "کیستیک"
+      ],
+      "common_asr_forms": [
+        "کیستیک"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    },
+    {
+      "canonical": "IV",
+      "english": "IV",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "آی وی"
+      ],
+      "common_asr_forms": [
+        "آی وی"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    },
+    {
+      "canonical": "hypertension",
+      "english": "hypertension",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "هایپر تنشن",
+        "هایپرتنشن"
+      ],
+      "common_asr_forms": [
+        "هایپر تنشن",
+        "هایپرتنشن"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    },
+    {
+      "canonical": "diabetes",
+      "english": "diabetes",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "دیابت"
+      ],
+      "common_asr_forms": [
+        "دیابت"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    },
+    {
+      "canonical": "blood pressure",
+      "english": "blood pressure",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "بلاد پرشر",
+        "بلد پرشر",
+        "فشار خون"
+      ],
+      "common_asr_forms": [
+        "blood pressure"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    },
+    {
+      "canonical": "MRI",
+      "english": "MRI",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "MRI",
+        "ام آر آی"
+      ],
+      "common_asr_forms": [
+        "ام آر آی"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    },
+    {
+      "canonical": "ultrasound",
+      "english": "ultrasound",
+      "persian": "",
+      "aliases": [],
+      "spoken_forms": [
+        "الترسوند",
+        "اولتراسوند"
+      ],
+      "common_asr_forms": [
+        "اولتراسوند"
+      ],
+      "category": "observed_medical_term",
+      "source": "uploaded Speechmatics session",
+      "source_trust": "user_observed"
+    }
+  ]
+}

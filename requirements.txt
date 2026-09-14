@@ -1,0 +1,5 @@
+speechmatics-rt==1.1.1
+PyAudio==0.2.14
+python-dotenv==1.2.3
+regex==2026.9.10
+pytest>=8.0

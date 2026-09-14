@@ -1,0 +1,58 @@
+[
+  {
+    "id": "mix_ccu_icu",
+    "category": "mixed_abbreviations",
+    "language": "fa",
+    "prompt": "لغاتی مثل CCU و ICU",
+    "expected": "لغاتی مثل CCU و ICU"
+  },
+  {
+    "id": "mix_ct_lesion",
+    "category": "mixed_medical",
+    "language": "fa",
+    "prompt": "در CT scan یک lesion در right lung مشاهده شد.",
+    "expected": "در CT scan یک lesion در right lung مشاهده شد."
+  },
+  {
+    "id": "mix_cyst",
+    "category": "mixed_medical",
+    "language": "fa",
+    "prompt": "یک hemorrhagic cyst یا ضایعه cystic در تخمدان چپ دیده می‌شود.",
+    "expected": "یک hemorrhagic cyst یا ضایعه cystic در تخمدان چپ دیده می‌شود."
+  },
+  {
+    "id": "nurse_iv",
+    "category": "route_dose",
+    "language": "fa",
+    "prompt": "دارو با دوز 20 میلی‌گرم به صورت IV داده شود.",
+    "expected": "دارو با دوز 20 میلی‌گرم به صورت IV داده شود."
+  },
+  {
+    "id": "nurse_vitals",
+    "category": "nursing",
+    "language": "fa",
+    "prompt": "علائم حیاتی بیمار را بگیرید و BP و pulse را ثبت کنید.",
+    "expected": "علائم حیاتی بیمار را بگیرید و BP و pulse را ثبت کنید."
+  },
+  {
+    "id": "nurse_npo",
+    "category": "nursing",
+    "language": "fa",
+    "prompt": "بیمار NPO است و باید IV line برقرار باشد.",
+    "expected": "بیمار NPO است و باید IV line برقرار باشد."
+  },
+  {
+    "id": "nurse_htn_dm",
+    "category": "nursing",
+    "language": "fa",
+    "prompt": "بیمار سابقه HTN و DM دارد.",
+    "expected": "بیمار سابقه HTN و DM دارد."
+  },
+  {
+    "id": "english_medical",
+    "category": "english_medical",
+    "language": "en",
+    "prompt": "The patient has hypertension and diabetes mellitus.",
+    "expected": "The patient has hypertension and diabetes mellitus."
+  }
+]

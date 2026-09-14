@@ -1,0 +1,132 @@
+{
+  "CCU": {
+    "spoken_forms": [
+      "سی سی یو"
+    ],
+    "common_asr_forms": [
+      "سی سی یو",
+      "سی سی یو،"
+    ]
+  },
+  "ICU": {
+    "spoken_forms": [
+      "آی سی یو"
+    ],
+    "common_asr_forms": [
+      "آی سی یو"
+    ]
+  },
+  "CT scan": {
+    "spoken_forms": [
+      "سی تی اسکن",
+      "سی تی اسکن"
+    ],
+    "common_asr_forms": [
+      "سی تی اسکن",
+      "سی تی اسکن یا"
+    ]
+  },
+  "lesion": {
+    "spoken_forms": [
+      "لیژن"
+    ],
+    "common_asr_forms": [
+      "لیژن"
+    ]
+  },
+  "right lung": {
+    "spoken_forms": [
+      "رایت لانگ"
+    ],
+    "common_asr_forms": [
+      "رایت لانگ"
+    ]
+  },
+  "cyst": {
+    "spoken_forms": [
+      "کیست"
+    ],
+    "common_asr_forms": [
+      "کیست"
+    ]
+  },
+  "hemorrhagic": {
+    "spoken_forms": [
+      "هموراژیک"
+    ],
+    "common_asr_forms": [
+      "هموراژیک"
+    ]
+  },
+  "cystic": {
+    "spoken_forms": [
+      "کیستیک"
+    ],
+    "common_asr_forms": [
+      "کیستیک"
+    ]
+  },
+  "IV": {
+    "spoken_forms": [
+      "آی وی"
+    ],
+    "common_asr_forms": [
+      "آی وی"
+    ]
+  },
+  "mg": {
+    "spoken_forms": [
+      "میلی گرم"
+    ],
+    "common_asr_forms": [
+      "میلی گرم",
+      "میلی گرم به"
+    ]
+  },
+  "hypertension": {
+    "spoken_forms": [
+      "هایپرتنشن",
+      "هایپر تنشن"
+    ],
+    "common_asr_forms": [
+      "هایپرتنشن",
+      "هایپر تنشن"
+    ]
+  },
+  "diabetes": {
+    "spoken_forms": [
+      "دیابت"
+    ],
+    "common_asr_forms": [
+      "دیابت"
+    ]
+  },
+  "blood pressure": {
+    "spoken_forms": [
+      "بلاد پرشر",
+      "بلد پرشر",
+      "فشار خون"
+    ],
+    "common_asr_forms": [
+      "blood pressure"
+    ]
+  },
+  "MRI": {
+    "spoken_forms": [
+      "ام آر آی",
+      "MRI"
+    ],
+    "common_asr_forms": [
+      "ام آر آی"
+    ]
+  },
+  "ultrasound": {
+    "spoken_forms": [
+      "اولتراسوند",
+      "الترسوند"
+    ],
+    "common_asr_forms": [
+      "اولتراسوند"
+    ]
+  }
+}

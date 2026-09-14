@@ -1,0 +1,83 @@
+[
+  "BP",
+  "HTN",
+  "DM",
+  "IV",
+  "IM",
+  "SC",
+  "ICU",
+  "CCU",
+  "ECG",
+  "ABG",
+  "NPO",
+  "CPR",
+  "FBS",
+  "CBC",
+  "U/A",
+  "CXR",
+  "PRN",
+  "q2h",
+  "tds",
+  "Magnesium",
+  "Cardiac Care Unit",
+  "Intensive Care Unit",
+  "CT scan",
+  {
+    "content": "lesion",
+    "sounds_like": [
+      "لیژن"
+    ]
+  },
+  "right lung",
+  {
+    "content": "cyst",
+    "sounds_like": [
+      "کیست"
+    ]
+  },
+  {
+    "content": "hemorrhagic",
+    "sounds_like": [
+      "هموراژیک"
+    ]
+  },
+  {
+    "content": "cystic",
+    "sounds_like": [
+      "کیستیک"
+    ]
+  },
+  "hypertension",
+  {
+    "content": "hypertension",
+    "sounds_like": [
+      "هایپرتنشن"
+    ]
+  },
+  {
+    "content": "diabetes",
+    "sounds_like": [
+      "دیابت"
+    ]
+  },
+  "blood pressure",
+  {
+    "content": "MRI",
+    "sounds_like": [
+      "MRI"
+    ]
+  },
+  "MRI",
+  {
+    "content": "ultrasound",
+    "sounds_like": [
+      "الترسوند"
+    ]
+  },
+  {
+    "content": "ultrasound",
+    "sounds_like": [
+      "اولتراسوند"
+    ]
+  }
+]
