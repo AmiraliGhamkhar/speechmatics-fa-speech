@@ -943,12 +943,9 @@
       "persian": "منیزیم",
       "aliases": [],
       "spoken_forms": [
-        "میلی گرم"
+        "منیزیم"
       ],
-      "common_asr_forms": [
-        "میلی گرم",
-        "میلی گرم به"
-      ],
+      "common_asr_forms": [],
       "category": "nursing",
       "source": "اصطلاحات رایج پرستاری.xlsx",
       "source_trust": "user_provided"
@@ -1235,8 +1232,7 @@
         "سی تی اسکن"
       ],
       "common_asr_forms": [
-        "سی تی اسکن",
-        "سی تی اسکن یا"
+        "سی تی اسکن"
       ],
       "category": "observed_medical_term",
       "source": "uploaded Speechmatics session",

@@ -1,55 +1,73 @@
-# SwiftMedics — Speechmatics Mixed Persian/English Medical ASR Test v2
+# SwiftMedics — Speechmatics Mixed Persian/English Medical ASR Test v3
 
 A clean, reproducible Python benchmark application for testing Speechmatics Realtime with Persian, English, Persianized English medical words, nursing terminology, abbreviations, numbers, routes, and clinical expressions.
 
-## What changed in v2
+## What changed in v3
 
-Version 2 is built around three separate layers:
+Version 3 is a production-oriented MVP built around separate, auditable stages:
 
-1. **Speechmatics ASR** — preserves the raw realtime output.
-2. **Medical terminology layer** — conservative, deterministic aliases from your provided nursing terminology and your observed ASR session.
-3. **Benchmark/evaluation layer** — compares canonicalized output against a human-provided expected transcript.
+1. **Speechmatics ASR** — preserves the true raw realtime final transcript.
+2. **Generic text normalization** — Persian script unification, ZWNJ/whitespace, punctuation spacing. No medical knowledge.
+3. **Medical FST canonicalization** — a deterministic OpenFst/Pynini transducer (plus an equivalent pure-Python fallback scanner) that performs token-aware lexical canonicalization only.
+4. **Benchmark/evaluation** — compares RAW ASR vs NORMALIZED vs FST CANONICAL against a human-provided expected transcript (WER, number accuracy, similarity) with medical-aware tokenization.
 
-The project also keeps your uploaded Windows `injector.py` and `overlay.py`. The injector already uses native Windows UTF-16 `SendInput`, clipboard verification/retries, modifier hygiene, and smart partial-revision handling. The overlay already handles mixed RTL/LTR display and Persian font selection.
+Hard rules enforced by the design:
+
+- **No LLM, no embeddings, no vector DB, no generative post-processing.**
+- **No audio persistence.** Microphone chunks exist only in memory while streaming. No WAV files, no temp audio, no `recordings/` directory. Only text/metadata JSON reports are written, and only when requested (`--save-report` or `--test-id`).
+- **Partials are for the UI/overlay only.** They are never treated as, or accumulated into, final text.
+- **Post-processing runs only on finalized ASR segments.**
+
+The project also keeps your uploaded Windows `injector.py` and `overlay.py`. The injector uses native Windows UTF-16 `SendInput`, clipboard verification/retries, modifier hygiene, and smart partial-revision handling. The overlay handles mixed RTL/LTR display, Persian font selection, and now distinguishes **partial** (revisable hypothesis) from **final** (finalized segment) display via separate APIs.
 
 ## Source data incorporated
 
-- `اصطلاحات رایج پرستاری.xlsx`: 110 populated nursing terminology rows were converted into structured JSON.
-- Uploaded Speechmatics session JSON: observed forms such as `سی سی یو`, `سی تی اسکن`, `لیژن`, `رایت لانگ`, `آی وی`, and `میلی گرم` were used as **observed aliases**, not as general medical truth.
-- Uploaded WAV: kept as the first reproducible session artifact outside the source tree; put future recordings under `recordings/`.
+- `اصطلاحات رایج پرستاری.xlsx`: 110+ populated nursing terminology rows converted into structured JSON.
+- Uploaded Speechmatics session JSON: observed forms such as `سی سی یو`, `سی تی اسکن`, `لیژن`, `رایت لانگ`, `آی وی`, and `میلی گرم` are used as **observed aliases** (lowest-trust tier), not as general medical truth.
+- `medical_knowledge/fst_terms.json`: the curated FST rule set (phrases, abbreviations, units, Persianized-English pronunciations, common ASR variants) with explicit deterministic priority tiers.
 
 ## Architecture
 
 ```text
-Microphone
+Microphone (16 kHz mono PCM16, in-memory chunks only)
    |
    v
-Speechmatics Realtime
+Speechmatics Realtime (speechmatics-rt SDK)
    |
-   +----> partials -> overlay
-   |
-   v
-raw final transcript
+   +----> ADD_PARTIAL_TRANSCRIPT -> overlay.set_partial()   (UI only)
    |
    v
-text normalization
+ADD_TRANSCRIPT (final segments, raw, preserved)
    |
    v
-nursing/medical alias layer
+RAW final transcript                  <- benchmark stage "raw"
    |
    v
-canonicalized transcript
+normalize_text() (generic)            <- benchmark stage "normalized"
    |
-   +----> evaluation
+   v
+Medical FST (Pynini, token-aware)     <- benchmark stage "fst_canonical"
    |
-   +----> JSON audit log
+   +----> overlay.set_final() per finalized segment
+   +----> evaluation (raw / normalized / canonical vs expected)
+   |
+   +----> optional JSON report (text/metadata only, no audio)
 ```
 
-## Why the medical layer is conservative
+## Why the FST layer is conservative
 
-The dictionary is **not an LLM** and does not infer diagnosis, dosage, laterality, negation, or clinical meaning. It only applies explicit mappings.
+The FST is **deterministic lexical canonicalization only**. It does not infer
+diagnosis, severity, negation, dosage correctness, or clinical meaning.
 
-That is intentional. ASR correction and clinical interpretation should remain separate so the benchmark can show exactly what Speechmatics produced.
+- Rules are exact, token-aware matches (word boundaries), never unsafe substring replacement.
+- Longest match wins; ties are broken by tier (curated rules > abbreviations > observed aliases > phrases > validated terms > units), then by stable rule order.
+- Every hit reports `form`, `canonical`, `tier`, `source`, and `position` for auditability.
+
+## Speechmatics session configuration
+
+- `max_delay`: configurable seconds in the valid Speechmatics range **0.7–4.0** (default **2.0**, the docs-recommended trade-off). Values outside the range are rejected at startup.
+- `model`: configurable (`standard` | `enhanced`, default `enhanced`), passed via the modern `model` parameter instead of the deprecated `operating_point`.
+- `max_delay_mode`: default `flexible` so spoken entities (numbers, doses) are formatted completely before the final is emitted.
 
 ## Install — Windows PowerShell
 
@@ -110,6 +128,23 @@ Disable overlay:
 .\.venv\Scripts\python.exe app.py --language fa --no-overlay
 ```
 
+Select microphone and tune the session:
+
+```powershell
+.\.venv\Scripts\python.exe app.py --language fa --device-index 3 --model standard --max-delay 2.5 --save-report
+```
+
+Useful flags:
+
+| Flag | Meaning |
+| --- | --- |
+| `--device-index N` | PyAudio input device index (default: system default) |
+| `--model standard|enhanced` | Speechmatics model (default `enhanced`) |
+| `--max-delay 0.7-4.0` | Final-transcript delay in seconds (default `2.0`) |
+| `--max-delay-mode fixed|flexible` | Entity-aware final delay (default `flexible`) |
+| `--save-report` | Save the text/metadata session JSON report |
+| `--test-id <id>` | Benchmark case; automatically saves the report |
+
 ## Test protocol
 
 ### 1. Establish ASR baseline
@@ -132,7 +167,7 @@ Run:
 
 Repeat the exact same speech.
 
-### 3. Test deterministic medical normalization
+### 3. Test deterministic medical FST canonicalization
 
 Run:
 
@@ -140,12 +175,12 @@ Run:
 .\.venv\Scripts\python.exe app.py --language fa
 ```
 
-Compare:
+Compare the three pipeline stages (also available in the saved report):
 
-- `final_transcript_raw`
-- `final_transcript_normalized`
-- `final_transcript_canonicalized`
-- `medical_hits`
+- `final_transcript_raw` - true Speechmatics raw final (before normalization)
+- `final_transcript_normalized` - generic text normalization only
+- `final_transcript_canonical` - after the medical FST
+- `medical_hits` - which FST rule fired where (form/canonical/tier/source/position)
 
 ### 4. Benchmark
 
@@ -200,28 +235,36 @@ Phrase-level nursing expressions such as:
 
 Only observed forms from the uploaded session. These are evidence for the test dataset, not clinical ground truth.
 
+### `medical_knowledge/fst_terms.json`
+
+The curated FST rule set: phrases (`سی سی یو` -> `CCU`, `سی تی اسکن` -> `CT scan`), abbreviations (`آی وی` -> `IV`), units (`میلی گرم` -> `mg`, `درصد` -> `%`), Persianized-English pronunciations (`رایت لانگ` -> `right lung`, `هایپرتنشن` -> `hypertension`), and English ASR variants (`iv` -> `IV`, `ct scan` -> `CT scan`). Tiers define deterministic priority; the other knowledge files are merged into their own tiers by `speechmatics_test/fst.py`.
+
 ### `medical_knowledge/speechmatics_additional_vocab.json`
 
 A compact vocabulary intended for the Speechmatics `additional_vocab` feature.
 
 ## Evaluation
 
-Each result JSON contains:
+Each saved report JSON contains:
 
 ```json
 {
   "first_partial_latency_ms": 0,
   "final_transcript_raw": "...",
   "final_transcript_normalized": "...",
-  "final_transcript_canonicalized": "...",
+  "final_transcript_canonical": "...",
   "medical_hits": [],
   "evaluation": {
-    "wer": 0.0,
-    "number_accuracy": 1.0,
-    "similarity": 1.0
+    "raw":         { "wer": 0.0, "number_accuracy": 1.0, "similarity": 1.0 },
+    "normalized":  { "wer": 0.0, "number_accuracy": 1.0, "similarity": 1.0 },
+    "fst_canonical": { "wer": 0.0, "number_accuracy": 1.0, "similarity": 1.0 }
   }
 }
 ```
+
+Tokenization is medical-aware: `20 mg`, `20mg`, `120/80`, `5.5`, `3,14`,
+`O2`, `q2h`, `C3-C4`, `U/A`, `HbA1c` all tokenize as expected, and
+number accuracy only counts numeric tokens (multiset-aware).
 
 For a medical ASR benchmark, also inspect:
 

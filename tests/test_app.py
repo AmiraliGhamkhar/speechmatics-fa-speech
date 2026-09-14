@@ -1,0 +1,89 @@
+"""App-level tests: in-memory audio source and wiring helpers."""
+
+import asyncio
+from pathlib import Path
+
+import pytest
+
+from app import audio_source, load_benchmark
+import app as app_module
+
+
+class FakeRecorder:
+    def __init__(self, chunks):
+        self.chunks = list(chunks)
+
+    def read(self):
+        if not self.chunks:
+            raise RuntimeError("fake recorder exhausted")
+        return self.chunks.pop(0)
+
+
+async def collect_n(gen, n):
+    out = []
+    try:
+        async for chunk in gen:
+            out.append(chunk)
+            if len(out) == n:
+                break
+    finally:
+        await gen.aclose()
+    return out
+
+
+def test_audio_source_yields_chunks_in_memory_only(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    rec = FakeRecorder([b"chunk-1", b"chunk-2"])
+    got = asyncio.run(collect_n(app_module.audio_source(rec, max_seconds=10.0), 2))
+    assert got == [b"chunk-1", b"chunk-2"]
+    # nothing was written anywhere
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_audio_source_stops_after_max_seconds(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    # with max_seconds=0 the generator must stop without yielding
+    rec = FakeRecorder([b"chunk-1"])
+    got = asyncio.run(collect_n(app_module.audio_source(rec, max_seconds=0.0), 1))
+    assert got == []
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_audio_source_aclose_safe(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    rec = FakeRecorder([b"chunk-1", b"chunk-2"])
+    gen = app_module.audio_source(rec, max_seconds=10.0)
+
+    async def run():
+        out = []
+        async for chunk in gen:
+            out.append(chunk)
+            if len(out) == 1:
+                break
+        await gen.aclose()  # must not raise mid-stream
+        await gen.aclose()  # idempotent
+        return out
+
+    assert asyncio.run(run()) == [b"chunk-1"]
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_load_benchmark(tmp_path):
+    known = app_module.load_benchmark("mix_ct_lesion")
+    assert "CT scan" in known["expected"]
+    with pytest.raises(RuntimeError, match="Unknown test ID"):
+        app_module.load_benchmark("does-not-exist")
+
+
+def test_no_audio_persistence_references_in_app():
+    src = Path(app_module.__file__).read_text(encoding="utf-8")
+    assert ".wav" not in src
+    assert "recordings" not in src
+    assert "audio_path" not in src
+
+
+def test_overlay_has_final_api():
+    from overlay import TranscriptOverlay
+    assert hasattr(TranscriptOverlay, "set_final")
+    assert hasattr(TranscriptOverlay, "set_partial")
+    assert hasattr(TranscriptOverlay, "set_done")
