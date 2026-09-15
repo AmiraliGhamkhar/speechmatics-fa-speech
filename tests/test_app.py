@@ -80,10 +80,14 @@ def test_curated_speechmatics_vocab_is_bounded_and_keeps_sounds_like():
     vocab = SpeechmaticsRealtime._clean_vocab(app_module.load_vocab())
     by_content = {item["content"]: item for item in vocab if isinstance(item, dict)}
     assert len(vocab) < 100  # ASR biasing vocabulary, not the local dictionary
-    assert {"metformin", "CT scan", "HbA1c", "right lung"} <= set(by_content)
+    assert {
+        "metformin", "CT scan", "HbA1c", "right lung", "C3-C4", "mL"
+    } <= set(by_content)
     assert "M R I" in by_content["MRI"]["sounds_like"]
     assert "ام آر آی" in by_content["MRI"]["sounds_like"]
     assert "H B A one C" in by_content["HbA1c"]["sounds_like"]
+    assert "C three C four" in by_content["C3-C4"]["sounds_like"]
+    assert "میلی لیتر" in by_content["mL"]["sounds_like"]
 
 
 def test_no_audio_persistence_references_in_app():

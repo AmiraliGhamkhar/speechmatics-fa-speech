@@ -21,8 +21,12 @@
   { "content": "PRN", "sounds_like": ["P R N", "پی آر ان"] },
   { "content": "HbA1c", "sounds_like": ["H B A one C", "اچ بی ای وان سی"] },
   { "content": "O2", "sounds_like": ["O two", "او دو"] },
+  { "content": "C3-C4", "sounds_like": ["C three C four", "C three to C four", "سی سه سی چهار"] },
   { "content": "q2h", "sounds_like": ["q two h", "کیو تو اچ"] },
   { "content": "tds", "sounds_like": ["T D S", "تی دی اس"] },
+  { "content": "mg", "sounds_like": ["milligram", "میلی گرم"] },
+  { "content": "mL", "sounds_like": ["milliliter", "میلی لیتر"] },
+  { "content": "mmHg", "sounds_like": ["millimeters of mercury", "میلی متر جیوه"] },
   "Cardiac Care Unit",
   "Intensive Care Unit",
 
