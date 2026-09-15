@@ -11,7 +11,8 @@ pytest>=8.0
 # (`MedicalFST.uses_ahocorasick` reports which backend is active).
 pyahocorasick>=2.0.0
 
-# python-bidi: correct visual-order shaping of mixed Persian/English text in
-# the overlay (Tk's own BiDi shaping mis-orders mixed sentences on some
-# platforms). The app degrades gracefully when it is missing.
-python-bidi>=0.6.0
+# NOTE: python-bidi is no longer used. The application keeps all text in
+# LOGICAL Unicode order and controls direction with explicit Unicode controls
+# (RLM + RLE ... PDF, see speechmatics_test/presentation.py). Pre-shaping to
+# visual order double-applied the BiDi algorithm, because Tk and the target
+# editors already run it themselves.

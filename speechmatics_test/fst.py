@@ -57,7 +57,8 @@ try:  # pragma: no cover - depends on environment
 except ImportError:  # pragma: no cover
     _native_ac = None
 
-__all__ = ["MedicalFST", "FstError", "FstRule", "AhoAutomaton", "ENGINE_NAME"]
+__all__ = ["MedicalFST", "FstError", "FstRule", "AhoAutomaton", "ENGINE_NAME",
+           "casefold_preserving"]
 
 #: Public engine identifier (reported by the app banner and the reports).
 ENGINE_NAME = "aho-corasick"
@@ -79,6 +80,31 @@ _BOUNDARY_CHARACTERS = (
 _BOUNDARY_CHARS = frozenset(_BOUNDARY_CHARACTERS)
 
 
+def casefold_preserving(text: str) -> str:
+    """Case-insensitive folding that is guaranteed length-preserving.
+
+    ``str.casefold()`` is the correct Unicode case-insensitive mapping, but a
+    handful of code points expand (``\u00df`` -> ``ss``, ``\ufb00`` -> ``ff``).
+    An expansion would shift every following index, so the match positions
+    returned by the automaton could no longer be used against the ORIGINAL
+    text.  Folding character by character and keeping any expanding character
+    unchanged keeps ``len(fold(t)) == len(t)`` and index ``i`` of the folded
+    string always describing index ``i`` of the original.
+
+    Persian/Arabic letters are caseless: ``casefold`` returns them untouched,
+    so Persian text is never modified by this function.
+    """
+    if not text:
+        return text or ""
+    if text.isascii():
+        return text.lower()
+    out = []
+    for ch in text:
+        folded = ch.casefold()
+        out.append(folded if len(folded) == 1 else ch.lower()[:1] or ch)
+    return "".join(out)
+
+
 @dataclass(frozen=True)
 class FstRule:
     """One deterministic input-form -> canonical mapping."""
@@ -88,6 +114,14 @@ class FstRule:
     tier: int       # 0 = highest priority
     source: str     # provenance, e.g. "fst_terms.json" or "observed_asr_aliases.json"
     seq: int = 0    # stable ordering index (assigned at load time)
+    #: Case-folded form used for MATCHING ONLY (never for output). Always the
+    #: same length as ``form`` (see ``casefold_preserving``).
+    folded: str = ""
+
+    @property
+    def match_form(self) -> str:
+        """The string the automaton actually searches for (case-folded)."""
+        return self.folded or casefold_preserving(self.form)
 
     @property
     def key(self) -> tuple:
@@ -317,11 +351,16 @@ class MedicalFST:
             group = 0 if rule.source == "fst_terms.json" else 1
             return (group, rule.tier)
 
+        # Keyed by the CASE-FOLDED form: matching is case-insensitive, so two
+        # rules differing only in case are the same rule and must resolve
+        # deterministically through the existing priority/warning path
+        # instead of racing inside the automaton.
         best: dict[str, FstRule] = {}
         for rule in sorted(unique.values(), key=priority):
-            cur = best.get(rule.form)
+            folded = casefold_preserving(rule.form)
+            cur = best.get(folded)
             if cur is None:
-                best[rule.form] = rule
+                best[folded] = rule
             elif cur.canonical != rule.canonical:
                 self.warnings.append(
                     f"conflicting canonicals for form '{rule.form}': "
@@ -331,14 +370,15 @@ class MedicalFST:
 
         ordered = [
             FstRule(form=r.form, canonical=r.canonical, tier=r.tier,
-                    source=r.source, seq=seq)
+                    source=r.source, seq=seq,
+                    folded=casefold_preserving(r.form))
             for seq, r in enumerate(best.values())
         ]
         self.rules = ordered
 
         by_first: dict[str, list[FstRule]] = {}
         for rule in self.rules:
-            by_first.setdefault(rule.form[0], []).append(rule)
+            by_first.setdefault(rule.match_form[0], []).append(rule)
         for lst in by_first.values():
             lst.sort(key=lambda r: r.key)
         self._by_first = by_first
@@ -349,7 +389,10 @@ class MedicalFST:
         """Learn all rule forms once, up front (the core of Aho-Corasick)."""
         if not self.rules:
             return
-        forms = [rule.form for rule in self.rules]
+        # Case-insensitive MATCHING: the automaton learns the case-folded
+        # forms and later searches the case-folded text. Output always uses
+        # the untouched canonical value and the untouched original text.
+        forms = [rule.match_form for rule in self.rules]
         self.uses_ahocorasick = _native_ac is not None
         if _native_ac is not None:
             automaton = _native_ac.Automaton()
@@ -389,9 +432,13 @@ class MedicalFST:
         """
         candidates_at: dict[int, list[tuple[int, FstRule]]] = {}
         length = len(text)
-        for end, idx in self._iter_matches(text):
+        # Search the case-folded projection of the text; ``casefold_preserving``
+        # guarantees index i of ``haystack`` is index i of ``text``, so every
+        # position below is applied to the ORIGINAL logical text.
+        haystack = casefold_preserving(text)
+        for end, idx in self._iter_matches(haystack):
             rule = self.rules[idx]
-            start = end - len(rule.form) + 1
+            start = end - len(rule.match_form) + 1
             end_excl = end + 1
             # Token-aware: an Aho-Corasick match inside a longer token
             # must be discarded (never a substring replacement).
@@ -443,12 +490,13 @@ class MedicalFST:
         hits: list[dict[str, Any]] = []
         i = 0
         length = len(text)
+        haystack = casefold_preserving(text)
         while i < length:
             if self._is_start_boundary(text, i):
                 best: Optional[FstRule] = None
-                for rule in self._by_first.get(text[i], ()):
-                    end = i + len(rule.form)
-                    if text.startswith(rule.form, i) and self._is_end_boundary(
+                for rule in self._by_first.get(haystack[i], ()):
+                    end = i + len(rule.match_form)
+                    if haystack.startswith(rule.match_form, i) and self._is_end_boundary(
                         text, end
                     ):
                         if best is None or rule.key < best.key:
