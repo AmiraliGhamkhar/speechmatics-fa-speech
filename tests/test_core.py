@@ -136,12 +136,13 @@ def test_confidence_summary_surfaces_uncertain_numeric_and_entity_tokens():
         {"content": "O2", "confidence": 0.96, "language": "en", "start_time": 1.8, "end_time": 1.9},
         {"content": "C3-C4", "confidence": 0.96, "language": "en", "start_time": 1.9, "end_time": 2.0},
         {"content": "q2h", "confidence": 0.96, "language": "en", "start_time": 2.0, "end_time": 2.1},
+        {"content": "mmHg", "confidence": 0.50, "language": "en", "start_time": 2.1, "end_time": 2.2},
     ]
     summary = confidence_summary(words)
     assert summary["entity_word_count"] == len(words)
-    assert summary["low_confidence_entity_count"] == 3
+    assert summary["low_confidence_entity_count"] == 4
     assert [word["content"] for word in summary["low_confidence_entities"]] == [
-        "120/80", "mg", "HbA1c",
+        "120/80", "mg", "HbA1c", "mmHg",
     ]
 
 

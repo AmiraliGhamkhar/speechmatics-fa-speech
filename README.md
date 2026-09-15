@@ -94,7 +94,7 @@ text        --(one pass)-->    raw matches -> token-boundary filter
 - `max_delay`: configurable seconds in the valid Speechmatics range **0.7–4.0** (default **2.0**, the docs-recommended trade-off). This supports controlled runs at `2.0`, `2.5`, `3.0`, `3.5`, and `4.0` with the existing `--max-delay` flag.
 - `model`: configurable (`standard` | `enhanced`, default `enhanced`), passed via the modern `model` parameter.
 - `max_delay_mode`: default `flexible` so spoken entities (numbers, doses) are formatted completely before the final is emitted.
-- `additional_vocab` is intentionally curated and bounded: high-value drugs, diseases, procedures, imaging, labs, anatomy, abbreviations, and observed Persianized pronunciations. The larger knowledge files remain local Aho-Corasick rules. `sounds_like` accepts short pronunciation phrases such as `M R I` and `ام آر آی`.
+- `additional_vocab` is intentionally curated and bounded: high-value drugs, diseases, procedures, imaging, labs, anatomy, abbreviations, dosage units, compact entities (`HbA1c`, `O2`, `C3-C4`, `q2h`), and observed Persianized pronunciations. The larger knowledge files remain local Aho-Corasick rules. `sounds_like` accepts short pronunciation phrases such as `M R I` and `ام آر آی`.
 
 Final messages also retain first-alternative word `content`, `confidence`, `language`, and timing. Saved reports add `speechmatics`, `word_results`, and `confidence_summary`; established report fields remain unchanged. Confidence/language evidence can annotate a validated lexical hit and only breaks an otherwise equal lexical tie—it never creates a medical correction on its own.
 

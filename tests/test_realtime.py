@@ -72,8 +72,10 @@ def install_fake_sdk(monkeypatch, behavior=None):
             registry["configs"].append(kwargs)
 
     class _Metadata:
-        def __init__(self, transcript):
+        def __init__(self, transcript, start_time=None, end_time=None):
             self.transcript = transcript
+            self.start_time = start_time
+            self.end_time = end_time
 
     class TranscriptResult:
         def __init__(self, metadata, results=None):
@@ -82,7 +84,15 @@ def install_fake_sdk(monkeypatch, behavior=None):
 
         @classmethod
         def from_message(cls, message):
-            return cls(_Metadata(message.get("transcript")), message.get("results"))
+            metadata = message.get("metadata") or {}
+            return cls(
+                _Metadata(
+                    message.get("transcript"),
+                    metadata.get("start_time"),
+                    metadata.get("end_time"),
+                ),
+                message.get("results"),
+            )
 
     class FakeClient:
         def __init__(self, **kwargs):
@@ -121,12 +131,17 @@ def install_fake_sdk(monkeypatch, behavior=None):
                 item = self._script.pop(0)
                 kind, text = item[:2]
                 results = item[2] if len(item) > 2 else []
+                metadata = item[3] if len(item) > 3 else {}
                 event = (
                     ServerMessageType.ADD_PARTIAL_TRANSCRIPT
                     if kind == "partial" else ServerMessageType.ADD_TRANSCRIPT
                 )
                 if event in self.handlers:
-                    self.handlers[event]({"transcript": text, "results": results})
+                    self.handlers[event]({
+                        "transcript": text,
+                        "results": results,
+                        "metadata": metadata,
+                    })
 
         async def stop_session(self):
             if behavior.get("fail_stop"):
@@ -309,6 +324,50 @@ def test_final_word_results_preserve_confidence_language_and_timing(monkeypatch)
     assert result.final_segments[0]["word_start_index"] == 0
     assert result.final_segments[0]["word_end_index"] == 3
     assert registry["configs"][0]["domain"] == "medical"
+
+
+def test_final_segments_preserve_speechmatics_timing(monkeypatch):
+    result, *_ = run_ok(monkeypatch, script=[
+        (
+            "final", "clinical segment", [],
+            {"start_time": 2.0, "end_time": 2.8},
+        ),
+    ])
+    assert result.final_segments[0]["start_time"] == 2.0
+    assert result.final_segments[0]["end_time"] == 2.8
+
+
+def test_word_result_type_accepts_sdk_style_enums():
+    class ResultType(Enum):
+        WORD = "word"
+        PUNCTUATION = "punctuation"
+
+    transcript_result = {
+        "results": [
+            {
+                "type": ResultType.WORD,
+                "start_time": 0.0,
+                "end_time": 0.2,
+                "alternatives": [
+                    {"content": "MRI", "confidence": 0.88, "language": "en"},
+                ],
+            },
+            {
+                "type": ResultType.PUNCTUATION,
+                "start_time": 0.2,
+                "end_time": 0.2,
+                "alternatives": [
+                    {"content": ".", "confidence": 1.0, "language": "en"},
+                ],
+            },
+        ],
+    }
+    assert SpeechmaticsRealtime._extract_word_results(transcript_result) == [
+        {
+            "content": "MRI", "confidence": 0.88, "language": "en",
+            "start_time": 0.0, "end_time": 0.2,
+        },
+    ]
 
 
 def test_missing_structured_results_keeps_final_text_and_empty_words(monkeypatch):

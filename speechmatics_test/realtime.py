@@ -2,7 +2,7 @@
 
 The adapter keeps partials separate from finalized segments, sends the
 medical/enhanced/flexible realtime configuration, and records only useful
-word-level data from final ``TranscriptResult.results`` entries.
+word-level/final-segment data from final SDK messages.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ LOW_CONFIDENCE_THRESHOLD = 0.75
 # Values and compact clinical entities where a low confidence is useful to
 # surface in the report, never to rewrite the recognized value.
 _ENTITY_TOKEN = re.compile(
-    r"(?:\d+(?:[.,]\d+)*(?:/\d+(?:[.,]\d+)*)*|hba1c|o2|c\d+-c\d+|q\d+h|mg|ml)",
+    r"(?:\d+(?:[.,]\d+)*(?:/\d+(?:[.,]\d+)*)*|hba1c|o2|c\d+-c\d+|q\d+h|mg|ml|mmhg)",
     re.IGNORECASE,
 )
 
@@ -44,6 +44,26 @@ def _language_group(language: Any) -> str:
     if value.startswith(("en", "eng", "english")):
         return "English"
     return "unknown"
+
+
+def _useful_number(value: Any) -> float | None:
+    """Retain SDK numeric metadata while dropping bools and non-numbers."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return None
+
+
+def _result_type_name(value: Any) -> str:
+    """Normalize SDK/test enum or string result types for word filtering."""
+    if isinstance(value, str):
+        return value.lower()
+    raw = getattr(value, "value", None)
+    if isinstance(raw, str):
+        return raw.lower()
+    name = getattr(value, "name", None)
+    if isinstance(name, str):
+        return name.lower()
+    return str(value).rsplit(".", 1)[-1].lower()
 
 
 def confidence_summary(word_results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -224,14 +244,16 @@ class SpeechmaticsRealtime:
     @staticmethod
     def _field(item: Any, name: str, default: Any = None) -> Any:
         """Read SDK objects and lightweight test fixtures uniformly."""
-        return item.get(name, default) if isinstance(item, dict) else getattr(item, name, default)
+        if isinstance(item, dict):
+            return item.get(name, default)
+        return getattr(item, name, default)
 
     @classmethod
     def _extract_word_results(cls, transcript_result: Any) -> list[dict[str, Any]]:
         """Keep first-alternative, final word evidence and discard SDK noise."""
         words: list[dict[str, Any]] = []
         for result in cls._field(transcript_result, "results", []) or []:
-            if cls._field(result, "type") != "word":
+            if _result_type_name(cls._field(result, "type")) != "word":
                 continue
             alternatives = cls._field(result, "alternatives", []) or []
             if not alternatives:
@@ -242,20 +264,30 @@ class SpeechmaticsRealtime:
                 continue
             content = content.strip()
 
-            def useful_number(value: Any) -> float | None:
-                if isinstance(value, (int, float)) and not isinstance(value, bool):
-                    return float(value)
-                return None
-
             language = cls._field(alternative, "language")
             words.append({
                 "content": content,
-                "confidence": useful_number(cls._field(alternative, "confidence")),
-                "language": language.strip() if isinstance(language, str) and language.strip() else None,
-                "start_time": useful_number(cls._field(result, "start_time")),
-                "end_time": useful_number(cls._field(result, "end_time")),
+                "confidence": _useful_number(cls._field(alternative, "confidence")),
+                "language": (
+                    language.strip()
+                    if isinstance(language, str) and language.strip() else None
+                ),
+                "start_time": _useful_number(cls._field(result, "start_time")),
+                "end_time": _useful_number(cls._field(result, "end_time")),
             })
         return words
+
+    @classmethod
+    def _segment_timing(cls, metadata: Any) -> dict[str, float]:
+        """Return Speechmatics audio-relative segment timing when present."""
+        timing: dict[str, float] = {}
+        start_time = _useful_number(cls._field(metadata, "start_time"))
+        end_time = _useful_number(cls._field(metadata, "end_time"))
+        if start_time is not None:
+            timing["start_time"] = start_time
+        if end_time is not None:
+            timing["end_time"] = end_time
+        return timing
 
     # -------------------------------------------------------------------- run
 
@@ -324,7 +356,9 @@ class SpeechmaticsRealtime:
                 def handle_partial(message):
                     try:
                         result = TranscriptResult.from_message(message)
-                        text = (result.metadata.transcript or "").strip()
+                        text = (
+                            self._field(result.metadata, "transcript") or ""
+                        ).strip()
                     except Exception as exc:
                         print(f"\n[partial parse warning] {exc}")
                         return
@@ -345,7 +379,9 @@ class SpeechmaticsRealtime:
                 def handle_final(message):
                     try:
                         result = TranscriptResult.from_message(message)
-                        text = (result.metadata.transcript or "").strip()
+                        text = (
+                            self._field(result.metadata, "transcript") or ""
+                        ).strip()
                         words = self._extract_word_results(result)
                     except Exception as exc:
                         print(f"\n[final parse warning] {exc}")
@@ -357,12 +393,14 @@ class SpeechmaticsRealtime:
                     ) * 1000.0
                     word_start = len(self.result.word_results)
                     self.result.word_results.extend(words)
-                    self.result.final_segments.append({
+                    segment = {
                         "t_ms": round(elapsed_ms, 1),
                         "text": text,
                         "word_start_index": word_start,
                         "word_end_index": len(self.result.word_results),
-                    })
+                    }
+                    segment.update(self._segment_timing(result.metadata))
+                    self.result.final_segments.append(segment)
                     on_final(text)
 
                 try:
