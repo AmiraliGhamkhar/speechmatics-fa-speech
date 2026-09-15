@@ -249,13 +249,39 @@ class TranscriptOverlay:
         self._ui(_)
 
     def close(self) -> None:
-        """Cleanly close overlay window."""
+        """Cleanly close the overlay and wait briefly for its UI thread.
+
+        ``_ui`` deliberately ignores work after ``_closed`` is set.  The old
+        implementation set that flag *before* calling ``_ui``, so the destroy
+        callback was always discarded.  The invisible consequence was that
+        the always-on-top window kept following the mouse during target
+        selection and could receive the click intended for the editor.  Text
+        was then pasted into the previously focused window (often the
+        terminal), which looked like injection had done nothing.
+        """
+        if self._closed:
+            return
+
+        root = self._root
+        thread = getattr(self, "_thread", None)
         self._closed = True
-        def _():
-            if self._root is not None:
+
+        if root is not None:
+            def destroy() -> None:
                 try:
-                    self._root.destroy()
+                    root.destroy()
                 except Exception:
                     pass
-                self._root = None
-        self._ui(_)
+                finally:
+                    self._root = None
+
+            # Do not use _ui() here: it correctly rejects callbacks once the
+            # overlay is closed.  Tk's queued callback makes destruction occur
+            # on the UI thread rather than racing mainloop from the ASR thread.
+            try:
+                root.after(0, destroy)
+            except Exception:
+                destroy()
+
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=1.0)

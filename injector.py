@@ -162,6 +162,19 @@ if _SYSTEM == "windows":
     user32.GetForegroundWindow.argtypes = []
     user32.GetForegroundWindow.restype = wintypes.HWND
 
+    # These are used by get_foreground_window_info() immediately before the
+    # paste.  Leaving them untyped makes ctypes coerce the 64-bit HWND to a
+    # 32-bit C int, which can make the countdown crash before paste_text() is
+    # ever reached on 64-bit Windows.
+    user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+    user32.GetWindowTextLengthW.restype = ctypes.c_int
+
+    user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user32.GetWindowTextW.restype = ctypes.c_int
+
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+
 
 class TextInjector:
     """Injects Persian/RTL and Unicode text at current cursor position."""
