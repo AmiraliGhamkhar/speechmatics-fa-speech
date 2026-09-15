@@ -7,7 +7,7 @@ A production-oriented medical dictation app for Speechmatics Realtime with Persi
 1. **Aho-Corasick post-processing engine** (replaces the OpenFst/Pynini transducer). All rule forms are learned **once** into a single automaton and then **all searched simultaneously** in one linear pass over the text — the fastest known approach for large rule sets, and it ships with Windows-friendly wheels (`pyahocorasick`) plus a built-in pure-Python automaton with identical output.
 2. **Automatic injection — hotkeys and the manual countdown are gone.** Like [deepgram-v6](https://github.com/AmiraliGhamkhar/deepgram-v6), every *finalized* segment is pasted at the cursor immediately during the session (`Ctrl+V` clipboard paste, always with BiDi marks). Just click the target field once and dictate.
 3. **Better injector** — mixed Persian/English payloads are wrapped in `RLM + RLE … PDF` and cleaned (whitespace collapse + ZWNJ repair) before pasting, so LTR-default EMR forms render RTL text correctly.
-4. **Better overlay** — `python-bidi` visual-order shaping, smart direction detection based on the Persian/English character ratio (not just the first strong character), larger font, and a safer fallback chain.
+4. **Better overlay** — logical-order text with explicit Unicode direction controls (`RLM + RLE … PDF`) instead of visual-order pre-shaping, smart *base direction* detection based on the Persian/English character ratio (not just the first strong character), larger font, and a safer fallback chain.
 
 ## Pipeline
 
@@ -85,7 +85,7 @@ text        --(one pass)-->    raw matches -> token-boundary filter
 
 - Larger, right/left-aligned automatically based on the detected direction.
 - **Smart direction detection** uses the proportion of Persian/Arabic vs Latin letters (تشخیص هوشمند جهت بر اساس درصد فارسی/انگلیسی) with a first-strong-character tiebreak — Persian-dominant sentences that merely start with a Latin word (e.g. `CT scan بیمار …`) stay right-aligned.
-- **python-bidi** shapes the display string into visual order when Tk's own BiDi shaping would mis-order mixed text; the app degrades gracefully when the package is missing.
+- **Logical order everywhere.** The overlay never reorders characters: it renders `canonical_text` and only adds explicit Unicode direction controls (`RLM + RLE … PDF` for RTL-dominant text). Pre-shaping with `python-bidi.get_display()` double-applied the BiDi algorithm, since Tk already lays out BiDi text itself.
 - Persian font fallback chain: Vazirmatn → Vazir → IRANSans → B Yekan → B Nazanin → Segoe UI → Tahoma → Arial.
 
 ## Speechmatics session configuration

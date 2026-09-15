@@ -61,27 +61,20 @@ _SYSTEM = platform.system().lower()
 # Tag our own synthetic events so we can tell them apart from real typing.
 _INJECT_SIGNATURE = 0x53545449  # "STTI"
 
-#: Unicode directional marks used for the RTL payload wrap.
-RLM = "\u200f"  # Right-to-Left Mark
-RLE = "\u202b"  # Right-to-Left Embedding
-PDF = "\u202c"  # Pop Directional Formatting
-ZWNJ = "\u200c"
-
-_RTL_RANGES = (
-    ("\u0600", "\u06ff"),
-    ("\u0750", "\u077f"),
-    ("\ufb50", "\ufdff"),
-    ("\ufe70", "\ufeff"),
+#: Unicode directional marks used for the RTL payload wrap. They are
+#: PRESENTATION metadata only: they are added here, on the way out, and are
+#: never part of the canonical medical transcript.
+from speechmatics_test.presentation import (  # noqa: E402  (kept next to use)
+    PDF,
+    RLE,
+    RLM,
+    contains_rtl,
+    detect_direction,
+    strip_bidi_controls,
+    wrap_for_direction,
 )
 
-
-def contains_rtl(text: str) -> bool:
-    """True when the string contains at least one RTL (Persian/Arabic) char."""
-    for ch in text:
-        for lo, hi in _RTL_RANGES:
-            if lo <= ch <= hi:
-                return True
-    return False
+ZWNJ = "\u200c"
 
 
 def clean_payload_spacing(text: str) -> str:
@@ -264,44 +257,55 @@ class TextInjector:
         """
         آماده‌سازی متن ترکیبی فارسی-انگلیسی برای جهت RTL صحیح.
 
-        1. Clean spacing/ZWNJ (``clean_payload_spacing``).
-        2. If the payload contains RTL characters, wrap it in directional
-           marks: ``RLM + RLE + text + PDF``. Editors that default to LTR
-           (EMR web forms, Notepad dialogs) then render the mixed string in
-           the right order instead of scattering the Latin fragments.
+        The injector performs **presentation work only** - it never rewrites
+        medical terminology (that already happened once, deterministically,
+        in ``MedicalLayer.canonicalize``). The payload it receives IS the
+        canonical logical text, and what it pastes is that same text plus
+        direction controls:
 
-        The wrap is idempotent: re-preparing an already wrapped payload
-        returns it unchanged (marks are stripped and reapplied once).
+        1. strip any direction controls that are already present, so the
+           logical text is recovered exactly (**idempotency**);
+        2. clean spacing/ZWNJ (``clean_payload_spacing``);
+        3. keep the intentional trailing separator space *inside* the
+           embedding, so consecutive RTL segments stay attached;
+        4. wrap RTL-dominant payloads as ``RLM + RLE + text + PDF``; LTR
+           payloads are returned as-is.
+
+        Re-preparing an already prepared payload returns the identical
+        string - never ``RLM + RLM + RLE + RLE ... PDF + PDF``.
         """
         if not text:
             return text
 
+        # Recover the pure logical payload first: the input may already be a
+        # prepared (wrapped) payload.
+        logical = strip_bidi_controls(text)
+
         # A trailing separator (e.g. the space auto-injection appends after
         # each segment) must survive the cleanup: keeping it INSIDE the
         # embedding keeps it attached to the RTL run.
-        has_trailing_space = bool(text) and text[-1].isspace()
+        has_trailing_space = bool(logical) and logical[-1].isspace()
 
-        text = clean_payload_spacing(text)
-        if not text:
-            return " " if has_trailing_space else text
+        logical = clean_payload_spacing(logical)
+        if not logical:
+            return " " if has_trailing_space else ""
 
-        # Strip any previous wrap so the function stays idempotent.
-        if text.startswith(RLM):
-            text = text[1:]
-        if (
-            text.startswith(RLE)
-            and text.endswith(PDF)
-            and text.count(RLE) == 1
-            and text.count(PDF) == 1
-        ):
-            text = text[1:-1]
+        if has_trailing_space and not logical.endswith(" "):
+            logical += " "
 
-        if has_trailing_space and not text.endswith(" "):
-            text += " "
+        if not self.add_bidi_marks:
+            return logical
+        return wrap_for_direction(logical)
 
-        if self.add_bidi_marks and contains_rtl(text):
-            return RLM + RLE + text + PDF
-        return text
+    @staticmethod
+    def logical_payload(text: str) -> str:
+        """The clean logical text a prepared payload carries (audit helper).
+
+        ``injector.logical_payload(injector.prepare_mixed_text(canonical))``
+        must equal the canonical text (modulo whitespace cleanup), which is
+        how the tests prove that no second medical rewrite happens here.
+        """
+        return strip_bidi_controls(text or "")
 
     def get_foreground_window_info(self) -> dict:
         """Return the current foreground window handle/title on Windows."""
@@ -441,9 +445,12 @@ class TextInjector:
         if not text:
             return False
 
-        # Optional extra Right-to-Left Mark on top of the standard wrap,
-        # kept for panic-mode interop with very broken BiDi fields.
-        if add_rtl_mark and not text.startswith(RLM):
+        # ``add_rtl_mark`` is kept for API compatibility: prepare_mixed_text
+        # already emits exactly one RLM for RTL payloads, and adding another
+        # one here would be a duplicated wrapper. Only a payload that has no
+        # direction control at all (LTR-dominant) may receive the panic-mode
+        # mark, and only when it actually contains RTL characters.
+        if add_rtl_mark and not text.startswith(RLM) and contains_rtl(text):
             text = RLM + text
 
         if self.dry_run:

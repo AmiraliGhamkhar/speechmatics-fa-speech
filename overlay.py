@@ -1,12 +1,22 @@
 """
 Always-on-top floating transcript overlay optimized for mixed Persian & English medical text.
 - Supports Persian fonts (Vazirmatn, IRANSans, B Yekan, Tahoma, Segoe UI).
-- python-bidi visual-order shaping for correctly mirrored mixed sentences.
-- Smart RTL/LTR direction detection based on the Persian/English ratio.
+- Keeps ALL text in LOGICAL Unicode order and controls direction with the
+  explicit Unicode controls (RLM + RLE ... PDF) instead of pre-reordering it.
+- Smart RTL/LTR *base direction* detection based on the Persian/English ratio.
 - Larger readable font with a safe fallback chain.
 - Auto-clamps to screen borders so it never goes off-screen.
 - Smooth Catppuccin dark theme with real-time status indicators.
 - Graceful headless fallback when GUI / Tkinter is unavailable.
+
+Why no ``python-bidi.get_display()``
+------------------------------------
+``get_display()`` converts logical order into *visual* order.  Tk (and the
+platform text engine underneath it) already runs the Unicode BiDi algorithm
+when it lays out a label, so feeding it visual-order text applies BiDi
+twice: Persian runs come out reversed and embedded English medical terms
+("MRI", "CT scan") get scattered.  The fix is to never reorder anything and
+instead tell the renderer what the paragraph direction is.
 """
 from __future__ import annotations
 
@@ -14,6 +24,16 @@ import logging
 import platform
 import threading
 from typing import Optional
+
+from speechmatics_test.presentation import (
+    PDF,
+    RLE,
+    RLM,
+    contains_rtl,
+    detect_direction,
+    strip_bidi_controls,
+    wrap_for_direction,
+)
 
 log = logging.getLogger("medical-stt.overlay")
 _SYSTEM = platform.system().lower()
@@ -26,16 +46,6 @@ try:
     _TK_AVAILABLE = True
 except Exception:
     _TK_AVAILABLE = False
-
-# python-bidi: visual-order shaping of mixed RTL/LTR text. Tk's own BiDi
-# support on some platforms (notably older Windows Tk builds) mis-orders
-# mixed Persian/English sentences; shaping to visual order first fixes it.
-try:
-    from bidi.algorithm import get_display as _bidi_display
-    _HAS_BIDI = True
-except Exception:
-    _HAS_BIDI = False
-
 
 _RTL_RANGES = (
     ("\u0600", "\u06ff"),
@@ -55,59 +65,23 @@ def _count_rtl(text: str) -> int:
     return n
 
 
-def detect_direction(text: str, rtl_threshold: float = 0.35) -> str:
+def display_text(text: str) -> str:
+    """Return the presentation form of a LOGICAL string for the overlay.
+
+    RTL-dominant:  ``RLM + RLE + logical_text + PDF``
+    LTR-dominant:  ``logical_text``
+
+    No characters are reordered, duplicated or dropped - the only difference
+    from the canonical transcript is the direction controls, and applying
+    the function twice yields the same string (idempotent).
     """
-    تشخیص هوشمند جهت بر اساس درصد فارسی/انگلیسی.
-
-    Returns "rtl" or "ltr" by comparing the share of Persian/Arabic letters
-    against Latin letters:
-
-    - If RTL characters are at least ``rtl_threshold`` of the alphabetic
-      content -> "rtl" (Persian-dominant dictation stays right-aligned even
-      when it embeds Latin medical words like "CT scan").
-    - The *first strong character* breaks ties/near-ties so that a sentence
-      starting with English stays left-aligned.
-    - Empty/neutral text defaults to "rtl" (Persian is the product default).
-    """
-    s = (text or "").strip()
-    if not s:
-        return "rtl"
-
-    rtl = _count_rtl(s)
-    latin = sum(1 for ch in s if ch.isascii() and ch.isalpha())
-
-    total = rtl + latin
-    if total == 0:
-        return "rtl"
-
-    share = rtl / total
-    if share >= 0.90:
-        return "rtl"
-    if share <= 0.10:
-        return "ltr"
-    if share >= rtl_threshold:
-        return "rtl"
-    # Ambiguous mixed text: respect the first strong directional character.
-    for ch in s:
-        if any(lo <= ch <= hi for lo, hi in _RTL_RANGES):
-            return "rtl"
-        if ch.isascii() and ch.isalpha():
-            return "ltr"
-    return "rtl"
+    return wrap_for_direction(text)
 
 
-def shape_for_display(text: str) -> str:
-    """
-    Apply the Unicode BiDi algorithm (python-bidi) to produce visual-order
-    text for widgets that mis-shape mixed strings. Falls back to the raw
-    text when python-bidi is not installed.
-    """
-    if not _HAS_BIDI or not text:
-        return text or ""
-    try:
-        return _bidi_display(text, base_dir="R" if detect_direction(text) == "rtl" else "L")
-    except Exception:
-        return text
+#: Backwards-compatible alias. The overlay no longer produces visual-order
+#: text; this now returns the logical string plus explicit direction
+#: controls, which is what every renderer in the stack expects.
+shape_for_display = display_text
 
 
 def _get_best_persian_font(root: "tk.Tk") -> str:
@@ -273,16 +247,21 @@ class TranscriptOverlay:
             self._label.config(anchor="nw", justify="left")
 
     def _render(self, text: str) -> tuple[str, str]:
-        """Return (display_text, direction) for a logical-order string."""
-        direction = detect_direction(text)
-        return shape_for_display(text), direction
+        """Return ``(display_text, base_direction)`` for a LOGICAL string.
+
+        ``text`` is the canonical transcript and is never reordered: only
+        Unicode direction controls are added on top of it.
+        """
+        logical = strip_bidi_controls(text or "")
+        direction = detect_direction(logical)
+        return wrap_for_direction(logical, direction), direction
 
     def set_partial(self, text: str) -> None:
         """Real-time streaming hypothesis update (UI/overlay only)."""
         def _():
-            raw = text or ""
-            display = self._render(raw)[0] if raw else "..."
-            self._apply_text_alignment(raw)
+            raw = strip_bidi_controls(text or "")
+            display, direction = self._render(raw) if raw else ("...", None)
+            self._apply_text_alignment(raw, direction)
             if self._label:
                 self._label.config(text=display, fg="#cdd6f4")
             if self._status:
@@ -296,9 +275,9 @@ class TranscriptOverlay:
         ``set_partial``: partials are revisable hypotheses, finals are not.
         """
         def _():
-            raw = text or ""
-            display = self._render(raw)[0] if raw else "..."
-            self._apply_text_alignment(raw)
+            raw = strip_bidi_controls(text or "")
+            display, direction = self._render(raw) if raw else ("...", None)
+            self._apply_text_alignment(raw, direction)
             if self._label:
                 self._label.config(text=display, fg="#f9e2af")
             if self._status:
@@ -308,9 +287,9 @@ class TranscriptOverlay:
     def set_done(self, text: str) -> None:
         """Final transcript successfully injected into cursor position."""
         def _():
-            raw = text or ""
-            display = self._render(raw)[0] if raw else "..."
-            self._apply_text_alignment(raw)
+            raw = strip_bidi_controls(text or "")
+            display, direction = self._render(raw) if raw else ("...", None)
+            self._apply_text_alignment(raw, direction)
             if self._label:
                 self._label.config(text=display, fg="#89b4fa")
             if self._status:

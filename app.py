@@ -198,27 +198,34 @@ async def main() -> int:
             overlay.set_partial(clean)
 
     def on_final(text: str):
-        # Finalized segment: normalize -> Aho-Corasick canonical -> display as
-        # FINAL -> inject automatically right away (deepgram-v6 style).
+        # Finalized segment. The pipeline is fixed and single-pass:
+        #
+        #   Speechmatics final -> normalize_text -> MedicalLayer.canonicalize
+        #     -> canonical segment -> overlay.set_final(canonical)
+        #                          -> injector.paste_text(canonical)
+        #
+        # ``canonical`` is clean LOGICAL Unicode: it carries no RLM/RLE/PDF.
+        # The overlay and the injector each add their own presentation
+        # controls on top of it; neither rewrites the medical content.
         clean = normalize_text(text)
         if not clean:
             return
-        segment, _hits = (
+        canonical, _hits = (
             medical.canonicalize(clean) if not args.no_medical_layer
             else (clean, [])
         )
-        print("\n[final]   " + segment)
+        print("\n[final]   " + canonical)
         if overlay:
-            overlay.set_final(segment)
+            overlay.set_final(canonical)
 
         if injector:
             # Trailing space keeps consecutive segments separated in the
             # target field; prepare_mixed_text keeps it inside the BiDi wrap.
             injector.reset_partial()
-            ok = injector.paste_text(segment + " ", add_rtl_mark=True)
-            injected_segments.append({"text": segment, "success": bool(ok)})
+            ok = injector.paste_text(canonical + " ", add_rtl_mark=True)
+            injected_segments.append({"text": canonical, "success": bool(ok)})
             if overlay and ok:
-                overlay.set_done(segment)
+                overlay.set_done(canonical)
 
     # Ctrl+C must STOP THE RECORDING, not kill the program: everything after
     # this point (canonicalization, cleanliness, report) is exactly what the
