@@ -87,3 +87,33 @@ def test_overlay_has_final_api():
     assert hasattr(TranscriptOverlay, "set_final")
     assert hasattr(TranscriptOverlay, "set_partial")
     assert hasattr(TranscriptOverlay, "set_done")
+
+
+def test_overlay_close_schedules_destroy_after_marking_closed():
+    """Regression: close used to route through _ui and drop its own callback."""
+    from overlay import TranscriptOverlay
+
+    events = []
+
+    class Root:
+        def after(self, delay, callback):
+            events.append(("after", delay))
+            callback()
+
+        def destroy(self):
+            events.append(("destroy",))
+
+    overlay = TranscriptOverlay.__new__(TranscriptOverlay)
+    overlay._root = Root()
+    overlay._closed = False
+    overlay._thread = None
+
+    overlay.close()
+
+    assert overlay._closed is True
+    assert overlay._root is None
+    assert events == [("after", 0), ("destroy",)]
+
+    # Closing is idempotent and must not schedule another Tk operation.
+    overlay.close()
+    assert events == [("after", 0), ("destroy",)]
