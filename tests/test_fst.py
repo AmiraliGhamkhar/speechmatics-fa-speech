@@ -347,14 +347,22 @@ def test_engine_failure_degrades_to_reference_scanner(fst, monkeypatch):
 
 def test_engine_is_built_once_and_reported(fst):
     """No per-input automaton rebuilds (the old FST cache problem is gone):
-    the automaton is compiled a single time at load."""
-    assert fst.uses_ahocorasick is True
-    assert fst._ac_native is not None
+    the automaton is compiled a single time at load.
+
+    Backend-agnostic on purpose: the suite must also pass on platforms where
+    the native pyahocorasick wheel is unavailable and the pure-Python
+    automaton is active (the two are parity-tested elsewhere).
+    """
     assert fst.engine.startswith("aho-corasick")
-    same_engine = fst._ac_native
+    if fst.uses_ahocorasick:
+        assert fst._ac_native is not None and fst._ac_python is None
+        same_engine = fst._ac_native
+    else:
+        assert fst._ac_python is not None and fst._ac_native is None
+        same_engine = fst._ac_python
     for _ in range(50):
         fst.canonicalize(normalize_text("سی سی یو و آی وی"))
-    assert fst._ac_native is same_engine
+    assert (fst._ac_native or fst._ac_python) is same_engine
 
 
 # ------------------------------------------------------------- raw automaton
