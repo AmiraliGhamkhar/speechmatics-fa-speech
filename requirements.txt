@@ -3,19 +3,15 @@ PyAudio==0.2.14
 python-dotenv==1.2.3
 pytest>=8.0
 
-# Pynini is an OPTIONAL accelerator for the medical FST layer.
-#
-# It is deliberately NOT a hard requirement: pynini ships Linux-only wheels
-# (manylinux x86_64). On Windows - the platform this app documents as primary -
-# pip falls back to the source distribution, which needs a preinstalled
-# OpenFst toolchain and a C++11 compiler, so `pip install -r requirements.txt`
-# failed outright and the whole install was blocked.
-#
-# speechmatics_test/fst.py already contains a deterministic pure-Python
-# scanner that implements the identical priority scheme and is verified
-# against the pynini backend by the test suite, so the application is fully
-# functional without it (`MedicalFST.uses_pynini` reports the active backend).
-#
-# On Windows/macOS install it via conda if you want the OpenFst backend:
-#     conda install -c conda-forge pynini=2.1.6.post1
-pynini>=2.1.6; sys_platform == "linux" and platform_machine == "x86_64"
+# Post-processing engine: Aho-Corasick automaton.
+# pyahocorasick is a lean C extension with Windows/macOS/Linux wheels, unlike
+# the old OpenFst/Pynini stack which shipped Linux-only wheels and needed a
+# full C++ toolchain elsewhere. If the wheel is unavailable the layer falls
+# back to a built-in pure-Python automaton with identical output
+# (`MedicalFST.uses_ahocorasick` reports which backend is active).
+pyahocorasick>=2.0.0
+
+# python-bidi: correct visual-order shaping of mixed Persian/English text in
+# the overlay (Tk's own BiDi shaping mis-orders mixed sentences on some
+# platforms). The app degrades gracefully when it is missing.
+python-bidi>=0.6.0

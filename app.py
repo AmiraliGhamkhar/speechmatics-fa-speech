@@ -31,18 +31,18 @@ load_dotenv(ROOT / ".env")
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="SwiftMedics Speechmatics mixed Persian/English medical ASR benchmark"
+        description="SwiftMedics Speechmatics mixed Persian/English medical ASR "
+                    "with Aho-Corasick post-processing and automatic text injection"
     )
     p.add_argument("--language", choices=["fa", "en"], default="fa")
     p.add_argument("--test-id")
     p.add_argument("--no-vocab", action="store_true")
     p.add_argument("--no-medical-layer", action="store_true")
-    p.add_argument("--inject", action="store_true",
-                   help="Inject final text into a foreground target selected during countdown.")
-    p.add_argument("--inject-delay", type=int, default=5,
-                   help="Seconds to give you to select the target cursor before injection.")
-    p.add_argument("--reject-arrows", action="store_true",
-                   help="Do not inject if arrow characters are detected.")
+    p.add_argument("--inject", dest="inject", action="store_true", default=True,
+                   help="Automatically inject each finalized segment into the "
+                        "focused field (default). No hotkeys, no countdown.")
+    p.add_argument("--no-inject", dest="inject", action="store_false",
+                   help="Disable automatic injection.")
     p.add_argument("--no-overlay", action="store_true")
     p.add_argument("--device-index", type=int,
                    help="PyAudio input device index (default: system default device)")
@@ -119,6 +119,7 @@ def create_injector(enabled: bool):
             enable_smart_rewrite=True,
             restore_clipboard=True,
             paste_settle_seconds=0.25,
+            add_bidi_marks=True,
         )
     except Exception as exc:
         print(f"[injector disabled] {exc}")
@@ -140,31 +141,6 @@ def print_cleanliness(label: str, text: str) -> dict:
     print(f"Tabs            : {report['tab_count']}")
     print(f"Other symbols   : {report['non_ascii_symbols'] or 'none'}")
     return report
-
-
-def injection_countdown(injector, delay: int) -> dict:
-    before = injector.get_foreground_window_info()
-    print()
-    print("TARGET SELECTION")
-    print("-" * 72)
-    print(f"Current foreground window: {before.get('title') or '[untitled]'}")
-    print(f"You have {delay} seconds to click the exact text field/cursor where the transcript must go.")
-    print("DO NOT click back into this terminal. SwiftMedics will inject automatically at zero.")
-
-    for remaining in range(max(1, delay), 0, -1):
-        print(f"  Injecting in {remaining}...", flush=True)
-        time.sleep(1)
-
-    after = injector.get_foreground_window_info()
-    print(f"Target window: {after.get('title') or '[untitled]'}")
-
-    if before.get("hwnd") == after.get("hwnd"):
-        print("[warning] The foreground window did not change during the countdown.")
-        print("          The paste may go into this terminal rather than your intended app.")
-    else:
-        print("[target] Foreground window changed; injecting into the selected target.")
-
-    return {"before": before, "after": after, "changed": before.get("hwnd") != after.get("hwnd")}
 
 
 async def main() -> int:
@@ -191,20 +167,26 @@ async def main() -> int:
     injector = create_injector(args.inject)
 
     result = None
+    injected_segments: list[dict] = []
 
     print("=" * 72)
-    print(" SwiftMedics / Speechmatics Mixed Medical ASR Test v3")
+    print(" SwiftMedics / Speechmatics Mixed Medical ASR v4")
+    print(" Aho-Corasick post-processing + automatic injection (no hotkeys)")
     print("=" * 72)
     print(f"Language stream : {args.language}")
     print(f"Model           : {args.model}")
     print(f"Max delay       : {args.max_delay:.1f}s ({args.max_delay_mode})")
     print(f"Medical vocab   : {'ON' if vocab else 'OFF'}")
-    print(f"FST layer       : {'ON' if not args.no_medical_layer else 'OFF'}")
+    print(f"Matcher engine  : {medical.engine if not args.no_medical_layer else 'OFF'}")
     print(f"Device index    : {args.device_index if args.device_index is not None else 'default'}")
     print("Audio storage   : NONE (in-memory streaming only)")
     print(f"Report          : {json_path.name if json_path else 'not saved (use --save-report)'}")
     print(f"Max duration    : {args.max_seconds:.1f} sec")
+    print(f"Auto-injection  : {'ON — every finalized segment is pasted at the cursor' if injector else 'OFF'}")
     print("=" * 72)
+    if injector:
+        print("Click the field where the transcript must go ONCE, then dictate.")
+        print("Every finalized segment is pasted automatically. No keys to press.")
     print("Speak naturally. Press Ctrl+C to stop recording.")
     print()
 
@@ -216,7 +198,8 @@ async def main() -> int:
             overlay.set_partial(clean)
 
     def on_final(text: str):
-        # Finalized segment only: normalize -> FST canonical -> display as FINAL.
+        # Finalized segment: normalize -> Aho-Corasick canonical -> display as
+        # FINAL -> inject automatically right away (deepgram-v6 style).
         clean = normalize_text(text)
         if not clean:
             return
@@ -228,11 +211,20 @@ async def main() -> int:
         if overlay:
             overlay.set_final(segment)
 
+        if injector:
+            # Trailing space keeps consecutive segments separated in the
+            # target field; prepare_mixed_text keeps it inside the BiDi wrap.
+            injector.reset_partial()
+            ok = injector.paste_text(segment + " ", add_rtl_mark=True)
+            injected_segments.append({"text": segment, "success": bool(ok)})
+            if overlay and ok:
+                overlay.set_done(segment)
+
     # Ctrl+C must STOP THE RECORDING, not kill the program: everything after
-    # this point (canonicalization, cleanliness, injection, report) is exactly
-    # what the user is dictating for. Previously SIGINT raised
-    # KeyboardInterrupt inside the event loop, which escaped main() and threw
-    # the finished transcript away.
+    # this point (canonicalization, cleanliness, report) is exactly what the
+    # user is dictating for. Previously SIGINT raised KeyboardInterrupt inside
+    # the event loop, which escaped main() and threw the finished transcript
+    # away.
     stop_event = threading.Event()
     loop = asyncio.get_running_loop()
     previous_sigint = None
@@ -302,7 +294,7 @@ async def main() -> int:
     raw = (result.final_text or "").strip() if result is not None else ""
     # Stage 2: generic text normalization.
     normalized = normalize_text(raw)
-    # Stage 3: deterministic medical FST canonicalization.
+    # Stage 3: deterministic medical Aho-Corasick canonicalization.
     if not args.no_medical_layer:
         canonical, medical_hits = medical.canonicalize(normalized)
     else:
@@ -321,28 +313,6 @@ async def main() -> int:
         if benchmark else None
     )
 
-    injection_info = None
-
-    if injector and canonical:
-        if args.reject_arrows and canonical_clean["arrows"]:
-            print()
-            print("[injector] BLOCKED: arrow characters detected and --reject-arrows is enabled.")
-        else:
-            print()
-            print("EXACT INJECTION PAYLOAD")
-            print("-" * 72)
-            print(repr(canonical))
-            print("The visible transcript above is what will be pasted; no arrows are added by the injector.")
-
-            injection_info = injection_countdown(injector, args.inject_delay)
-
-            ok = injector.paste_text(canonical, add_rtl_mark=False)
-
-            injection_info["success"] = bool(ok)
-            print()
-            print("[injector] "
-                  + ("Paste command sent successfully." if ok else "Paste failed."))
-
     if json_path is not None:
         report = {
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -350,6 +320,7 @@ async def main() -> int:
             "test_id": args.test_id,
             "medical_vocab_enabled": bool(vocab),
             "medical_layer_enabled": not args.no_medical_layer,
+            "matcher_engine": medical.engine if not args.no_medical_layer else None,
             "model": args.model,
             "max_delay": args.max_delay,
             "max_delay_mode": args.max_delay_mode,
@@ -362,13 +333,17 @@ async def main() -> int:
             "final_transcript_normalized": normalized,
             "final_transcript_canonical": canonical,
             "medical_hits": medical_hits,
-            "fst_warnings": medical.warnings,
+            "medical_warnings": medical.warnings,
             "cleanliness": {
                 "raw": raw_clean,
                 "normalized": normalized_clean,
                 "canonical": canonical_clean,
             },
-            "injection": injection_info,
+            "injection": {
+                "auto": True,
+                "enabled": bool(injector),
+                "segments": injected_segments,
+            },
             "benchmark_expected": benchmark["expected"] if benchmark else None,
             "evaluation": evaluation_result,
         }
@@ -377,6 +352,11 @@ async def main() -> int:
             json.dumps(report, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+    if injector and injected_segments:
+        n_ok = sum(1 for s in injected_segments if s["success"])
+        print()
+        print(f"[injector] auto-injected {n_ok}/{len(injected_segments)} finalized segments.")
 
     print()
     print("=" * 72)

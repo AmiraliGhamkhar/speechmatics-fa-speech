@@ -1,7 +1,9 @@
 """
 Always-on-top floating transcript overlay optimized for mixed Persian & English medical text.
 - Supports Persian fonts (Vazirmatn, IRANSans, B Yekan, Tahoma, Segoe UI).
-- Automatic RTL / LTR text alignment & right-justified multi-line wrapping.
+- python-bidi visual-order shaping for correctly mirrored mixed sentences.
+- Smart RTL/LTR direction detection based on the Persian/English ratio.
+- Larger readable font with a safe fallback chain.
 - Auto-clamps to screen borders so it never goes off-screen.
 - Smooth Catppuccin dark theme with real-time status indicators.
 - Graceful headless fallback when GUI / Tkinter is unavailable.
@@ -25,23 +27,90 @@ try:
 except Exception:
     _TK_AVAILABLE = False
 
-
-def _is_rtl(text: str) -> bool:
-    """Check if the text starts with or predominantly contains RTL (Persian/Arabic) characters."""
-    for ch in text.strip():
-        if (
-            "\u0600" <= ch <= "\u06ff"
-            or "\u0750" <= ch <= "\u077f"
-            or "\ufb50" <= ch <= "\ufdff"
-            or "\ufe70" <= ch <= "\ufeff"
-        ):
-            return True
-        elif ch.isascii() and ch.isalpha():
-            return False
-    return True
+# python-bidi: visual-order shaping of mixed RTL/LTR text. Tk's own BiDi
+# support on some platforms (notably older Windows Tk builds) mis-orders
+# mixed Persian/English sentences; shaping to visual order first fixes it.
+try:
+    from bidi.algorithm import get_display as _bidi_display
+    _HAS_BIDI = True
+except Exception:
+    _HAS_BIDI = False
 
 
-def _get_best_persian_font(root: tk.Tk) -> str:
+_RTL_RANGES = (
+    ("\u0600", "\u06ff"),
+    ("\u0750", "\u077f"),
+    ("\ufb50", "\ufdff"),
+    ("\ufe70", "\ufeff"),
+)
+
+
+def _count_rtl(text: str) -> int:
+    n = 0
+    for ch in text:
+        for lo, hi in _RTL_RANGES:
+            if lo <= ch <= hi:
+                n += 1
+                break
+    return n
+
+
+def detect_direction(text: str, rtl_threshold: float = 0.35) -> str:
+    """
+    تشخیص هوشمند جهت بر اساس درصد فارسی/انگلیسی.
+
+    Returns "rtl" or "ltr" by comparing the share of Persian/Arabic letters
+    against Latin letters:
+
+    - If RTL characters are at least ``rtl_threshold`` of the alphabetic
+      content -> "rtl" (Persian-dominant dictation stays right-aligned even
+      when it embeds Latin medical words like "CT scan").
+    - The *first strong character* breaks ties/near-ties so that a sentence
+      starting with English stays left-aligned.
+    - Empty/neutral text defaults to "rtl" (Persian is the product default).
+    """
+    s = (text or "").strip()
+    if not s:
+        return "rtl"
+
+    rtl = _count_rtl(s)
+    latin = sum(1 for ch in s if ch.isascii() and ch.isalpha())
+
+    total = rtl + latin
+    if total == 0:
+        return "rtl"
+
+    share = rtl / total
+    if share >= 0.90:
+        return "rtl"
+    if share <= 0.10:
+        return "ltr"
+    if share >= rtl_threshold:
+        return "rtl"
+    # Ambiguous mixed text: respect the first strong directional character.
+    for ch in s:
+        if any(lo <= ch <= hi for lo, hi in _RTL_RANGES):
+            return "rtl"
+        if ch.isascii() and ch.isalpha():
+            return "ltr"
+    return "rtl"
+
+
+def shape_for_display(text: str) -> str:
+    """
+    Apply the Unicode BiDi algorithm (python-bidi) to produce visual-order
+    text for widgets that mis-shape mixed strings. Falls back to the raw
+    text when python-bidi is not installed.
+    """
+    if not _HAS_BIDI or not text:
+        return text or ""
+    try:
+        return _bidi_display(text, base_dir="R" if detect_direction(text) == "rtl" else "L")
+    except Exception:
+        return text
+
+
+def _get_best_persian_font(root: "tk.Tk") -> str:
     """Find the best available Persian font on the host machine."""
     preferred_fonts = [
         "Vazirmatn",
@@ -74,7 +143,7 @@ class TranscriptOverlay:
         enabled: bool = True,
         offset_x: int = 20,
         offset_y: int = 24,
-        wraplength: int = 380,
+        wraplength: int = 420,
     ):
         self.enabled = enabled and _TK_AVAILABLE
         self.offset_x = offset_x
@@ -103,7 +172,7 @@ class TranscriptOverlay:
     def _run(self) -> None:
         try:
             self._root = tk.Tk()
-            self._root.title("Medical STT Overlay")
+            self._root.title("SwiftMedics STT Overlay")
             self._root.overrideredirect(True)
             self._root.attributes("-topmost", True)
 
@@ -121,7 +190,7 @@ class TranscriptOverlay:
             border_frame.pack(fill="both", expand=True)
 
             # Inner container frame (Catppuccin Base #1e1e2e)
-            inner_frame = tk.Frame(border_frame, bg="#1e1e2e", padx=12, pady=10)
+            inner_frame = tk.Frame(border_frame, bg="#1e1e2e", padx=14, pady=12)
             inner_frame.pack(fill="both", expand=True)
 
             # Status Label
@@ -130,19 +199,19 @@ class TranscriptOverlay:
                 text="● در حال شنیدن...",
                 fg="#a6e3a1",
                 bg="#1e1e2e",
-                font=(self._font_family, 9, "bold"),
+                font=(self._font_family, 10, "bold"),
                 anchor="e",
                 justify="right",
             )
-            self._status.pack(fill="x", pady=(0, 4))
+            self._status.pack(fill="x", pady=(0, 5))
 
-            # Main Transcript Label
+            # Main Transcript Label (bigger font for at-a-glance readability)
             self._label = tk.Label(
                 inner_frame,
                 text="...",
                 fg="#cdd6f4",
                 bg="#1e1e2e",
-                font=(self._font_family, 11),
+                font=(self._font_family, 14),
                 wraplength=self.wraplength,
                 justify="right",
                 anchor="ne",
@@ -193,37 +262,45 @@ class TranscriptOverlay:
         except Exception:
             pass
 
-    def _apply_text_alignment(self, text: str) -> None:
-        """Dynamically switch alignment if the text is Persian (RTL) or English (LTR)."""
+    def _apply_text_alignment(self, text: str, direction: Optional[str] = None) -> None:
+        """Dynamically switch alignment based on the detected text direction."""
         if not self._label:
             return
-        if _is_rtl(text):
+        direction = direction or detect_direction(text)
+        if direction == "rtl":
             self._label.config(anchor="ne", justify="right")
         else:
             self._label.config(anchor="nw", justify="left")
 
+    def _render(self, text: str) -> tuple[str, str]:
+        """Return (display_text, direction) for a logical-order string."""
+        direction = detect_direction(text)
+        return shape_for_display(text), direction
+
     def set_partial(self, text: str) -> None:
         """Real-time streaming hypothesis update (UI/overlay only)."""
         def _():
-            display_text = text or "..."
-            self._apply_text_alignment(display_text)
+            raw = text or ""
+            display = self._render(raw)[0] if raw else "..."
+            self._apply_text_alignment(raw)
             if self._label:
-                self._label.config(text=display_text, fg="#cdd6f4")
+                self._label.config(text=display, fg="#cdd6f4")
             if self._status:
                 self._status.config(text="● در حال شنیدن...", fg="#a6e3a1", anchor="e")
         self._ui(_)
 
     def set_final(self, text: str) -> None:
-        """A finalized ASR segment (post-FST canonical).
+        """A finalized ASR segment (post-Aho-Corasick canonical).
 
         Final results must be displayed through this API, never through
         ``set_partial``: partials are revisable hypotheses, finals are not.
         """
         def _():
-            display_text = text or "..."
-            self._apply_text_alignment(display_text)
+            raw = text or ""
+            display = self._render(raw)[0] if raw else "..."
+            self._apply_text_alignment(raw)
             if self._label:
-                self._label.config(text=display_text, fg="#f9e2af")
+                self._label.config(text=display, fg="#f9e2af")
             if self._status:
                 self._status.config(text="✓ نهایی شد", fg="#f9e2af", anchor="e")
         self._ui(_)
@@ -231,10 +308,11 @@ class TranscriptOverlay:
     def set_done(self, text: str) -> None:
         """Final transcript successfully injected into cursor position."""
         def _():
-            display_text = text or "..."
-            self._apply_text_alignment(display_text)
+            raw = text or ""
+            display = self._render(raw)[0] if raw else "..."
+            self._apply_text_alignment(raw)
             if self._label:
-                self._label.config(text=display_text, fg="#89b4fa")
+                self._label.config(text=display, fg="#89b4fa")
             if self._status:
                 self._status.config(text="✓ تایپ شد", fg="#89b4fa", anchor="e")
         self._ui(_)
