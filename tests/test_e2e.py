@@ -96,8 +96,30 @@ def test_end_to_end_session_with_report(tmp_path, monkeypatch):
     ])
     install_fake_sdk(monkeypatch, {
         "script": [
-            ("final", "بیمار در سی سی یو است"),
-            ("final", "فشار خون بالا دارد"),
+            ("final", "بیمار در سی سی یو است", [
+                {"type": "word", "start_time": 0.0, "end_time": 0.2,
+                 "alternatives": [{"content": "بیمار", "confidence": 0.98, "language": "fa"}]},
+                {"type": "word", "start_time": 0.2, "end_time": 0.3,
+                 "alternatives": [{"content": "در", "confidence": 0.99, "language": "fa"}]},
+                {"type": "word", "start_time": 0.3, "end_time": 0.4,
+                 "alternatives": [{"content": "سی", "confidence": 0.91, "language": "fa"}]},
+                {"type": "word", "start_time": 0.4, "end_time": 0.5,
+                 "alternatives": [{"content": "سی", "confidence": 0.52, "language": "fa"}]},
+                {"type": "word", "start_time": 0.5, "end_time": 0.7,
+                 "alternatives": [{"content": "یو", "confidence": 0.93, "language": "fa"}]},
+                {"type": "word", "start_time": 0.7, "end_time": 0.8,
+                 "alternatives": [{"content": "است", "confidence": 0.97, "language": "fa"}]},
+            ]),
+            ("final", "فشار خون بالا دارد", [
+                {"type": "word", "start_time": 0.8, "end_time": 1.0,
+                 "alternatives": [{"content": "فشار", "confidence": 0.95, "language": "fa"}]},
+                {"type": "word", "start_time": 1.0, "end_time": 1.1,
+                 "alternatives": [{"content": "خون", "confidence": 0.96, "language": "fa"}]},
+                {"type": "word", "start_time": 1.1, "end_time": 1.2,
+                 "alternatives": [{"content": "بالا", "confidence": 0.95, "language": "fa"}]},
+                {"type": "word", "start_time": 1.2, "end_time": 1.3,
+                 "alternatives": [{"content": "دارد", "confidence": 0.99, "language": "fa"}]},
+            ]),
         ],
     })
 
@@ -117,8 +139,54 @@ def test_end_to_end_session_with_report(tmp_path, monkeypatch):
         assert report["medical_hits"]
         assert report["session_error"] is None
         assert report["matcher_engine"].startswith("aho-corasick")
+        # New structured fields coexist with the established report contract.
+        assert report["speechmatics"] == {
+            "domain": "medical", "model": "enhanced", "max_delay": 2.0,
+            "max_delay_mode": "flexible",
+        }
+        assert report["word_results"][3] == {
+            "content": "سی", "confidence": 0.52, "language": "fa",
+            "start_time": 0.4, "end_time": 0.5,
+        }
+        assert report["confidence_summary"]["word_count"] == 10
+        assert report["confidence_summary"]["low_confidence_count"] == 1
+        assert report["confidence_summary"]["language_counts"] == {
+            "Persian": 10, "English": 0, "unknown": 0,
+        }
+        assert report["medical_canonicalization"] == {
+            "hit_count": len(report["medical_hits"]), "changed": True,
+        }
     finally:
         # keep the source tree clean
+        for p in reports:
+            p.unlink(missing_ok=True)
+
+
+def test_no_vocab_and_medical_flags_remain_independent(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--no-inject",
+        "--no-vocab", "--no-medical-layer", "--save-report",
+    ])
+    registry = install_fake_sdk(monkeypatch, {
+        "script": [("final", "سی تی اسکن")],
+    })
+
+    assert asyncio.run(app_module.main()) == 0
+    reports = sorted((app_module.ROOT / "results").glob("session_*.json"))
+    assert reports
+    try:
+        report = json.loads(reports[-1].read_text(encoding="utf-8"))
+        assert "additional_vocab" not in registry["configs"][0]
+        assert registry["configs"][0]["domain"] == "medical"
+        assert report["medical_vocab_enabled"] is False
+        assert report["medical_layer_enabled"] is False
+        assert report["final_transcript_normalized"] == "سی تی اسکن"
+        assert report["final_transcript_canonical"] == "سی تی اسکن"
+    finally:
         for p in reports:
             p.unlink(missing_ok=True)
 

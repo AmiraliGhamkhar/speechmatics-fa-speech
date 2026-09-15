@@ -185,6 +185,66 @@ def test_numbers_left_alone(fst):
     assert canon(fst, "دوز 20 mg") == "دوز 20 mg"  # already canonical
 
 
+def test_structured_numeric_entities_are_preserved(fst):
+    text = normalize_text("BP 120/80 5 mg 2.5 mL 20 mg HbA1c O2 C3-C4 q2h")
+    words = [
+        {"content": content, "confidence": 0.99, "language": "en",
+         "start_time": index, "end_time": index + 0.1}
+        for index, content in enumerate(text.split())
+    ]
+    out, hits = fst.canonicalize(text, words)
+    assert out == text
+    assert hits == []
+
+
+# ------------------------------------------------ confidence / language evidence
+
+def test_low_confidence_validated_alias_is_auditable_not_automatic(fst):
+    text = normalize_text("سی تی اسکن")
+    words = [
+        {"content": "سی", "confidence": 0.91, "language": "fa", "start_time": 0.0, "end_time": 0.1},
+        {"content": "تی", "confidence": 0.52, "language": "fa", "start_time": 0.1, "end_time": 0.2},
+        {"content": "اسکن", "confidence": 0.93, "language": "fa", "start_time": 0.2, "end_time": 0.4},
+    ]
+    out, hits = fst.canonicalize(text, words)
+    assert out == "CT scan"  # same explicit lexical rule as the legacy path
+    assert hits[0]["asr_confidence"] == 0.52
+    assert hits[0]["asr_low_confidence"] is True
+    assert hits[0]["asr_language"] == "Persian"
+    assert hits[0]["asr_language_matches_form"] is True
+
+
+def test_confidence_never_invents_a_medical_correction(fst):
+    text = normalize_text("نامشخص 120/80")
+    words = [
+        {"content": "نامشخص", "confidence": 0.10, "language": "fa"},
+        {"content": "120/80", "confidence": 0.10, "language": "en"},
+    ]
+    assert fst.canonicalize(text, words) == (text, [])
+
+
+def test_high_confidence_canonical_terms_remain_unchanged(fst):
+    text = normalize_text("MRI HbA1c O2 C3-C4 q2h 5 mg")
+    words = [
+        {"content": content, "confidence": 0.99, "language": "en"}
+        for content in text.split()
+    ]
+    assert fst.canonicalize(text, words) == (text, [])
+
+
+def test_missing_word_metadata_follows_legacy_path(fst):
+    text = normalize_text("سی تی اسکن و لیژن")
+    assert fst.canonicalize(text) == fst.canonicalize(text, [])
+
+
+def test_language_mismatch_is_a_conservative_audit_signal(fst):
+    text = normalize_text("لیژن")
+    words = [{"content": "لیژن", "confidence": 0.40, "language": "en"}]
+    out, hits = fst.canonicalize(text, words)
+    assert out == "lesion"  # explicit lexical matches still remain deterministic
+    assert hits[0]["asr_language_matches_form"] is False
+
+
 # ------------------------------------------------------------- hits / audit
 
 def test_hits_reported(fst):
@@ -241,9 +301,26 @@ def test_automaton_matches_reference_on_clinical_paragraph(fst):
         "بیمار در سی تی اسکن لیژن رایت لانگ و فشار خون بالا دارد "
         "دوز 5.5 میلی لیتر آی وی هر دو ساعت داده شد"
     )
-    ac_out, _ = fst._scan(text)
-    ref_out, _ = fst._scan_reference(text)
+    words = [
+        {"content": content, "confidence": 0.60, "language": "fa"}
+        for content in text.split()
+    ]
+    ac_out, ac_hits = fst._scan(text, words)
+    ref_out, ref_hits = fst._scan_reference(text, words)
     assert ac_out == ref_out
+    assert ac_hits == ref_hits
+
+
+def test_native_and_pure_python_engines_have_identical_output(fst):
+    text = normalize_text("سی تی اسکن لیژن 5 میلی گرم")
+    words = [
+        {"content": content, "confidence": 0.60, "language": "fa"}
+        for content in text.split()
+    ]
+    fallback = MedicalFST(ROOT)
+    fallback._ac_native = None
+    fallback._ac_python = AhoAutomaton([rule.match_form for rule in fallback.rules])
+    assert fst.canonicalize(text, words) == fallback.canonicalize(text, words)
 
 
 def test_automaton_persian_digits(fst):

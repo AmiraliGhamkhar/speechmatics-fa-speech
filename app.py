@@ -16,11 +16,13 @@ from speechmatics_test.cleanliness import inspect_text
 from speechmatics_test.evaluation import evaluate_stages
 from speechmatics_test.medical_layer import MedicalLayer
 from speechmatics_test.realtime import (
+    DEFAULT_DOMAIN,
     DEFAULT_MAX_DELAY,
     DEFAULT_MAX_DELAY_MODE,
     DEFAULT_MODEL,
     MAX_MAX_DELAY,
     MIN_MAX_DELAY,
+    confidence_summary,
 )
 from speechmatics_test.text import normalize_text
 
@@ -174,6 +176,7 @@ async def main() -> int:
     print(" Aho-Corasick post-processing + automatic injection (no hotkeys)")
     print("=" * 72)
     print(f"Language stream : {args.language}")
+    print(f"Domain          : {DEFAULT_DOMAIN}")
     print(f"Model           : {args.model}")
     print(f"Max delay       : {args.max_delay:.1f}s ({args.max_delay_mode})")
     print(f"Medical vocab   : {'ON' if vocab else 'OFF'}")
@@ -210,8 +213,12 @@ async def main() -> int:
         clean = normalize_text(text)
         if not clean:
             return
+        segment = stt.result.final_segments[-1]
+        final_words = stt.result.word_results[
+            segment["word_start_index"]:segment["word_end_index"]
+        ]
         canonical, _hits = (
-            medical.canonicalize(clean) if not args.no_medical_layer
+            medical.canonicalize(clean, final_words) if not args.no_medical_layer
             else (clean, [])
         )
         print("\n[final]   " + canonical)
@@ -302,8 +309,9 @@ async def main() -> int:
     # Stage 2: generic text normalization.
     normalized = normalize_text(raw)
     # Stage 3: deterministic medical Aho-Corasick canonicalization.
+    word_results = getattr(result, "word_results", []) if result is not None else []
     if not args.no_medical_layer:
-        canonical, medical_hits = medical.canonicalize(normalized)
+        canonical, medical_hits = medical.canonicalize(normalized, word_results)
     else:
         canonical, medical_hits = normalized, []
 
@@ -328,14 +336,28 @@ async def main() -> int:
             "medical_vocab_enabled": bool(vocab),
             "medical_layer_enabled": not args.no_medical_layer,
             "matcher_engine": medical.engine if not args.no_medical_layer else None,
+            # Keep the established top-level settings and add one compact,
+            # self-contained Speechmatics block for benchmark comparisons.
             "model": args.model,
             "max_delay": args.max_delay,
             "max_delay_mode": args.max_delay_mode,
+            "speechmatics": {
+                "domain": DEFAULT_DOMAIN,
+                "model": args.model,
+                "max_delay": args.max_delay,
+                "max_delay_mode": args.max_delay_mode,
+            },
             "device_index": args.device_index,
             "first_partial_latency_ms": getattr(result, "first_partial_ms", None),
             "session_error": getattr(result, "error", None),
             "partials": getattr(result, "partials", []),
             "final_segments": getattr(result, "final_segments", []),
+            "word_results": word_results,
+            "confidence_summary": confidence_summary(word_results),
+            "medical_canonicalization": {
+                "hit_count": len(medical_hits),
+                "changed": canonical != normalized,
+            },
             "final_transcript_raw": raw,
             "final_transcript_normalized": normalized,
             "final_transcript_canonical": canonical,
