@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from app import audio_source, load_benchmark
 import app as app_module
 
 

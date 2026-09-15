@@ -4,6 +4,8 @@ import argparse
 import asyncio
 import json
 import os
+import signal
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -77,11 +79,22 @@ def load_vocab() -> list:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-async def audio_source(recorder, max_seconds: float):
-    """Yield microphone chunks in memory only - never stored on disk."""
+async def audio_source(recorder, max_seconds: float, stop_event=None):
+    """Yield microphone chunks in memory only - never stored on disk.
+
+    ``stop_event`` (a ``threading.Event``) lets Ctrl+C end the stream
+    *gracefully*: the generator simply stops yielding, the realtime session
+    closes normally, and the transcript/report is still produced. Raising
+    KeyboardInterrupt through the event loop instead used to abort the whole
+    pipeline and throw the dictated text away.
+    """
     started = time.perf_counter()
     while time.perf_counter() - started < max_seconds:
+        if stop_event is not None and stop_event.is_set():
+            return
         chunk = await asyncio.to_thread(recorder.read)
+        if stop_event is not None and stop_event.is_set():
+            return
         if chunk:
             yield chunk
 
@@ -188,7 +201,7 @@ async def main() -> int:
     print(f"Medical vocab   : {'ON' if vocab else 'OFF'}")
     print(f"FST layer       : {'ON' if not args.no_medical_layer else 'OFF'}")
     print(f"Device index    : {args.device_index if args.device_index is not None else 'default'}")
-    print(f"Audio storage   : NONE (in-memory streaming only)")
+    print("Audio storage   : NONE (in-memory streaming only)")
     print(f"Report          : {json_path.name if json_path else 'not saved (use --save-report)'}")
     print(f"Max duration    : {args.max_seconds:.1f} sec")
     print("=" * 72)
@@ -215,6 +228,36 @@ async def main() -> int:
         if overlay:
             overlay.set_final(segment)
 
+    # Ctrl+C must STOP THE RECORDING, not kill the program: everything after
+    # this point (canonicalization, cleanliness, injection, report) is exactly
+    # what the user is dictating for. Previously SIGINT raised
+    # KeyboardInterrupt inside the event loop, which escaped main() and threw
+    # the finished transcript away.
+    stop_event = threading.Event()
+    loop = asyncio.get_running_loop()
+    previous_sigint = None
+    installed_signal_handler = False
+
+    def request_stop() -> None:
+        if not stop_event.is_set():
+            stop_event.set()
+            print("\n[session] Ctrl+C received - finishing the session "
+                  "(transcript is preserved)...")
+
+    try:
+        loop.add_signal_handler(signal.SIGINT, request_stop)
+        installed_signal_handler = True
+    except (NotImplementedError, RuntimeError, ValueError):
+        # Windows/ProactorEventLoop has no add_signal_handler: fall back to a
+        # plain signal handler that is thread-safe enough for setting a flag.
+        try:
+            previous_sigint = signal.signal(
+                signal.SIGINT, lambda *_: request_stop()
+            )
+            installed_signal_handler = True
+        except (ValueError, OSError):
+            previous_sigint = None
+
     recorder = MicrophoneRecorder(device_index=args.device_index)
     try:
         with recorder:
@@ -226,15 +269,31 @@ async def main() -> int:
                 model=args.model,
                 max_delay_mode=args.max_delay_mode,
             )
-            audio = audio_source(recorder, args.max_seconds)
+            audio = audio_source(recorder, args.max_seconds, stop_event)
             try:
                 result = await stt.run(audio, on_partial, on_final)
             except KeyboardInterrupt:
+                # Defensive: keep whatever the session already captured.
                 print("\n[session] Ctrl+C received - stopping.")
+                result = stt.result
+            except Exception as exc:
+                # A network/SDK failure must not discard an already dictated
+                # transcript; report the error and continue to the report.
+                print(f"\n[session error] {type(exc).__name__}: {exc}")
                 result = stt.result
             finally:
                 await audio.aclose()
     finally:
+        if installed_signal_handler:
+            try:
+                loop.remove_signal_handler(signal.SIGINT)
+            except (NotImplementedError, RuntimeError, ValueError):
+                pass
+            if previous_sigint is not None:
+                try:
+                    signal.signal(signal.SIGINT, previous_sigint)
+                except (ValueError, OSError):
+                    pass
         if overlay:
             overlay.close()
 

@@ -321,7 +321,7 @@ def test_stop_error_records_and_cleans_up(monkeypatch):
 
 
 def test_bad_message_is_skipped_not_fatal(monkeypatch):
-    registry = install_fake_sdk(monkeypatch, {"script": [
+    install_fake_sdk(monkeypatch, {"script": [
         ("partial", None),   # missing transcript -> parse path handles None
         ("final", "ok"),
     ]})

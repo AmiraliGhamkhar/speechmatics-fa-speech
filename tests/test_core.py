@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import pytest
-
 from speechmatics_test.evaluation import evaluate, evaluate_stages, numbers
 from speechmatics_test.medical_layer import MedicalLayer
 from speechmatics_test.realtime import SessionResult
@@ -121,3 +119,41 @@ def test_layer_canonicalize_expects_normalized_input():
     out_via_normalize, _ = layer.normalize("سی تی اسکن")
     out_direct, _ = layer.canonicalize(normalize_text("سی تی اسکن"))
     assert out_via_normalize == out_direct == "CT scan"
+
+
+# ------------------------------------------------------- digit normalization
+
+def test_persian_digits_are_folded_to_ascii():
+    """Speechmatics returns Persian digits on Persian streams.
+
+    Regression: a dose dictated as "20 mg" came back as "۲۰ mg" and the
+    benchmark scored a perfectly correct number as wrong.
+    """
+    assert normalize_text("۲۰ میلی گرم") == "20 میلی گرم"
+    assert normalize_text("٢٠ mg") == "20 mg"          # Arabic-Indic
+    assert normalize_text("۱۲۰/۸۰") == "120/80"
+
+
+def test_persian_decimal_separator_is_normalized():
+    assert normalize_text("۵٫۵") == "5.5"
+    assert tokens("۵٫۵ mL") == ["5.5", "mL"]
+
+
+def test_number_metrics_survive_persian_digits():
+    x = evaluate("دوز 20 mg", "دوز ۲۰ mg")
+    assert x["number_accuracy"] == 1.0
+    assert x["wer"] == 0.0
+
+    bp = evaluate("BP 120/80", "BP ۱۲۰/۸۰")
+    assert bp["number_accuracy"] == 1.0
+    assert bp["wer"] == 0.0
+
+
+def test_genuinely_wrong_numbers_are_still_wrong():
+    """Digit folding must not mask real recognition errors."""
+    assert evaluate("BP 120/80", "BP ۱۱۰/۸۰")["number_accuracy"] == 0.0
+
+
+def test_digit_normalization_is_idempotent():
+    t = "دوز ۲۰ میلی گرم و BP ۱۲۰/۸۰"
+    assert normalize_text(normalize_text(t)) == normalize_text(t)

@@ -7,7 +7,7 @@ A clean, reproducible Python benchmark application for testing Speechmatics Real
 Version 3 is a production-oriented MVP built around separate, auditable stages:
 
 1. **Speechmatics ASR** — preserves the true raw realtime final transcript.
-2. **Generic text normalization** — Persian script unification, ZWNJ/whitespace, punctuation spacing. No medical knowledge.
+2. **Generic text normalization** — Persian script unification, Persian/Arabic-Indic digit folding (`۲۰` → `20`), ZWNJ/whitespace, punctuation spacing. No medical knowledge.
 3. **Medical FST canonicalization** — a deterministic OpenFst/Pynini transducer (plus an equivalent pure-Python fallback scanner) that performs token-aware lexical canonicalization only.
 4. **Benchmark/evaluation** — compares RAW ASR vs NORMALIZED vs FST CANONICAL against a human-provided expected transcript (WER, number accuracy, similarity) with medical-aware tokenization.
 
@@ -17,6 +17,7 @@ Hard rules enforced by the design:
 - **No audio persistence.** Microphone chunks exist only in memory while streaming. No WAV files, no temp audio, no `recordings/` directory. Only text/metadata JSON reports are written, and only when requested (`--save-report` or `--test-id`).
 - **Partials are for the UI/overlay only.** They are never treated as, or accumulated into, final text.
 - **Post-processing runs only on finalized ASR segments.**
+- **Ctrl+C stops the recording, it does not discard the dictation.** SIGINT ends the audio stream gracefully; the session is then closed normally and the canonicalization, cleanliness, injection and report stages all still run.
 
 The project also keeps your uploaded Windows `injector.py` and `overlay.py`. The injector uses native Windows UTF-16 `SendInput`, clipboard verification/retries, modifier hygiene, and smart partial-revision handling. The overlay handles mixed RTL/LTR display, Persian font selection, and now distinguishes **partial** (revisable hypothesis) from **final** (finalized segment) display via separate APIs.
 
@@ -83,6 +84,32 @@ Set:
 ```text
 SPEECHMATICS_API_KEY=YOUR_SPEECHMATICS_API_KEY
 ```
+
+### Optional: the Pynini/OpenFst backend
+
+`pynini` is **optional** and is only installed automatically on Linux x86_64,
+because it publishes Linux-only wheels. On Windows and macOS `pip` would fall
+back to the source distribution, which requires a preinstalled OpenFst
+toolchain and a C++ compiler — that made `pip install -r requirements.txt`
+fail and blocked the entire install.
+
+The medical FST layer ships a deterministic pure-Python scanner that
+implements the identical priority scheme (longest match, then tier, then
+rule order) and is verified against the Pynini backend by the test suite, so
+**the application is fully functional without Pynini**.
+
+To use the OpenFst backend on Windows/macOS, install it via conda:
+
+```powershell
+conda install -c conda-forge pynini=2.1.6.post1
+```
+
+`MedicalFST.uses_pynini` and the startup output report which backend is
+active.
+
+> **PyAudio on Linux:** install the PortAudio headers first
+> (`sudo apt install portaudio19-dev python3-dev`), otherwise the PyAudio
+> build fails. Windows uses prebuilt wheels and needs no extra steps.
 
 ## Run
 
@@ -265,6 +292,13 @@ Each saved report JSON contains:
 Tokenization is medical-aware: `20 mg`, `20mg`, `120/80`, `5.5`, `3,14`,
 `O2`, `q2h`, `C3-C4`, `U/A`, `HbA1c` all tokenize as expected, and
 number accuracy only counts numeric tokens (multiset-aware).
+
+Persian/Arabic-Indic digits are folded to ASCII during normalization, so a
+dose dictated as `20 mg` and returned by Speechmatics as `۲۰ mg` is scored as
+**correct**. Before this, every Persian-digit number counted as an error and
+`number_accuracy` collapsed to `0.0` — the most misleading possible metric for
+a dosage-critical medical benchmark. Genuinely misrecognized values (`۱۱۰/۸۰`
+vs `120/80`) are still counted as errors.
 
 For a medical ASR benchmark, also inspect:
 

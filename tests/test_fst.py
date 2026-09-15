@@ -347,3 +347,61 @@ def test_uses_pynini_flag(fst):
         assert fst.uses_pynini is True
     except ImportError:
         assert fst.uses_pynini is False
+
+
+# --------------------------------------------------------------- cache bound
+
+def test_fst_cache_is_bounded(fst):
+    """Regression: the pynini transducer cache grew without limit.
+
+    The alphabet is derived from the input text, so a long dictation session
+    produced a brand-new multi-megabyte transducer per segment and cached
+    every one of them for the lifetime of the process.
+    """
+    from speechmatics_test.fst import _FST_CACHE_MAX
+
+    if not fst.uses_pynini:
+        pytest.skip("pynini backend not installed")
+
+    base = "بیمار در سی سی یو با فشار خون بالا و دوز بیست میلی گرم"
+    for i in range(_FST_CACHE_MAX * 3):
+        # each suffix introduces a different alphabet
+        fst.canonicalize(normalize_text(f"{base} zqxjk{i}"))
+
+    assert len(fst._fst_cache) <= _FST_CACHE_MAX
+
+
+def test_canonicalization_stays_correct_after_cache_eviction(fst):
+    base = "در سی تی اسکن یک لیژن در رایت لانگ مشاهده شد"
+    expected = "در CT scan یک lesion در right lung مشاهده شد"
+    assert canon(fst, base) == expected
+    for i in range(40):
+        fst.canonicalize(normalize_text(f"filler qwerty{i}"))
+    # still correct once the original transducer has been evicted
+    assert canon(fst, base) == expected
+
+
+def test_backends_agree_on_persian_digits(fst):
+    """Digit folding happens upstream; both backends must handle the result."""
+    text = normalize_text("دوز ۲۰ میلی گرم آی وی")
+    out, _ = fst.canonicalize(text)
+    assert "20" in out and "mg" in out and "IV" in out
+    if fst.uses_pynini:
+        assert out == fst._scan(text)[0]
+
+
+def test_backend_failure_degrades_to_scanner(fst, monkeypatch):
+    """A pynini failure must not cost the user their finished transcript."""
+    if not fst.uses_pynini:
+        pytest.skip("pynini backend not installed")
+
+    def boom(_text):
+        raise FstError("simulated backend failure")
+
+    monkeypatch.setattr(fst, "_run_pynini", boom)
+    text = normalize_text("در سی تی اسکن یک لیژن دیده شد")
+    out, hits = fst.canonicalize(text)
+
+    assert out == "در CT scan یک lesion دیده شد"
+    assert hits
+    assert any("pynini backend failed" in w for w in fst.warnings)

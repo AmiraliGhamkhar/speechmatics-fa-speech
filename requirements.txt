@@ -1,5 +1,21 @@
 speechmatics-rt==1.1.1
 PyAudio==0.2.14
 python-dotenv==1.2.3
-pynini>=2.1.6
 pytest>=8.0
+
+# Pynini is an OPTIONAL accelerator for the medical FST layer.
+#
+# It is deliberately NOT a hard requirement: pynini ships Linux-only wheels
+# (manylinux x86_64). On Windows - the platform this app documents as primary -
+# pip falls back to the source distribution, which needs a preinstalled
+# OpenFst toolchain and a C++11 compiler, so `pip install -r requirements.txt`
+# failed outright and the whole install was blocked.
+#
+# speechmatics_test/fst.py already contains a deterministic pure-Python
+# scanner that implements the identical priority scheme and is verified
+# against the pynini backend by the test suite, so the application is fully
+# functional without it (`MedicalFST.uses_pynini` reports the active backend).
+#
+# On Windows/macOS install it via conda if you want the OpenFst backend:
+#     conda install -c conda-forge pynini=2.1.6.post1
+pynini>=2.1.6; sys_platform == "linux" and platform_machine == "x86_64"
