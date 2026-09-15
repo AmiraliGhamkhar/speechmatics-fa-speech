@@ -8,14 +8,10 @@ the final API, and never writes audio to disk.
 import asyncio
 import json
 import sys
-import types
-from enum import Enum
-
-import pytest
 
 import app as app_module
 import speechmatics_test.microphone as microphone_module
-from tests.test_realtime import FakeAudio, install_fake_sdk
+from tests.test_realtime import install_fake_sdk
 
 
 class FakeMic:
@@ -39,8 +35,10 @@ class FakeMic:
         return b"\x00" * 6400
 
 
-async def fake_audio_source(recorder, max_seconds):
+async def fake_audio_source(recorder, max_seconds, stop_event=None):
     for _ in range(4):
+        if stop_event is not None and stop_event.is_set():
+            return
         yield b"\x00" * 6400
 
 
@@ -120,3 +118,75 @@ def test_end_to_end_session_with_report(tmp_path, monkeypatch):
         # keep the source tree clean
         for p in reports:
             p.unlink(missing_ok=True)
+
+
+def test_ctrl_c_preserves_transcript_and_report(tmp_path, monkeypatch):
+    """Regression: Ctrl+C used to destroy the finished transcript.
+
+    SIGINT raised KeyboardInterrupt inside the event loop, which escaped
+    ``main()`` entirely, so the canonicalization/cleanliness/report stages
+    never ran and everything the clinician had dictated was lost. Ctrl+C
+    must instead STOP THE RECORDING and complete the pipeline.
+    """
+    import os
+    import signal
+    import threading
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--save-report",
+    ])
+
+    sigint_sent = threading.Event()
+
+    async def endless_audio(recorder, max_seconds, stop_event=None):
+        """Streams until the SIGINT-driven stop_event is set."""
+        for _ in range(2):
+            yield b"\x00" * 6400
+        if not sigint_sent.is_set():
+            sigint_sent.set()
+            os.kill(os.getpid(), signal.SIGINT)
+        while True:
+            if stop_event is not None and stop_event.is_set():
+                return
+            await asyncio.sleep(0.01)
+            yield b"\x00" * 6400
+
+    monkeypatch.setattr(app_module, "audio_source", endless_audio)
+    install_fake_sdk(monkeypatch, {
+        "script": [("final", "بیمار در سی سی یو است")],
+    })
+
+    code = asyncio.run(app_module.main())
+    assert code == 0, "Ctrl+C must not abort the pipeline"
+
+    reports = sorted((app_module.ROOT / "results").glob("session_*.json"))
+    assert reports, "the report must still be written after Ctrl+C"
+    try:
+        report = json.loads(reports[-1].read_text(encoding="utf-8"))
+        # the dictated text survived and was fully processed
+        assert report["final_transcript_raw"] == "بیمار در سی سی یو است"
+        assert "CCU" in report["final_transcript_canonical"]
+    finally:
+        for p in reports:
+            p.unlink(missing_ok=True)
+
+
+def test_sigint_handler_is_removed_after_the_session(tmp_path, monkeypatch):
+    """The app must not leave a global SIGINT handler installed."""
+    import signal
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay",
+    ])
+    install_fake_sdk(monkeypatch, {"script": [("final", "سی تی اسکن")]})
+
+    before = signal.getsignal(signal.SIGINT)
+    assert asyncio.run(app_module.main()) == 0
+    assert signal.getsignal(signal.SIGINT) is before

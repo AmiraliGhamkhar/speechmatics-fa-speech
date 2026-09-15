@@ -76,6 +76,11 @@ LENGTH_STEP = 0.01     # longer forms get cheaper: (lmax - len) * LENGTH_STEP
 TIER_STEP = 0.001      # lower tier wins for equal-length forms
 SEQ_STEP = 1e-6        # total order: stable rule order breaks remaining ties
 
+#: Upper bound on cached transducers. The alphabet (and therefore the FST)
+#: depends on the input text, so an unbounded cache grows for the whole
+#: dictation session.
+_FST_CACHE_MAX = 16
+
 
 @dataclass(frozen=True)
 class FstRule:
@@ -294,9 +299,20 @@ class MedicalFST:
         return f
 
     def _get_fst(self, alphabet: frozenset) -> Any:
-        """Build the transducer for a given alphabet of codepoint labels."""
+        """Build the transducer for a given alphabet of codepoint labels.
+
+        The cache is bounded: the alphabet is derived from the *input text*,
+        so a long dictation session produces a new alphabet (and a new
+        multi-megabyte transducer) for almost every segment. Caching those
+        without limit leaked memory for the whole session. Keeping a small
+        number of recent transducers preserves the hit rate for repetitive
+        clinical phrasing without unbounded growth.
+        """
         cached = self._fst_cache.get(alphabet)
         if cached is not None:
+            # Refresh recency (dicts preserve insertion order).
+            self._fst_cache.pop(alphabet)
+            self._fst_cache[alphabet] = cached
             return cached
 
         f = pynini.Fst()
@@ -343,6 +359,8 @@ class MedicalFST:
 
         pynini.arcsort(f, sort_type="ilabel")
         self._fst_cache[alphabet] = f
+        while len(self._fst_cache) > _FST_CACHE_MAX:
+            self._fst_cache.pop(next(iter(self._fst_cache)))
         return f
 
     def _run_pynini(self, text: str) -> str:
@@ -354,10 +372,21 @@ class MedicalFST:
             composed = pynini.compose(self._acceptor(text), fst)
             path = pynini.shortestpath(composed)
             state = path.start()
+            if state == pynini.NO_STATE_ID:
+                # Empty composition: no path accepts the input. Falling
+                # through would silently return "" and wipe the segment.
+                raise FstError("FST produced no path for the input")
             out = []
             steps = 0
-            while float(path.final(state)) != 0.0:
+            # Walk to the final state. A state is terminal when its final
+            # weight is not Zero (infinity); testing ``!= 0.0`` instead
+            # assumed every final weight is exactly zero, which silently
+            # truncated the output the moment a weighted final state
+            # appeared on the path.
+            while True:
                 arcs = list(path.arcs(state))
+                if not arcs:
+                    break
                 if len(arcs) != 1:  # pragma: no cover - cannot happen on a path
                     raise FstError("FST shortest path is not deterministic")
                 if arcs[0].olabel:
@@ -431,7 +460,19 @@ class MedicalFST:
             return text, []
         scan_out, hits = self._scan(text)
         if self.uses_pynini:
-            canonical = self._run_pynini(text)
+            try:
+                canonical = self._run_pynini(text)
+            except FstError as exc:
+                # A backend failure must never cost the clinician their
+                # transcript: the pure-Python scanner implements the identical
+                # priority scheme and is verified against the FST by the test
+                # suite, so degrade to it instead of propagating (which would
+                # abort the run after the dictation was already finished).
+                self.warnings.append(
+                    f"pynini backend failed for {text[:40]!r} ({exc}); "
+                    f"using the equivalent Python scanner output"
+                )
+                return scan_out, hits
             # The scanner is the reference implementation used for hit
             # metadata; the two must agree (identical priority scheme).
             if canonical != scan_out:

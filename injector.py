@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import platform
 import time
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 _SYSTEM = platform.system().lower()
 
@@ -232,12 +232,23 @@ class TextInjector:
             return
 
         if not self.enable_smart_rewrite:
-            # Simple append-only mode
+            # Simple append-only mode: only a pure extension can be typed,
+            # because we are not allowed to erase anything here.
+            #
+            # BUGFIX: the state was previously only advanced on the
+            # append path. Once the STT revised a word (a non-prefix
+            # hypothesis) ``_last_partial`` froze at the old value, so every
+            # later partial was compared against stale text and nothing was
+            # ever typed again - the dictation silently died mid-sentence.
+            # Track the newest hypothesis unconditionally so that subsequent
+            # extensions keep flowing.
             if partial.startswith(self._last_partial):
                 delta = partial[len(self._last_partial):]
                 self._last_partial = partial
                 if delta:
                     self.type_text(delta)
+            else:
+                self._last_partial = partial
             return
 
         # Find common prefix between previous hypothesis and new hypothesis.

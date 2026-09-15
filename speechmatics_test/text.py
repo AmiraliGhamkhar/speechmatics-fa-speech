@@ -18,14 +18,31 @@ ARABIC_TO_PERSIAN = str.maketrans({
     "\u064e": "", "\u064f": "", "\u0650": "", "\u0651": "", "\u0652": "",
 })
 
+#: Extended Arabic-Indic (Persian) U+06F0-06F9 and Arabic-Indic U+0660-0669
+#: digits -> ASCII. Speechmatics returns Persian digits for Persian streams,
+#: so a dose dictated as "20 mg" can come back as "۲۰ mg". Without folding
+#: them the benchmark scored *correct* numbers as wrong (number_accuracy 0.0)
+#: and inflated WER - the single most misleading metric for a dosage-critical
+#: medical benchmark. This is generic script normalization, not medical
+#: knowledge, so it belongs in this stage.
+DIGITS_TO_ASCII = str.maketrans(
+    {chr(0x06F0 + i): str(i) for i in range(10)}
+    | {chr(0x0660 + i): str(i) for i in range(10)}
+)
+
+#: Arabic decimal separator / thousands separator used with Arabic-Indic digits.
+_ARABIC_NUMERIC_PUNCT = str.maketrans({"\u066b": ".", "\u066c": ","})
+
 RTL_RE = re.compile(r"[\u0600-\u06ff\u0750-\u077f\ufb50-\ufdff\ufe70-\ufeff]")
 
 
 def normalize_text(text: str) -> str:
-    """Generic normalization: NFC, Persian script, ZWNJ->space, spacing."""
+    """Generic normalization: NFC, Persian script, digits, ZWNJ->space, spacing."""
     text = unicodedata.normalize("NFC", text or "")
     text = text.translate(ARABIC_TO_PERSIAN)
     text = text.replace("ي", "ی").replace("ك", "ک")
+    text = text.translate(DIGITS_TO_ASCII)
+    text = text.translate(_ARABIC_NUMERIC_PUNCT)
     text = re.sub(r"[ \t\u200c\u200d]+", " ", text).strip()
     text = re.sub(r"\s+([،؛؟,.!?])", r"\1", text)
     return text
