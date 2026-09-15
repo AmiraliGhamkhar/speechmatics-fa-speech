@@ -1,14 +1,15 @@
 """TextInjector tests (platform-independent parts).
 
-The injector had no test coverage at all, even though it is the component
-that actually writes into the clinician's EMR field. These tests pin the
-pure-logic behaviour that is reachable off-Windows: streaming revision
-handling, UTF-16 backspace counting, grapheme-safe split points, and the
-dry-run contract.
+Covers the streaming revision logic, UTF-16 backspace counting,
+grapheme-safe split points, the dry-run contract, the mixed Persian/English
+payload preparation (spacing/ZWNJ cleanup + RLE/PDF/RLM BiDi wrap), and
+thread-safety plumbing.
 """
 
+import threading
+
 import injector as injector_module
-from injector import TextInjector
+from injector import RLE, RLM, PDF, TextInjector, clean_payload_spacing, contains_rtl
 
 
 def make_injector(**kwargs):
@@ -88,12 +89,7 @@ def test_reset_partial_clears_streaming_state():
 
 
 def test_append_only_mode_recovers_after_a_revision():
-    """Regression: append-only mode used to freeze after the first revision.
-
-    ``_last_partial`` was only updated on the pure-append path, so once the
-    STT revised a word every later partial was diffed against stale text and
-    nothing was ever typed again - dictation died silently mid-sentence.
-    """
+    """Regression: append-only mode used to freeze after the first revision."""
     inj = RecordingInjector(enable_smart_rewrite=False)
     inj.type_delta_from_partial("hello wor")
     inj.type_delta_from_partial("hello world")
@@ -110,6 +106,21 @@ def test_append_only_mode_never_sends_backspaces():
     for partial in ["aaa", "bbb", "ccc ddd", "ccc"]:
         inj.type_delta_from_partial(partial)
     assert inj.backspaces == []
+
+
+def test_streaming_is_serialized_on_the_lock():
+    """Realtime callbacks from another thread must not interleave."""
+    inj = RecordingInjector()
+    threads = [
+        threading.Thread(target=inj.type_delta_from_partial, args=(f"word {i} جمله",))
+        for i in range(8)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    # no exception, and state is coherent (last writer wins)
+    assert inj._last_partial == "word 7 جمله"
 
 
 # --------------------------------------------------------- grapheme safety
@@ -155,6 +166,57 @@ def test_split_point_does_not_split_surrogate_pair():
     assert TextInjector._safe_split_point(old, new, 2) == 2
 
 
+# ----------------------------------------------------- payload preparation
+
+def test_clean_payload_spacing_collapses_whitespace():
+    assert clean_payload_spacing("سلام   دنیا\n\tاینجا") == "سلام دنیا اینجا"
+    assert clean_payload_spacing("  a   b  ") == "a b"
+
+
+def test_clean_payload_spacing_fixes_zwnj():
+    # ASR loves emitting "می ‌خواهم" with a stray space by the ZWNJ
+    assert clean_payload_spacing("می \u200cخواهم") == "می\u200cخواهم"
+    assert clean_payload_spacing("می\u200c خواهم") == "می\u200cخواهم"
+    # stray ZWNJ at the edges is dropped
+    assert clean_payload_spacing("\u200cسلام\u200c") == "سلام"
+
+
+def test_contains_rtl():
+    assert contains_rtl("سلام CT scan")
+    assert not contains_rtl("CT scan 120/80")
+
+
+def test_prepare_mixed_text_wraps_rtl_payload():
+    inj = make_injector()
+    out = inj.prepare_mixed_text("بیمار در CCU است")
+    assert out == RLM + RLE + "بیمار در CCU است" + PDF
+
+
+def test_prepare_mixed_text_leaves_ltr_payload_unwrapped():
+    inj = make_injector()
+    assert inj.prepare_mixed_text("CT scan done") == "CT scan done"
+
+
+def test_prepare_mixed_text_keeps_trailing_space_inside_wrap():
+    inj = make_injector()
+    out = inj.prepare_mixed_text("سلام دنیا ")
+    # trailing separator preserved, inside the embedding
+    assert out == RLM + RLE + "سلام دنیا " + PDF
+
+
+def test_prepare_mixed_text_is_idempotent():
+    inj = make_injector()
+    once = inj.prepare_mixed_text("بیمار CT scan")
+    twice = inj.prepare_mixed_text(once)
+    assert once == twice
+    assert once.count(RLM) == 1 and once.count(RLE) == 1 and once.count(PDF) == 1
+
+
+def test_prepare_mixed_text_can_disable_bidi_marks():
+    inj = make_injector(add_bidi_marks=False)
+    assert inj.prepare_mixed_text("سلام") == "سلام"
+
+
 # ------------------------------------------------------------------ dry run
 
 def test_dry_run_never_touches_the_system(capsys):
@@ -166,6 +228,14 @@ def test_dry_run_never_touches_the_system(capsys):
     assert "DRY_RUN paste" in out and "DRY_RUN type" in out
 
 
+def test_dry_run_paste_shows_bidi_wrapped_payload(capsys):
+    """The pasted payload visibly includes the RLE/PDF/RLM marks."""
+    inj = make_injector()
+    inj.paste_text("بیمار در CCU است")
+    out = capsys.readouterr().out
+    assert "\\u202b" in out and "\\u202c" in out and "\\u200f" in out
+
+
 def test_empty_text_is_rejected():
     inj = make_injector()
     assert inj.paste_text("") is False
@@ -174,16 +244,11 @@ def test_empty_text_is_rejected():
     assert inj.send_backspaces(0) is True
 
 
-def test_rtl_mark_is_opt_in_and_not_duplicated(capsys):
+def test_rtl_mark_is_not_duplicated():
+    """Already-marked text must not get a second RLM."""
     inj = make_injector()
-    inj.paste_text("سلام", add_rtl_mark=True)
-    first = capsys.readouterr().out
-    assert "\\u200f" in first or "\u200f" in first
-
-    # Already-marked text must not get a second RLM
-    inj.paste_text("\u200fسلام", add_rtl_mark=True)
-    second = capsys.readouterr().out
-    assert second.count("\\u200f") <= 1
+    payload = inj.prepare_mixed_text("\u200fسلام")
+    assert payload.count(RLM) == 1
 
 
 def test_injector_does_not_add_arrows(capsys):

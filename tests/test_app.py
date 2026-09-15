@@ -88,6 +88,36 @@ def test_overlay_has_final_api():
     assert hasattr(TranscriptOverlay, "set_done")
 
 
+# ------------------------------------------------- overlay smart direction
+
+def test_detect_direction_persian_dominant_is_rtl():
+    from overlay import detect_direction
+    assert detect_direction("بیمار در CCU بستری است") == "rtl"
+    assert detect_direction("فشار خون بالا") == "rtl"
+    assert detect_direction("") == "rtl"  # product default
+
+
+def test_detect_direction_english_dominant_is_ltr():
+    from overlay import detect_direction
+    assert detect_direction("CT scan completed successfully") == "ltr"
+
+
+def test_detect_direction_mixed_respects_ratio_not_first_char():
+    """A Persian-dominant sentence that starts with Latin stays RTL -
+    smarter than the old first-strong-character rule."""
+    from overlay import detect_direction
+    assert detect_direction("CT scan بیمار نشان می دهد لیژن وجود ندارد") == "rtl"
+    assert detect_direction("BP 120/80") == "ltr"
+
+
+def test_shape_for_display_is_safe_without_bidi():
+    from overlay import shape_for_display
+    # with or without python-bidi installed this must not raise and must
+    # return a non-empty string for non-empty input
+    assert shape_for_display("بیمار CT scan")
+    assert shape_for_display("") == ""
+
+
 def test_overlay_close_schedules_destroy_after_marking_closed():
     """Regression: close used to route through _ui and drop its own callback."""
     from overlay import TranscriptOverlay

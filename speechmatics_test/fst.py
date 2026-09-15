@@ -1,85 +1,82 @@
-"""Deterministic medical lexical canonicalization (FST layer).
+"""Deterministic medical lexical canonicalization (Aho-Corasick layer).
 
 Pipeline position (applied to FINAL ASR segments only, never to partials):
 
     Speechmatics FINAL  ->  normalize_text()  ->  MedicalFST.canonicalize()
                                               ->  canonical medical transcript
 
-Design
-------
-- Rules come from ``medical_knowledge/fst_terms.json`` (the curated primary
-  rules) plus the other knowledge files, each kept in its own tier so that
-  observed ASR aliases, abbreviations, phrases and validated vocabulary never
-  mix implicitly. Every rule keeps its source and tier for auditability.
-- The transducer is an OpenFst/Pynini FST over Unicode codepoint labels with
-  two boundary states:
+Engine: Aho-Corasick
+--------------------
+The matcher is an **Aho-Corasick automaton**:
 
-      state 0 = "at a token boundary"  (start of text / after boundary char)
-      state 1 = "inside a token"
-
-  A rule chain may only START in state 0 and must be FOLLOWED by a boundary
-  character (or end of input), which makes matching token-aware rather than
-  unsafe substring replacement. (Codepoint labels are used instead of UTF-8
-  bytes because Persian punctuation and letters share UTF-8 lead bytes, which
-  would make byte-level boundary detection ambiguous.)
-- At any position the FST can either copy one character (weight
-  ``COPY_WEIGHT``) or follow one rule chain. Rule weight is
-  ``(lmax - len(form)) * LENGTH_STEP + tier * TIER_STEP + seq * SEQ_STEP``
-  so the shortest path is exactly: longest match first, then tier priority,
-  then stable rule order. With ``COPY_WEIGHT = 1.0`` a longer match always
-  beats a shorter one even across tiers, which makes the single global
-  shortest path equal to a greedy left-to-right longest match.
-- No semantic inference: the FST only performs deterministic lexical
+- It **learns every rule form once** at load time (a single automaton
+  build) instead of re-compiling anything per utterance.
+- It then **searches ALL forms simultaneously** in one left-to-right pass
+  over the input text, in O(len(text) + number_of_matches) time,
+  completely independent of how many rules exist. This is the fastest
+  known approach for a large dictionary and is exactly what a growing
+  clinical rule set needs. (The previous per-alphabet OpenFst rebuild -
+  and its cache - is gone entirely.)
+- Matches are filtered to **token boundaries** (both sides of the form
+  must border a boundary character or the text edge), so replacement is
+  token-aware rather than unsafe substring replacement.
+- Overlapping candidates at a position are resolved deterministically:
+  **longest match first**, then tier (curated > observed), then stable
+  rule order. A shorter boundary-valid match still wins over a longer
+  boundary-invalid one.
+- No semantic inference: the layer only performs deterministic lexical
   replacement. It never infers diagnosis, severity, negation or dosage
   correctness.
 
-If Pynini cannot be imported (minimal environments), a deterministic pure
-Python scanner implementing the same priority scheme produces the output;
-``MedicalFST.uses_pynini`` exposes which backend is active.
+Two interchangeable engines implement the automaton:
+
+1. ``pyahocorasick`` (native C) when the package is installed
+   (``MedicalFST.uses_ahocorasick is True``), and
+2. a built-in pure-Python Aho-Corasick automaton (goto/failure/output
+   table) that produces identical output, so the application is fully
+   functional everywhere - including platforms without a C toolchain.
+
+A deterministic naive scanner (``_scan_reference``) is kept as the
+reference implementation; the test suite verifies the automaton against
+it, and ``canonicalize`` degrades to it if the engine ever fails, so an
+engine problem can never cost the clinician their finished transcript.
 """
 
 from __future__ import annotations
 
 import json
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from .text import normalize_text
 
 try:  # pragma: no cover - depends on environment
-    import pynini
+    import ahocorasick as _native_ac
 except ImportError:  # pragma: no cover
-    pynini = None
+    _native_ac = None
 
-__all__ = ["MedicalFST", "FstError", "FstRule"]
+__all__ = ["MedicalFST", "FstError", "FstRule", "AhoAutomaton", "ENGINE_NAME"]
+
+#: Public engine identifier (reported by the app banner and the reports).
+ENGINE_NAME = "aho-corasick"
 
 
 class FstError(RuntimeError):
-    """Raised when the FST rule set is invalid or an FST operation fails."""
+    """Raised when the rule set is invalid or the matcher operation fails."""
 
 
 #: Characters that separate tokens (whitespace + common Latin/Persian
-#: punctuation). Both the byte set (for the FST) and the char set (for the
-#: scanner) are derived from this single source of truth.
+#: punctuation). The character set (used by both the automaton boundary
+#: filter and the reference scanner) is derived from this single source
+#: of truth.
 _BOUNDARY_CHARACTERS = (
     " \t\n\r"
     ".,;:!?'\"()[]{}<>+-/#&%$=@`"
     "،؛؟«»…"
 )
 _BOUNDARY_CHARS = frozenset(_BOUNDARY_CHARACTERS)
-_BOUNDARY_ORDS = frozenset(map(ord, _BOUNDARY_CHARACTERS))
-
-#: Per-rule weight constants (tropical semiring, lower = preferred).
-COPY_WEIGHT = 1.0      # cost of copying one character
-LENGTH_STEP = 0.01     # longer forms get cheaper: (lmax - len) * LENGTH_STEP
-TIER_STEP = 0.001      # lower tier wins for equal-length forms
-SEQ_STEP = 1e-6        # total order: stable rule order breaks remaining ties
-
-#: Upper bound on cached transducers. The alphabet (and therefore the FST)
-#: depends on the input text, so an unbounded cache grows for the whole
-#: dictation session.
-_FST_CACHE_MAX = 16
 
 
 @dataclass(frozen=True)
@@ -98,9 +95,79 @@ class FstRule:
         return (-len(self.form), self.tier, self.seq)
 
 
+# ---------------------------------------------------------------------- AC
+
+
+class AhoAutomaton:
+    """Self-contained pure-Python Aho-Corasick automaton.
+
+    Builds the goto/failure/output tables once; ``iter()`` then finds all
+    pattern occurrences in a single pass over the text. Patterns are
+    identified by their index in the ``forms`` list.
+    """
+
+    __slots__ = ("_goto", "_fail", "_out")
+
+    def __init__(self, forms: list[str]) -> None:
+        goto: list[dict[str, int]] = [{}]
+        fail: list[int] = [0]
+        out: list[list[int]] = [[]]
+
+        for idx, form in enumerate(forms):
+            state = 0
+            for ch in form:
+                target = goto[state].get(ch)
+                if target is None:
+                    target = len(goto)
+                    goto[state][ch] = target
+                    goto.append({})
+                    fail.append(0)
+                    out.append([])
+                state = target
+            out[state].append(idx)
+
+        # Failure links via BFS; dictionary outputs are merged in so every
+        # state carries the full set of patterns that end there.
+        queue: deque[int] = deque()
+        for child in goto[0].values():
+            queue.append(child)  # depth-1 nodes fail to the root
+        while queue:
+            state = queue.popleft()
+            for ch, target in goto[state].items():
+                queue.append(target)
+                f = fail[state]
+                while f and ch not in goto[f]:
+                    f = fail[f]
+                fallback = goto[f].get(ch, 0)
+                fail[target] = 0 if fallback == target else fallback
+                if out[fail[target]]:
+                    out[target] = out[target] + out[fail[target]]
+
+        self._goto = goto
+        self._fail = fail
+        self._out = out
+
+    def iter(self, text: str) -> Iterator[tuple[int, int]]:
+        """Yield ``(end_index_inclusive, pattern_index)`` for every match."""
+        goto, fail, out = self._goto, self._fail, self._out
+        state = 0
+        for i, ch in enumerate(text):
+            while state and ch not in goto[state]:
+                state = fail[state]
+            state = goto[state].get(ch, 0)
+            for pattern in out[state]:
+                yield i, pattern
+
+
 @dataclass
 class MedicalFST:
-    """Loads the medical rules and canonicalizes finalized transcript text."""
+    """Loads the medical rules and canonicalizes finalized transcript text.
+
+    Despite the historical class name (the layer's public API is stable),
+    the matching engine is an Aho-Corasick automaton - not an OpenFst
+    transducer. Rule loading, tiers, dedup/conflict resolution, hits and
+    the ``canonicalize`` contract are unchanged.
+    """
 
     root: Path
     terms_rel: str = "medical_knowledge/fst_terms.json"
@@ -114,22 +181,23 @@ class MedicalFST:
     # populated by __post_init__
     rules: list[FstRule] = field(default_factory=list, init=False, repr=False)
     warnings: list[str] = field(default_factory=list, init=False, repr=False)
-    uses_pynini: bool = field(default=False, init=False, repr=False)
-    _lmax: int = field(default=0, init=False, repr=False)
-    _fst_cache: dict = field(default_factory=dict, init=False, repr=False)
+    uses_ahocorasick: bool = field(default=False, init=False, repr=False)
     _by_first: dict = field(default_factory=dict, init=False, repr=False)
+    _ac_native: Any = field(default=None, init=False, repr=False)
+    _ac_python: Optional[AhoAutomaton] = field(default=None, init=False, repr=False)
 
     # ------------------------------------------------------------------ load
 
     def __post_init__(self) -> None:
         self.root = Path(self.root)
-        self.uses_pynini = pynini is not None
         raw = self._load_primary()
         raw += self._load_extra()
         self._build_rules(raw)
-        self._lmax = max((len(r.form) for r in self.rules), default=0)
         if not self.rules:
-            self.warnings.append("medical FST has no rules; canonicalization is a no-op")
+            self.warnings.append(
+                "medical canonicalization layer has no rules; it is a no-op"
+            )
+        self._build_automaton()
 
     def _read_json(self, rel: str, required: bool = False) -> Optional[Any]:
         path = self.root / rel
@@ -275,133 +343,29 @@ class MedicalFST:
             lst.sort(key=lambda r: r.key)
         self._by_first = by_first
 
-    # --------------------------------------------------------------- pynini
+    # -------------------------------------------------------------- automaton
 
-    @staticmethod
-    def _acceptor(text: str) -> Any:
-        """String acceptor over Unicode codepoint labels (one arc/char).
+    def _build_automaton(self) -> None:
+        """Learn all rule forms once, up front (the core of Aho-Corasick)."""
+        if not self.rules:
+            return
+        forms = [rule.form for rule in self.rules]
+        self.uses_ahocorasick = _native_ac is not None
+        if _native_ac is not None:
+            automaton = _native_ac.Automaton()
+            for idx, form in enumerate(forms):
+                automaton.add_word(form, idx)
+            automaton.make_automaton()
+            self._ac_native = automaton
+        else:
+            self._ac_python = AhoAutomaton(forms)
 
-        pynini.accep() would encode the text as UTF-8 bytes, which is
-        ambiguous for boundary detection (e.g. 0xD8 is both the lead byte
-        of Persian punctuation and of Persian letters), so we build the
-        acceptor over codepoints instead.
-        """
-        f = pynini.Fst()
-        f.add_state()
-        f.set_start(0)  # NOTE: add_state() does not set start in pynini 2.1.x
-        cur = 0
-        for ch in text:
-            f.add_state()
-            nxt = f.num_states() - 1
-            f.add_arc(cur, pynini.Arc(ord(ch), ord(ch), 0.0, nxt))
-            cur = nxt
-        f.set_final(cur)
-        return f
-
-    def _get_fst(self, alphabet: frozenset) -> Any:
-        """Build the transducer for a given alphabet of codepoint labels.
-
-        The cache is bounded: the alphabet is derived from the *input text*,
-        so a long dictation session produces a new alphabet (and a new
-        multi-megabyte transducer) for almost every segment. Caching those
-        without limit leaked memory for the whole session. Keeping a small
-        number of recent transducers preserves the hit rate for repetitive
-        clinical phrasing without unbounded growth.
-        """
-        cached = self._fst_cache.get(alphabet)
-        if cached is not None:
-            # Refresh recency (dicts preserve insertion order).
-            self._fst_cache.pop(alphabet)
-            self._fst_cache[alphabet] = cached
-            return cached
-
-        f = pynini.Fst()
-        f.add_state()      # 0 = at token boundary (start)
-        f.add_state()      # 1 = inside token
-        f.set_start(0)
-        f.set_final(0)
-        f.set_final(1)
-
-        # Copy arcs, keeping the boundary state consistent.
-        for c in sorted(alphabet):
-            target = 0 if c in _BOUNDARY_ORDS else 1
-            f.add_arc(0, pynini.Arc(c, c, COPY_WEIGHT, target))
-            f.add_arc(1, pynini.Arc(c, c, COPY_WEIGHT, target))
-
-        # Rule chains: only start at a boundary, must end at a boundary.
-        for rule in self.rules:
-            form_ords = [ord(c) for c in rule.form]
-            canon_ords = [ord(c) for c in rule.canonical]
-            weight = (
-                (self._lmax - len(form_ords)) * LENGTH_STEP
-                + rule.tier * TIER_STEP
-                + rule.seq * SEQ_STEP
-            )
-            n = max(len(form_ords), len(canon_ords))
-            f.add_state()
-            end = f.num_states() - 1  # final (end-of-input) + boundary arcs
-            f.set_final(end)
-            cur = 0
-            for k in range(n):
-                il = form_ords[k] if k < len(form_ords) else 0
-                ol = canon_ords[k] if k < len(canon_ords) else 0
-                if k == n - 1:
-                    f.add_arc(cur, pynini.Arc(il, ol, weight, end))
-                else:
-                    f.add_state()
-                    nxt = f.num_states() - 1
-                    f.add_arc(cur, pynini.Arc(il, ol, 0.0, nxt))
-                    cur = nxt
-            # After the form: a boundary char keeps us at the boundary state.
-            for c in sorted(alphabet):
-                if c in _BOUNDARY_ORDS:
-                    f.add_arc(end, pynini.Arc(c, c, COPY_WEIGHT, 0))
-
-        pynini.arcsort(f, sort_type="ilabel")
-        self._fst_cache[alphabet] = f
-        while len(self._fst_cache) > _FST_CACHE_MAX:
-            self._fst_cache.pop(next(iter(self._fst_cache)))
-        return f
-
-    def _run_pynini(self, text: str) -> str:
-        alphabet = frozenset(map(ord, text)) | frozenset(
-            ord(c) for rule in self.rules for c in rule.form
-        )
-        try:
-            fst = self._get_fst(alphabet)
-            composed = pynini.compose(self._acceptor(text), fst)
-            path = pynini.shortestpath(composed)
-            state = path.start()
-            if state == pynini.NO_STATE_ID:
-                # Empty composition: no path accepts the input. Falling
-                # through would silently return "" and wipe the segment.
-                raise FstError("FST produced no path for the input")
-            out = []
-            steps = 0
-            # Walk to the final state. A state is terminal when its final
-            # weight is not Zero (infinity); testing ``!= 0.0`` instead
-            # assumed every final weight is exactly zero, which silently
-            # truncated the output the moment a weighted final state
-            # appeared on the path.
-            while True:
-                arcs = list(path.arcs(state))
-                if not arcs:
-                    break
-                if len(arcs) != 1:  # pragma: no cover - cannot happen on a path
-                    raise FstError("FST shortest path is not deterministic")
-                if arcs[0].olabel:
-                    out.append(chr(arcs[0].olabel))
-                state = arcs[0].nextstate
-                steps += 1
-                if steps > 1_000_000:  # pragma: no cover
-                    raise FstError("FST path is unexpectedly long")
-            return "".join(out)
-        except FstError:
-            raise
-        except Exception as exc:  # pragma: no cover - backend failure
-            raise FstError(f"Pynini canonicalization failed: {exc}") from exc
-
-    # --------------------------------------------------------------- scanner
+    def _iter_matches(self, text: str) -> Iterator[tuple[int, int]]:
+        """Yield ``(end_index_inclusive, rule_index)`` for every raw match."""
+        if self._ac_native is not None:
+            yield from self._ac_native.iter(text)
+        elif self._ac_python is not None:
+            yield from self._ac_python.iter(text)
 
     @staticmethod
     def _is_start_boundary(text: str, i: int) -> bool:
@@ -413,10 +377,67 @@ class MedicalFST:
         """Position i is a token end (end of text or boundary at i)."""
         return i == len(text) or text[i] in _BOUNDARY_CHARS
 
-    def _scan(self, text: str) -> tuple[str, list[dict[str, Any]]]:
-        """Deterministic greedy scan: longest match, then tier, then order.
+    # --------------------------------------------------------------- engines
 
-        Produces the canonical output and the hit list in a single pass.
+    def _scan(self, text: str) -> tuple[str, list[dict[str, Any]]]:
+        """Aho-Corasick scan: one linear pass finds every candidate.
+
+        Candidates are filtered to token boundaries, then the greedy
+        left-to-right rule applies: at each boundary position, the best
+        candidate (longest, then tier, then stable order) is emitted and
+        scanning resumes after it; everything else is copied verbatim.
+        """
+        candidates_at: dict[int, list[tuple[int, FstRule]]] = {}
+        length = len(text)
+        for end, idx in self._iter_matches(text):
+            rule = self.rules[idx]
+            start = end - len(rule.form) + 1
+            end_excl = end + 1
+            # Token-aware: an Aho-Corasick match inside a longer token
+            # must be discarded (never a substring replacement).
+            if not self._is_start_boundary(text, start):
+                continue
+            if not self._is_end_boundary(text, end_excl):
+                continue
+            if end_excl > length:
+                continue  # pragma: no cover - cannot happen
+            bucket = candidates_at.get(start)
+            entry = (end_excl, rule)
+            if bucket is None:
+                candidates_at[start] = [entry]
+            else:
+                bucket.append(entry)
+
+        out: list[str] = []
+        hits: list[dict[str, Any]] = []
+        i = 0
+        while i < length:
+            candidates = candidates_at.get(i)
+            if candidates:
+                best_end, best_rule = candidates[0]
+                for end, rule in candidates[1:]:
+                    if rule.key < best_rule.key:
+                        best_end, best_rule = end, rule
+                out.append(best_rule.canonical)
+                hits.append({
+                    "form": best_rule.form,
+                    "canonical": best_rule.canonical,
+                    "tier": best_rule.tier,
+                    "source": best_rule.source,
+                    "position": i,
+                })
+                i = best_end
+                continue
+            out.append(text[i])
+            i += 1
+        return "".join(out), hits
+
+    def _scan_reference(self, text: str) -> tuple[str, list[dict[str, Any]]]:
+        """Deterministic naive scanner (reference implementation).
+
+        Implements the identical priority scheme per position instead of an
+        automaton. Kept for parity testing and as the degradation path if
+        the automaton engine ever fails.
         """
         out: list[str] = []
         hits: list[dict[str, Any]] = []
@@ -449,6 +470,15 @@ class MedicalFST:
 
     # --------------------------------------------------------------- public
 
+    @property
+    def engine(self) -> str:
+        """Human-readable engine identifier for banners/reports."""
+        if self._ac_native is not None:
+            return f"{ENGINE_NAME} (pyahocorasick)"
+        if self._ac_python is not None:
+            return f"{ENGINE_NAME} (pure-python)"
+        return "none (no rules)"
+
     def canonicalize(self, text: str) -> tuple[str, list[dict[str, Any]]]:
         """Canonicalize already-normalized finalized text.
 
@@ -458,27 +488,16 @@ class MedicalFST:
         """
         if not text:
             return text, []
-        scan_out, hits = self._scan(text)
-        if self.uses_pynini:
-            try:
-                canonical = self._run_pynini(text)
-            except FstError as exc:
-                # A backend failure must never cost the clinician their
-                # transcript: the pure-Python scanner implements the identical
-                # priority scheme and is verified against the FST by the test
-                # suite, so degrade to it instead of propagating (which would
-                # abort the run after the dictation was already finished).
-                self.warnings.append(
-                    f"pynini backend failed for {text[:40]!r} ({exc}); "
-                    f"using the equivalent Python scanner output"
-                )
-                return scan_out, hits
-            # The scanner is the reference implementation used for hit
-            # metadata; the two must agree (identical priority scheme).
-            if canonical != scan_out:
-                self.warnings.append(
-                    f"FST/scanner mismatch for {text[:40]!r}: FST={canonical!r} "
-                    f"scanner={scan_out!r} - using FST output"
-                )
-            return canonical, hits
-        return scan_out, hits
+        if not self.rules:
+            return text, []
+        try:
+            return self._scan(text)
+        except Exception as exc:
+            # An engine failure must never cost the clinician their finished
+            # transcript: the naive scanner implements the identical priority
+            # scheme and is verified against the automaton by the test suite.
+            self.warnings.append(
+                f"aho-corasick engine failed for {text[:40]!r} ({exc}); "
+                f"using the equivalent reference scanner output"
+            )
+            return self._scan_reference(text)

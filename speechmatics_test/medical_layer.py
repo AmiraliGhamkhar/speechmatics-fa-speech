@@ -8,9 +8,12 @@ Keeps the pipeline stages separate and explicit:
   ``SpeechmaticsRealtime.SessionResult.final_text``).
 - ``normalize_text`` is generic text normalization only (script unification,
   ZWNJ/whitespace, punctuation spacing) - no medical knowledge.
-- ``MedicalFST`` performs deterministic lexical canonicalization using the
-  FST rule set in ``medical_knowledge/fst_terms.json`` plus the other
-  knowledge files, each kept in its own tier.
+- ``MedicalFST`` performs deterministic lexical canonicalization using an
+  **Aho-Corasick** automaton built from the rule set in
+  ``medical_knowledge/fst_terms.json`` plus the other knowledge files, each
+  kept in its own tier. The automaton learns every form once and searches
+  all of them simultaneously in a single pass, so the layer stays fast no
+  matter how large the rule set grows.
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from .text import normalize_text
 
 
 class MedicalLayer:
-    """Facade over the deterministic medical FST layer."""
+    """Facade over the deterministic medical Aho-Corasick layer."""
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
@@ -33,8 +36,12 @@ class MedicalLayer:
     def warnings(self) -> list[str]:
         return self.fst.warnings
 
+    @property
+    def engine(self) -> str:
+        return self.fst.engine
+
     def canonicalize(self, normalized_text: str) -> tuple[str, list[dict[str, Any]]]:
-        """Apply the medical FST to already-normalized finalized text.
+        """Apply the medical layer to already-normalized finalized text.
 
         Returns ``(canonical_text, hits)``. This is the only stage that may
         rewrite medical terminology.
@@ -42,5 +49,5 @@ class MedicalLayer:
         return self.fst.canonicalize(normalized_text)
 
     def normalize(self, text: str) -> tuple[str, list[dict[str, Any]]]:
-        """Convenience: generic normalization + medical FST in one call."""
+        """Convenience: generic normalization + medical layer in one call."""
         return self.fst.canonicalize(normalize_text(text))

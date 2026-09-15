@@ -2,9 +2,21 @@
 Cross-platform text injection focused on Windows with full support for:
 - Persian/Arabic Unicode (گ، چ، پ، ژ، ی، ک)
 - Zero-Width Non-Joiner (نیم‌فاصله \\u200C)
-- RTL (Right-to-Left) text direction handling
+- RTL (Right-to-Left) text direction handling (RLE/PDF/RLM BiDi marks)
+- Mixed Persian/English payload preparation (spacing & ZWNJ cleanup)
 - Real-time STT hypothesis revisions (smart backspacing)
 - Native UTF-16 SendInput and Win32 Clipboard (No external dependencies on Windows)
+
+Injection strategy
+------------------
+- FINAL segments are delivered with the **clipboard paste** path
+  (``paste_text``): it is atomic per segment and lets the target
+  application shape complex BiDi text itself.
+- Before pasting, ``prepare_mixed_text`` cleans the payload and wraps RTL
+  text in Unicode directional marks (RLM + RLE ... PDF) so LTR-default
+  editors and web forms render mixed Persian/English correctly.
+- ``type_text`` (SendInput keystrokes) remains available for streaming
+  revisions inside a field; it is not used for finalized segments.
 
 Correctness notes (these were real injection bugs):
 
@@ -32,10 +44,15 @@ Correctness notes (these were real injection bugs):
    paste to be consumed before returning/restoring.
 6. Backspacing counted Python code points while Windows deletes UTF-16 code
    units, so any non-BMP character erased too little.
+7. Realtime callbacks can arrive on a different thread than the UI; without a
+   lock two callbacks could interleave clipboard writes and Ctrl+V keystrokes.
+   All public entry points are serialized on a lock now.
 """
 from __future__ import annotations
 
 import platform
+import re
+import threading
 import time
 from typing import List, Optional
 
@@ -43,6 +60,46 @@ _SYSTEM = platform.system().lower()
 
 # Tag our own synthetic events so we can tell them apart from real typing.
 _INJECT_SIGNATURE = 0x53545449  # "STTI"
+
+#: Unicode directional marks used for the RTL payload wrap.
+RLM = "\u200f"  # Right-to-Left Mark
+RLE = "\u202b"  # Right-to-Left Embedding
+PDF = "\u202c"  # Pop Directional Formatting
+ZWNJ = "\u200c"
+
+_RTL_RANGES = (
+    ("\u0600", "\u06ff"),
+    ("\u0750", "\u077f"),
+    ("\ufb50", "\ufdff"),
+    ("\ufe70", "\ufeff"),
+)
+
+
+def contains_rtl(text: str) -> bool:
+    """True when the string contains at least one RTL (Persian/Arabic) char."""
+    for ch in text:
+        for lo, hi in _RTL_RANGES:
+            if lo <= ch <= hi:
+                return True
+    return False
+
+
+def clean_payload_spacing(text: str) -> str:
+    """
+    Tidy a payload before injection (تمیز کردن فاصله‌ها و نیم‌فاصله):
+
+    - collapse every whitespace run (newlines/tabs/multiple spaces) to one
+      space so a segment pastes as a single clean line;
+    - remove spaces glued to a ZWNJ (ASR engines love emitting
+      "می ‌خواهم"); the ZWNJ belongs directly between letters;
+    - drop stray ZWNJs left dangling at the edges.
+    """
+    text = " ".join((text or "").split())
+    if ZWNJ in text:
+        text = re.sub(rf" ?{ZWNJ} ?", ZWNJ, text)
+        text = text.strip(ZWNJ).strip()
+    return text
+
 
 # Win32 Native Setup (No PyQt/PyAutoGUI required on Windows)
 if _SYSTEM == "windows":
@@ -162,10 +219,9 @@ if _SYSTEM == "windows":
     user32.GetForegroundWindow.argtypes = []
     user32.GetForegroundWindow.restype = wintypes.HWND
 
-    # These are used by get_foreground_window_info() immediately before the
-    # paste.  Leaving them untyped makes ctypes coerce the 64-bit HWND to a
-    # 32-bit C int, which can make the countdown crash before paste_text() is
-    # ever reached on 64-bit Windows.
+    # These are used by get_foreground_window_info(). Leaving them untyped
+    # makes ctypes coerce the 64-bit HWND to a 32-bit C int, which can crash
+    # on 64-bit Windows.
     user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
     user32.GetWindowTextLengthW.restype = ctypes.c_int
 
@@ -188,13 +244,64 @@ class TextInjector:
         enable_smart_rewrite: bool = True,
         restore_clipboard: bool = True,
         paste_settle_seconds: float = 0.12,
+        add_bidi_marks: bool = True,
     ):
         self.dry_run = dry_run
         self.enable_smart_rewrite = enable_smart_rewrite
         self.restore_clipboard = restore_clipboard
         #: How long to let the target app consume the clipboard after Ctrl+V.
         self.paste_settle_seconds = max(0.0, paste_settle_seconds)
+        #: Always wrap RTL payloads in RLM + RLE ... PDF before pasting.
+        self.add_bidi_marks = add_bidi_marks
         self._last_partial: str = ""
+        #: Serializes all injection entry points: realtime callbacks and the
+        #: main thread must never interleave clipboard writes/keystrokes.
+        self._lock = threading.RLock()
+
+    # ------------------------------------------------------- payload prep
+
+    def prepare_mixed_text(self, text: str) -> str:
+        """
+        آماده‌سازی متن ترکیبی فارسی-انگلیسی برای جهت RTL صحیح.
+
+        1. Clean spacing/ZWNJ (``clean_payload_spacing``).
+        2. If the payload contains RTL characters, wrap it in directional
+           marks: ``RLM + RLE + text + PDF``. Editors that default to LTR
+           (EMR web forms, Notepad dialogs) then render the mixed string in
+           the right order instead of scattering the Latin fragments.
+
+        The wrap is idempotent: re-preparing an already wrapped payload
+        returns it unchanged (marks are stripped and reapplied once).
+        """
+        if not text:
+            return text
+
+        # A trailing separator (e.g. the space auto-injection appends after
+        # each segment) must survive the cleanup: keeping it INSIDE the
+        # embedding keeps it attached to the RTL run.
+        has_trailing_space = bool(text) and text[-1].isspace()
+
+        text = clean_payload_spacing(text)
+        if not text:
+            return " " if has_trailing_space else text
+
+        # Strip any previous wrap so the function stays idempotent.
+        if text.startswith(RLM):
+            text = text[1:]
+        if (
+            text.startswith(RLE)
+            and text.endswith(PDF)
+            and text.count(RLE) == 1
+            and text.count(PDF) == 1
+        ):
+            text = text[1:-1]
+
+        if has_trailing_space and not text.endswith(" "):
+            text += " "
+
+        if self.add_bidi_marks and contains_rtl(text):
+            return RLM + RLE + text + PDF
+        return text
 
     def get_foreground_window_info(self) -> dict:
         """Return the current foreground window handle/title on Windows."""
@@ -220,60 +327,59 @@ class TextInjector:
 
     def reset_partial(self) -> None:
         """Reset the streaming state (call when a sentence is finalized)."""
-        self._last_partial = ""
+        with self._lock:
+            self._last_partial = ""
 
     def type_delta_from_partial(self, partial: str) -> None:
         """
         Handles real-time speech streaming.
         If STT revises previous Persian words, it sends Backspaces and types the new text.
         """
-        partial = partial or ""
-        if partial == self._last_partial:
-            return
+        with self._lock:
+            partial = partial or ""
+            if partial == self._last_partial:
+                return
 
-        if not self.enable_smart_rewrite:
-            # Simple append-only mode: only a pure extension can be typed,
-            # because we are not allowed to erase anything here.
-            #
-            # BUGFIX: the state was previously only advanced on the
-            # append path. Once the STT revised a word (a non-prefix
-            # hypothesis) ``_last_partial`` froze at the old value, so every
-            # later partial was compared against stale text and nothing was
-            # ever typed again - the dictation silently died mid-sentence.
-            # Track the newest hypothesis unconditionally so that subsequent
-            # extensions keep flowing.
-            if partial.startswith(self._last_partial):
-                delta = partial[len(self._last_partial):]
-                self._last_partial = partial
-                if delta:
-                    self.type_text(delta)
-            else:
-                self._last_partial = partial
-            return
+            if not self.enable_smart_rewrite:
+                # Simple append-only mode: only a pure extension can be typed,
+                # because we are not allowed to erase anything here.
+                #
+                # The state must be advanced unconditionally: once the STT
+                # revises a word (a non-prefix hypothesis) a frozen
+                # ``_last_partial`` would make every later partial compare
+                # against stale text and dictation would die mid-sentence.
+                if partial.startswith(self._last_partial):
+                    delta = partial[len(self._last_partial):]
+                    self._last_partial = partial
+                    if delta:
+                        self.type_text(delta)
+                else:
+                    self._last_partial = partial
+                return
 
-        # Find common prefix between previous hypothesis and new hypothesis.
-        common_len = 0
-        min_len = min(len(self._last_partial), len(partial))
-        while common_len < min_len and self._last_partial[common_len] == partial[common_len]:
-            common_len += 1
+            # Find common prefix between previous hypothesis and new hypothesis.
+            common_len = 0
+            min_len = min(len(self._last_partial), len(partial))
+            while common_len < min_len and self._last_partial[common_len] == partial[common_len]:
+                common_len += 1
 
-        # Never split a surrogate pair or orphan a combining/ZWNJ sequence.
-        common_len = self._safe_split_point(self._last_partial, partial, common_len)
+            # Never split a surrogate pair or orphan a combining/ZWNJ sequence.
+            common_len = self._safe_split_point(self._last_partial, partial, common_len)
 
-        removed = self._last_partial[common_len:]
-        delta = partial[common_len:]
+            removed = self._last_partial[common_len:]
+            delta = partial[common_len:]
 
-        # Windows deletes UTF-16 code units, not Python code points.
-        backspaces_needed = self._utf16_len(removed)
+            # Windows deletes UTF-16 code units, not Python code points.
+            backspaces_needed = self._utf16_len(removed)
 
-        self._last_partial = partial
+            self._last_partial = partial
 
-        if backspaces_needed > 0:
-            self.send_backspaces(backspaces_needed)
-            time.sleep(0.01)
+            if backspaces_needed > 0:
+                self.send_backspaces(backspaces_needed)
+                time.sleep(0.01)
 
-        if delta:
-            self.type_text(delta)
+            if delta:
+                self.type_text(delta)
 
     @staticmethod
     def _utf16_len(text: str) -> int:
@@ -316,37 +422,42 @@ class TextInjector:
             print(f"  [DRY_RUN type] {text!r}")
             return True
 
-        try:
-            if _SYSTEM == "windows":
-                return self._type_windows(text)
-            return self._type_fallback(text)
-        except Exception as e:
-            print(f"  [inject error] {e}")
-            return False
+        with self._lock:
+            try:
+                if _SYSTEM == "windows":
+                    return self._type_windows(text)
+                return self._type_fallback(text)
+            except Exception as e:
+                print(f"  [inject error] {e}")
+                return False
 
     def paste_text(self, text: str, add_rtl_mark: bool = False) -> bool:
         """
         Instantly pastes text via Clipboard (Ctrl+V).
-        Recommended for complete sentences to ensure proper BiDi shaping in target apps.
+        Recommended for complete segments: atomic, and the BiDi wrapping in
+        ``prepare_mixed_text`` gives proper shaping in the target app.
         """
+        text = self.prepare_mixed_text(text)
         if not text:
             return False
 
-        # Optional: Add Right-to-Left Mark (RLM \u200F) for apps that default to LTR
-        if add_rtl_mark and not text.startswith("\u200f"):
-            text = "\u200f" + text
+        # Optional extra Right-to-Left Mark on top of the standard wrap,
+        # kept for panic-mode interop with very broken BiDi fields.
+        if add_rtl_mark and not text.startswith(RLM):
+            text = RLM + text
 
         if self.dry_run:
             print(f"  [DRY_RUN paste] {text!r}")
             return True
 
-        try:
-            if _SYSTEM == "windows":
-                return self._paste_windows(text)
-            return self._paste_fallback(text)
-        except Exception as e:
-            print(f"  [paste error] {e}")
-            return False
+        with self._lock:
+            try:
+                if _SYSTEM == "windows":
+                    return self._paste_windows(text)
+                return self._paste_fallback(text)
+            except Exception as e:
+                print(f"  [paste error] {e}")
+                return False
 
     def send_backspaces(self, count: int) -> bool:
         """Send N backspace keystrokes to erase revised text."""
@@ -356,22 +467,23 @@ class TextInjector:
             print(f"  [DRY_RUN backspace x{count}]")
             return True
 
-        if _SYSTEM == "windows":
-            scan = user32.MapVirtualKeyW(VK_BACK, MAPVK_VK_TO_VSC)
-            inputs: List[INPUT] = []
-            for _ in range(count):
-                inputs.append(self._key_input(VK_BACK, scan, 0))
-                inputs.append(self._key_input(VK_BACK, scan, KEYEVENTF_KEYUP))
-            return self._send_inputs(inputs)
+        with self._lock:
+            if _SYSTEM == "windows":
+                scan = user32.MapVirtualKeyW(VK_BACK, MAPVK_VK_TO_VSC)
+                inputs: List[INPUT] = []
+                for _ in range(count):
+                    inputs.append(self._key_input(VK_BACK, scan, 0))
+                    inputs.append(self._key_input(VK_BACK, scan, KEYEVENTF_KEYUP))
+                return self._send_inputs(inputs)
 
-        try:
-            import pyautogui
+            try:
+                import pyautogui
 
-            for _ in range(count):
-                pyautogui.press("backspace")
-            return True
-        except Exception:
-            return False
+                for _ in range(count):
+                    pyautogui.press("backspace")
+                return True
+            except Exception:
+                return False
 
     # ------------------ Windows Specific Low-Level Logic ------------------
 
