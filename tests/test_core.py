@@ -2,7 +2,7 @@ from pathlib import Path
 
 from speechmatics_test.evaluation import evaluate, evaluate_stages, numbers
 from speechmatics_test.medical_layer import MedicalLayer
-from speechmatics_test.realtime import SessionResult
+from speechmatics_test.realtime import SessionResult, confidence_summary
 from speechmatics_test.text import normalize_text, tokens
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -102,6 +102,47 @@ def test_session_result_final_text_is_raw():
     r = SessionResult(language="fa")
     r.final_segments.append({"t_ms": 1, "text": "سی تی اسکن"})  # raw, unnormalized
     assert r.final_text == "سی تی اسکن"
+
+
+def test_confidence_summary_preserves_unknown_language_and_missing_scores():
+    summary = confidence_summary([
+        {"content": "MRI", "confidence": 0.95, "language": "en"},
+        {"content": "سی", "confidence": 0.40, "language": "fa-IR"},
+        {"content": "?", "confidence": None, "language": None},
+    ])
+    assert summary == {
+        "word_count": 3,
+        "scored_word_count": 2,
+        "low_confidence_threshold": 0.75,
+        "low_confidence_count": 1,
+        "language_counts": {"Persian": 1, "English": 1, "unknown": 1},
+        "entity_word_count": 0,
+        "low_confidence_entity_count": 0,
+        "low_confidence_entities": [],
+        "mean": 0.675,
+        "min": 0.4,
+        "max": 0.95,
+    }
+
+
+def test_confidence_summary_surfaces_uncertain_numeric_and_entity_tokens():
+    words = [
+        {"content": "120/80", "confidence": 0.40, "language": "en", "start_time": 1.0, "end_time": 1.2},
+        {"content": "5", "confidence": 0.95, "language": "en", "start_time": 1.2, "end_time": 1.3},
+        {"content": "mg", "confidence": 0.45, "language": "en", "start_time": 1.3, "end_time": 1.4},
+        {"content": "2.5", "confidence": 0.96, "language": "en", "start_time": 1.4, "end_time": 1.5},
+        {"content": "mL", "confidence": 0.96, "language": "en", "start_time": 1.5, "end_time": 1.6},
+        {"content": "HbA1c", "confidence": 0.50, "language": "en", "start_time": 1.6, "end_time": 1.8},
+        {"content": "O2", "confidence": 0.96, "language": "en", "start_time": 1.8, "end_time": 1.9},
+        {"content": "C3-C4", "confidence": 0.96, "language": "en", "start_time": 1.9, "end_time": 2.0},
+        {"content": "q2h", "confidence": 0.96, "language": "en", "start_time": 2.0, "end_time": 2.1},
+    ]
+    summary = confidence_summary(words)
+    assert summary["entity_word_count"] == len(words)
+    assert summary["low_confidence_entity_count"] == 3
+    assert [word["content"] for word in summary["low_confidence_entities"]] == [
+        "120/80", "mg", "HbA1c",
+    ]
 
 
 # ---------------------------------------------------------------- medical FST

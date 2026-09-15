@@ -21,9 +21,10 @@ The matcher is an **Aho-Corasick automaton**:
   must border a boundary character or the text edge), so replacement is
   token-aware rather than unsafe substring replacement.
 - Overlapping candidates at a position are resolved deterministically:
-  **longest match first**, then tier (curated > observed), then stable
-  rule order. A shorter boundary-valid match still wins over a longer
-  boundary-invalid one.
+  **longest match first**, then tier (curated > observed), then (only for
+  an otherwise equal lexical candidate) compatible low-confidence word
+  evidence, then stable rule order. A shorter boundary-valid match still
+  wins over a longer boundary-invalid one.
 - No semantic inference: the layer only performs deterministic lexical
   replacement. It never infers diagnosis, severity, negation or dosage
   correctness.
@@ -78,6 +79,26 @@ _BOUNDARY_CHARACTERS = (
     "،؛؟«»…"
 )
 _BOUNDARY_CHARS = frozenset(_BOUNDARY_CHARACTERS)
+_LOW_CONFIDENCE_THRESHOLD = 0.75
+
+
+def _language_group(language: Any) -> str:
+    """Reduce optional ASR language tags to the three useful match signals."""
+    value = str(language or "").lower()
+    if value.startswith(("fa", "fas", "per", "persian")):
+        return "Persian"
+    if value.startswith(("en", "eng", "english")):
+        return "English"
+    return "unknown"
+
+
+def _form_language(form: str) -> str:
+    """Infer only the script of a lexical rule form, never its meaning."""
+    if any("\u0600" <= ch <= "\u08ff" for ch in form):
+        return "Persian"
+    if any(ch.isascii() and ch.isalpha() for ch in form):
+        return "English"
+    return "unknown"
 
 
 def casefold_preserving(text: str) -> str:
@@ -420,9 +441,111 @@ class MedicalFST:
         """Position i is a token end (end of text or boundary at i)."""
         return i == len(text) or text[i] in _BOUNDARY_CHARS
 
+    def _word_spans(
+        self, text: str, word_results: Optional[list[dict[str, Any]]]
+    ) -> list[tuple[int, int, dict[str, Any]]]:
+        """Align available final ASR words to this normalized segment.
+
+        Alignment is deliberately exact and in order. If structured metadata
+        does not line up with the transcript, it is ignored and the legacy
+        lexical behavior remains intact.
+        """
+        if not word_results:
+            return []
+        haystack = casefold_preserving(text)
+        cursor = 0
+        spans: list[tuple[int, int, dict[str, Any]]] = []
+        for word in word_results:
+            content = word.get("content") if isinstance(word, dict) else None
+            if not isinstance(content, str):
+                continue
+            content = normalize_text(content)
+            if not content:
+                continue
+            folded = casefold_preserving(content)
+            start = haystack.find(folded, cursor)
+            while start >= 0 and (
+                not self._is_start_boundary(text, start)
+                or not self._is_end_boundary(text, start + len(folded))
+            ):
+                start = haystack.find(folded, start + 1)
+            if start < 0:
+                continue
+            end = start + len(folded)
+            spans.append((start, end, word))
+            cursor = end
+        return spans
+
+    @staticmethod
+    def _span_evidence(
+        rule: FstRule,
+        start: int,
+        end: int,
+        word_spans: list[tuple[int, int, dict[str, Any]]],
+    ) -> Optional[dict[str, Any]]:
+        """Return auditable evidence only for a complete lexical word match."""
+        matched = [
+            word for word_start, word_end, word in word_spans
+            if word_start >= start and word_end <= end
+        ]
+        if len(matched) != len(rule.form.split()):
+            return None
+
+        confidences = [
+            float(word["confidence"])
+            for word in matched
+            if isinstance(word.get("confidence"), (int, float))
+            and not isinstance(word.get("confidence"), bool)
+        ]
+        languages = [_language_group(word.get("language")) for word in matched]
+        known_languages = [language for language in languages if language != "unknown"]
+        expected_language = _form_language(rule.form)
+        language_matches = (
+            all(language == expected_language for language in known_languages)
+            if known_languages and expected_language != "unknown" else None
+        )
+        confidence = min(confidences) if confidences else None
+        return {
+            "asr_confidence": round(confidence, 4) if confidence is not None else None,
+            "asr_low_confidence": bool(
+                confidence is not None and confidence < _LOW_CONFIDENCE_THRESHOLD
+            ),
+            "asr_language": (
+                known_languages[0]
+                if len(set(known_languages)) == 1 else "unknown"
+            ),
+            "asr_language_matches_form": language_matches,
+        }
+
+    @staticmethod
+    def _candidate_key(
+        rule: FstRule, evidence: Optional[dict[str, Any]]
+    ) -> tuple:
+        """Keep lexical precedence; use compatible low-confidence evidence last."""
+        evidence_rank = 0 if evidence and evidence["asr_low_confidence"] and \
+            evidence["asr_language_matches_form"] is not False else 1
+        # The final stable sequence still resolves ties, preserving historical
+        # output when metadata is absent or candidates have ordinary priority.
+        return (-len(rule.form), rule.tier, evidence_rank, rule.seq)
+
+    @staticmethod
+    def _hit(rule: FstRule, position: int, evidence: Optional[dict[str, Any]]) -> dict[str, Any]:
+        hit = {
+            "form": rule.form,
+            "canonical": rule.canonical,
+            "tier": rule.tier,
+            "source": rule.source,
+            "position": position,
+        }
+        if evidence is not None:
+            hit.update(evidence)
+        return hit
+
     # --------------------------------------------------------------- engines
 
-    def _scan(self, text: str) -> tuple[str, list[dict[str, Any]]]:
+    def _scan(
+        self, text: str, word_results: Optional[list[dict[str, Any]]] = None
+    ) -> tuple[str, list[dict[str, Any]]]:
         """Aho-Corasick scan: one linear pass finds every candidate.
 
         Candidates are filtered to token boundaries, then the greedy
@@ -430,8 +553,9 @@ class MedicalFST:
         candidate (longest, then tier, then stable order) is emitted and
         scanning resumes after it; everything else is copied verbatim.
         """
-        candidates_at: dict[int, list[tuple[int, FstRule]]] = {}
+        candidates_at: dict[int, list[tuple[int, FstRule, Optional[dict[str, Any]]]]] = {}
         length = len(text)
+        word_spans = self._word_spans(text, word_results)
         # Search the case-folded projection of the text; ``casefold_preserving``
         # guarantees index i of ``haystack`` is index i of ``text``, so every
         # position below is applied to the ORIGINAL logical text.
@@ -448,8 +572,13 @@ class MedicalFST:
                 continue
             if end_excl > length:
                 continue  # pragma: no cover - cannot happen
+            # Case-insensitive matching lets lowercase ASR variants map to
+            # canonical casing, but an already canonical token is not a hit.
+            if text[start:end_excl] == rule.canonical:
+                continue
+            evidence = self._span_evidence(rule, start, end_excl, word_spans)
             bucket = candidates_at.get(start)
-            entry = (end_excl, rule)
+            entry = (end_excl, rule, evidence)
             if bucket is None:
                 candidates_at[start] = [entry]
             else:
@@ -461,25 +590,23 @@ class MedicalFST:
         while i < length:
             candidates = candidates_at.get(i)
             if candidates:
-                best_end, best_rule = candidates[0]
-                for end, rule in candidates[1:]:
-                    if rule.key < best_rule.key:
-                        best_end, best_rule = end, rule
+                best_end, best_rule, best_evidence = candidates[0]
+                for end, rule, evidence in candidates[1:]:
+                    if self._candidate_key(rule, evidence) < self._candidate_key(
+                        best_rule, best_evidence
+                    ):
+                        best_end, best_rule, best_evidence = end, rule, evidence
                 out.append(best_rule.canonical)
-                hits.append({
-                    "form": best_rule.form,
-                    "canonical": best_rule.canonical,
-                    "tier": best_rule.tier,
-                    "source": best_rule.source,
-                    "position": i,
-                })
+                hits.append(self._hit(best_rule, i, best_evidence))
                 i = best_end
                 continue
             out.append(text[i])
             i += 1
         return "".join(out), hits
 
-    def _scan_reference(self, text: str) -> tuple[str, list[dict[str, Any]]]:
+    def _scan_reference(
+        self, text: str, word_results: Optional[list[dict[str, Any]]] = None
+    ) -> tuple[str, list[dict[str, Any]]]:
         """Deterministic naive scanner (reference implementation).
 
         Implements the identical priority scheme per position instead of an
@@ -491,26 +618,24 @@ class MedicalFST:
         i = 0
         length = len(text)
         haystack = casefold_preserving(text)
+        word_spans = self._word_spans(text, word_results)
         while i < length:
             if self._is_start_boundary(text, i):
-                best: Optional[FstRule] = None
+                best: Optional[tuple[FstRule, Optional[dict[str, Any]]]] = None
                 for rule in self._by_first.get(haystack[i], ()):
                     end = i + len(rule.match_form)
                     if haystack.startswith(rule.match_form, i) and self._is_end_boundary(
                         text, end
-                    ):
-                        if best is None or rule.key < best.key:
-                            best = rule
+                    ) and text[i:end] != rule.canonical:
+                        evidence = self._span_evidence(rule, i, end, word_spans)
+                        if best is None or self._candidate_key(rule, evidence) < \
+                                self._candidate_key(*best):
+                            best = (rule, evidence)
                 if best is not None:
-                    out.append(best.canonical)
-                    hits.append({
-                        "form": best.form,
-                        "canonical": best.canonical,
-                        "tier": best.tier,
-                        "source": best.source,
-                        "position": i,
-                    })
-                    i += len(best.form)
+                    rule, evidence = best
+                    out.append(rule.canonical)
+                    hits.append(self._hit(rule, i, evidence))
+                    i += len(rule.form)
                     continue
             out.append(text[i])
             i += 1
@@ -527,19 +652,21 @@ class MedicalFST:
             return f"{ENGINE_NAME} (pure-python)"
         return "none (no rules)"
 
-    def canonicalize(self, text: str) -> tuple[str, list[dict[str, Any]]]:
-        """Canonicalize already-normalized finalized text.
+    def canonicalize(
+        self, text: str, word_results: Optional[list[dict[str, Any]]] = None
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Canonicalize a normalized FINAL transcript with optional ASR evidence.
 
-        Returns ``(canonical_text, hits)`` where each hit records which rule
-        fired, where, and its provenance. Deterministic: same input always
-        yields the same output and hit list.
+        Confidence and language data can only annotate or break an otherwise
+        equal lexical-rule tie. They never create a match, change a recognized
+        canonical term, or override the established lexical precedence.
         """
         if not text:
             return text, []
         if not self.rules:
             return text, []
         try:
-            return self._scan(text)
+            return self._scan(text, word_results)
         except Exception as exc:
             # An engine failure must never cost the clinician their finished
             # transcript: the naive scanner implements the identical priority
@@ -548,4 +675,4 @@ class MedicalFST:
                 f"aho-corasick engine failed for {text[:40]!r} ({exc}); "
                 f"using the equivalent reference scanner output"
             )
-            return self._scan_reference(text)
+            return self._scan_reference(text, word_results)

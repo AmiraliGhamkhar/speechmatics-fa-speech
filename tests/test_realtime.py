@@ -76,12 +76,13 @@ def install_fake_sdk(monkeypatch, behavior=None):
             self.transcript = transcript
 
     class TranscriptResult:
-        def __init__(self, metadata):
+        def __init__(self, metadata, results=None):
             self.metadata = metadata
+            self.results = results or []
 
         @classmethod
         def from_message(cls, message):
-            return cls(_Metadata(message.get("transcript")))
+            return cls(_Metadata(message.get("transcript")), message.get("results"))
 
     class FakeClient:
         def __init__(self, **kwargs):
@@ -117,13 +118,15 @@ def install_fake_sdk(monkeypatch, behavior=None):
                 raise RuntimeError("websocket send failed")
             self.sent.append(chunk)
             if self._script:
-                kind, text = self._script.pop(0)
+                item = self._script.pop(0)
+                kind, text = item[:2]
+                results = item[2] if len(item) > 2 else []
                 event = (
                     ServerMessageType.ADD_PARTIAL_TRANSCRIPT
                     if kind == "partial" else ServerMessageType.ADD_TRANSCRIPT
                 )
                 if event in self.handlers:
-                    self.handlers[event]({"transcript": text})
+                    self.handlers[event]({"transcript": text, "results": results})
 
         async def stop_session(self):
             if behavior.get("fail_stop"):
@@ -204,6 +207,7 @@ def test_config_values_sent(monkeypatch):
     asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
     cfg = registry["configs"][0]
     assert cfg["language"] == "en"
+    assert cfg["domain"] == "medical"
     assert cfg["model"].name == "ENHANCED"
     assert cfg["enable_partials"] is True
     assert cfg["max_delay"] == 2.0
@@ -239,6 +243,12 @@ def test_max_delay_validation():
     SpeechmaticsRealtime(api_key="k", language="fa", max_delay=4.0)
 
 
+@pytest.mark.parametrize("max_delay", [2.0, 2.5, 3.0, 3.5, 4.0])
+def test_benchmark_max_delay_values_are_supported(max_delay):
+    stt = SpeechmaticsRealtime(api_key="k", language="fa", max_delay=max_delay)
+    assert stt.max_delay == max_delay
+
+
 def test_model_validation():
     with pytest.raises(ValueError):
         SpeechmaticsRealtime(api_key="k", language="fa", model="bogus")
@@ -252,7 +262,7 @@ def test_vocab_cleaning(monkeypatch):
         api_key="k", language="fa",
         additional_vocab=[
             "  CT scan  ", "", "CT scan",          # dupes / empty
-            {"content": "lesion", "sounds_like": ["لیژن", "bad token with space"]},
+            {"content": "lesion", "sounds_like": ["لیژن", "lesion spoken form"]},
             {"content": "  "},                      # no usable content
             42,                                     # junk
         ],
@@ -260,8 +270,62 @@ def test_vocab_cleaning(monkeypatch):
     audio = FakeAudio([b"a"])
     asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
     assert registry["configs"][0]["additional_vocab"] == [
-        "CT scan", {"content": "lesion", "sounds_like": ["لیژن"]}
+        "CT scan", {"content": "lesion", "sounds_like": ["لیژن", "lesion spoken form"]}
     ]
+
+
+def test_final_word_results_preserve_confidence_language_and_timing(monkeypatch):
+    registry = install_fake_sdk(monkeypatch, {"script": [
+        ("final", "HbA1c 5 mg", [
+            {
+                "type": "word", "start_time": 1.0, "end_time": 1.2,
+                "alternatives": [
+                    {"content": "HbA1c", "confidence": 0.96, "language": "en"},
+                    {"content": "Hb A1c", "confidence": 0.20, "language": "en"},
+                ],
+            },
+            {
+                "type": "word", "start_time": 1.21, "end_time": 1.3,
+                "alternatives": [{"content": "5", "confidence": 0.62, "language": "en"}],
+            },
+            {
+                "type": "word", "start_time": 1.31, "end_time": 1.5,
+                "alternatives": [{"content": "mg", "confidence": 0.91, "language": "en"}],
+            },
+            {
+                "type": "punctuation", "start_time": 1.5, "end_time": 1.5,
+                "alternatives": [{"content": ".", "confidence": 1.0, "language": "en"}],
+            },
+        ]),
+    ]})
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    result = asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+
+    assert result.word_results == [
+        {"content": "HbA1c", "confidence": 0.96, "language": "en", "start_time": 1.0, "end_time": 1.2},
+        {"content": "5", "confidence": 0.62, "language": "en", "start_time": 1.21, "end_time": 1.3},
+        {"content": "mg", "confidence": 0.91, "language": "en", "start_time": 1.31, "end_time": 1.5},
+    ]
+    assert result.final_segments[0]["word_start_index"] == 0
+    assert result.final_segments[0]["word_end_index"] == 3
+    assert registry["configs"][0]["domain"] == "medical"
+
+
+def test_missing_structured_results_keeps_final_text_and_empty_words(monkeypatch):
+    result, *_ = run_ok(monkeypatch, script=[("final", "CT scan 120/80")])
+    assert result.final_text == "CT scan 120/80"
+    assert result.word_results == []
+    assert result.final_segments[0]["word_start_index"] == 0
+    assert result.final_segments[0]["word_end_index"] == 0
+
+
+def test_no_vocab_omits_only_custom_vocabulary(monkeypatch):
+    registry = install_fake_sdk(monkeypatch, {"script": []})
+    stt = SpeechmaticsRealtime(api_key="k", language="fa", additional_vocab=[])
+    asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+    cfg = registry["configs"][0]
+    assert "additional_vocab" not in cfg
+    assert cfg["domain"] == "medical"
 
 
 # -------------------------------------------------------------- session end

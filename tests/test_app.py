@@ -74,6 +74,18 @@ def test_load_benchmark(tmp_path):
         app_module.load_benchmark("does-not-exist")
 
 
+def test_curated_speechmatics_vocab_is_bounded_and_keeps_sounds_like():
+    from speechmatics_test.realtime import SpeechmaticsRealtime
+
+    vocab = SpeechmaticsRealtime._clean_vocab(app_module.load_vocab())
+    by_content = {item["content"]: item for item in vocab if isinstance(item, dict)}
+    assert len(vocab) < 100  # ASR biasing vocabulary, not the local dictionary
+    assert {"metformin", "CT scan", "HbA1c", "right lung"} <= set(by_content)
+    assert "M R I" in by_content["MRI"]["sounds_like"]
+    assert "ام آر آی" in by_content["MRI"]["sounds_like"]
+    assert "H B A one C" in by_content["HbA1c"]["sounds_like"]
+
+
 def test_no_audio_persistence_references_in_app():
     src = Path(app_module.__file__).read_text(encoding="utf-8")
     assert ".wav" not in src

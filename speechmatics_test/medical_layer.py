@@ -40,14 +40,20 @@ class MedicalLayer:
     def engine(self) -> str:
         return self.fst.engine
 
-    def canonicalize(self, normalized_text: str) -> tuple[str, list[dict[str, Any]]]:
-        """Apply the medical layer to already-normalized finalized text.
+    def canonicalize(
+        self,
+        normalized_text: str,
+        word_results: list[dict[str, Any]] | None = None,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Apply lexical rules to an already-normalized finalized segment.
 
-        Returns ``(canonical_text, hits)``. This is the only stage that may
-        rewrite medical terminology.
+        ``word_results`` is optional final-only ASR evidence. Missing metadata
+        follows the exact legacy canonicalization path.
         """
-        return self.fst.canonicalize(normalized_text)
+        return self.fst.canonicalize(normalized_text, word_results)
 
-    def normalize(self, text: str) -> tuple[str, list[dict[str, Any]]]:
+    def normalize(
+        self, text: str, word_results: list[dict[str, Any]] | None = None
+    ) -> tuple[str, list[dict[str, Any]]]:
         """Convenience: generic normalization + medical layer in one call."""
-        return self.fst.canonicalize(normalize_text(text))
+        return self.fst.canonicalize(normalize_text(text), word_results)
