@@ -29,10 +29,11 @@ normalize_text() (generic)
 Medical Aho-Corasick canonicalization
    |
    +----> overlay.set_final()
-   +----> injector.paste_text(segment + " ", RLE/PDF/RLM wrap)   [AUTOMATIC]
-   |
+   +----> injection worker -> injector.paste_text   [AUTOMATIC, FIFO order]
+   |       (canonical text + " ", RLE/PDF/RLM wrap, off the SDK thread)
    v
-RAW / NORMALIZED / CANONICAL report (+ benchmark evaluation on --test-id)
+RAW / NORMALIZED / CANONICAL report
+   (the canonical stage is the exact text that was injected)
 ```
 
 Hard rules enforced by the design:
@@ -78,6 +79,10 @@ text        --(one pass)-->    raw matches -> token-boundary filter
 - Paste is clipboard-based (`Ctrl+V`) — atomic per segment and free of keyboard-layout issues.
 - RTL payloads are always wrapped as `RLM + RLE + text + PDF` (همیشه paste + BiDi marks) and cleaned (فاصله‌ها و ZWNJ قبل از inject تمیز می‌شوند) so mixed Persian/English renders correctly in LTR-default fields.
 - A trailing space is appended after each segment (kept *inside* the BiDi embedding) so consecutive segments stay separated.
+- **Injection never blocks ASR:** pastes run on a dedicated FIFO worker thread, in final order, instead of inside the Speechmatics receive callback.
+- **Focus guard:** the first paste arms the window the user dictated into; later pastes are skipped while any other window is focused, so alt-tabbing can never paste medical text into the wrong application (disable with `--no-focus-guard`).
+- **Clipboard is always restored** — including when the paste itself fails — and a user-held Ctrl is never released by the synthetic Ctrl+V.
+- Medical phrases that span two final segments are canonicalized over the accumulated text (e.g. `فشار خون` + `بالا دارد` injects `HTN دارد`, not `BP بالا`), and the report's canonical stage is exactly the injected text.
 - Injector internals are hardened for Windows: explicit 64-bit ctypes prototypes, clipboard ownership handling, `OpenClipboard` retries, modifier-key hygiene, paste-consumption settle, and a serializing lock for realtime callbacks.
 - Disable with `--no-inject`.
 
@@ -90,13 +95,13 @@ text        --(one pass)-->    raw matches -> token-boundary filter
 
 ## Speechmatics session configuration
 
-- `domain`: `medical` by default.
+- `domain`: `--domain auto` (default) sends `domain=medical` only for the languages Speechmatics documents for the Enhanced Medical model (Arabic, Danish, Dutch, English, Finnish, French, German, Norwegian, Spanish, Swedish). **Persian is not in that list**, so Persian sessions run on the Enhanced model *without* a domain and the app prints a notice; `--domain medical` forces it explicitly (for enterprise/private deployments), `--domain none` never sends it. Reports record both `domain_requested` and the domain actually sent.
 - `max_delay`: configurable seconds in the valid Speechmatics range **0.7–4.0** (default **2.0**, the docs-recommended trade-off). This supports controlled runs at `2.0`, `2.5`, `3.0`, `3.5`, and `4.0` with the existing `--max-delay` flag.
 - `model`: configurable (`standard` | `enhanced`, default `enhanced`), passed via the modern `model` parameter.
 - `max_delay_mode`: default `flexible` so spoken entities (numbers, doses) are formatted completely before the final is emitted.
 - `additional_vocab` is intentionally curated and bounded: high-value drugs, diseases, procedures, imaging, labs, anatomy, abbreviations, dosage units, compact entities (`HbA1c`, `O2`, `C3-C4`, `q2h`), and observed Persianized pronunciations. The larger knowledge files remain local Aho-Corasick rules. `sounds_like` accepts short pronunciation phrases such as `M R I` and `ام آر آی`.
 
-Final messages also retain first-alternative word `content`, `confidence`, `language`, and timing. Saved reports add `speechmatics`, `word_results`, and `confidence_summary`; established report fields remain unchanged. Confidence/language evidence can annotate a validated lexical hit and only breaks an otherwise equal lexical tie—it never creates a medical correction on its own.
+Final messages also retain first-alternative word `content`, `confidence`, `language`, and timing. Saved reports add `speechmatics` (with `domain`/`domain_requested`), `word_results`, `confidence_summary`, `parse_warnings` (non-fatal transcript-metadata problems — the transcript itself is always kept), and `audio_overflow_events` (suspected dropped microphone samples); established report fields remain unchanged. Confidence/language evidence can annotate a validated lexical hit and only breaks an otherwise equal lexical tie—it never creates a medical correction on its own.
 
 ## Install — Windows PowerShell
 
@@ -144,10 +149,12 @@ Useful flags:
 | `--no-overlay` | Disable the floating transcript overlay |
 | `--no-vocab` | Disable Speechmatics custom vocabulary |
 | `--no-medical-layer` | Disable the canonicalization layer |
+| `--no-focus-guard` | Allow injection into whatever window is focused (default: armed target only) |
 | `--device-index N` | PyAudio input device index (default: system default) |
 | `--model standard\|enhanced` | Speechmatics model (default `enhanced`) |
 | `--max-delay 0.7-4.0` | Final-transcript delay in seconds (default `2.0`) |
 | `--max-delay-mode fixed\|flexible` | Entity-aware final delay (default `flexible`) |
+| `--domain auto\|medical\|none` | `auto` sends `medical` only where Speechmatics documents it (not for `fa`) |
 | `--save-report` | Save the text/metadata session JSON report |
 | `--test-id <id>` | Benchmark case; automatically saves the report |
 
@@ -180,7 +187,7 @@ Each saved report JSON contains WER, number accuracy, and similarity for the raw
 ## Shell files
 
 - `scripts/install.ps1` — create venv, install deps, seed `.env`
-- `scripts/run.ps1` / `scripts/run.sh` — install + run
+- `scripts/run.ps1` / `scripts/run.sh` — install + run (extra flags are passed through, e.g. `.\scripts\run.ps1 --language en`)
 - `scripts/run_fa.ps1` / `scripts/run_en.ps1` — quick language runs
 - `scripts/run_benchmark.ps1` — benchmark case
 - `scripts/run_no_vocab.ps1` — vocabulary-disabled run

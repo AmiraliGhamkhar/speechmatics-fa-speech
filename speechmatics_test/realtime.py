@@ -1,12 +1,20 @@
 """Isolated adapter for the Speechmatics Python realtime SDK (speechmatics-rt).
 
 The adapter keeps partials separate from finalized segments, sends the
-medical/enhanced/flexible realtime configuration, and records only useful
-word-level/final-segment data from final SDK messages.
+enhanced/flexible realtime configuration with a language-aware domain
+(``domain="medical"`` only where Speechmatics documents the Enhanced Medical
+model — see ``resolve_domain``), and records only useful word-level/final
+-segment data from final SDK messages. Final transcript text is recovered
+even when a message's structured word metadata is malformed.
+
+Lifecycle guarantees: the EndOfTranscript wait after EndOfStream is bounded
+(``STOP_SESSION_TIMEOUT``), and a server ``Error`` message is recorded in
+``result.error`` and immediately stops the audio stream.
 """
 
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 from dataclasses import dataclass, field
@@ -19,11 +27,50 @@ MIN_MAX_DELAY = 0.7
 MAX_MAX_DELAY = 4.0
 DEFAULT_MAX_DELAY = 2.0  # docs-recommended trade-off for most realtime uses
 
+#: Hard bound for the EndOfTranscript wait after EndOfStream. The SDK's
+#: ``stop_session`` waits unboundedly on its session-done event, so a server
+#: that stalls on a HEALTHY connection would hang the app forever (network
+#: death cannot: the SDK sets the same event when its receive loop fails).
+#: Normal end-of-session latency is on the order of ``max_delay`` plus
+#: processing, so 30 s is a generous bound.
+STOP_SESSION_TIMEOUT = 30.0
+
 VALID_MODELS = ("standard", "enhanced")
 DEFAULT_MODEL = "enhanced"
 VALID_MAX_DELAY_MODES = ("fixed", "flexible")
 DEFAULT_MAX_DELAY_MODE = "flexible"
-DEFAULT_DOMAIN = "medical"
+
+#: ``domain`` settings accepted from the CLI/adapter:
+#:   auto    - send ``medical`` only for languages where Speechmatics
+#:             documents the Enhanced Medical model, omit it otherwise;
+#:   medical - force the medical domain regardless of language (explicit
+#:             opt-in for enterprise/private deployments);
+#:   none    - never send a domain.
+VALID_DOMAINS = ("auto", "medical", "none")
+DEFAULT_DOMAIN = "auto"
+
+#: Languages the current Speechmatics documentation lists for the Enhanced
+#: Medical model (Arabic, Danish, Dutch, English, Finnish, French, German,
+#: Norwegian, Spanish, Swedish). Persian is NOT in that list, so ``auto``
+#: must not send ``domain="medical"`` for ``fa``.
+MEDICAL_DOMAIN_LANGUAGES = frozenset(
+    {"ar", "da", "nl", "en", "fi", "fr", "de", "no", "es", "sv"}
+)
+
+
+def resolve_domain(language: Any, domain: Any) -> Optional[str]:
+    """Return the domain to send for ``language`` (``None`` = omit it)."""
+    setting = str(domain or DEFAULT_DOMAIN).strip().lower()
+    if setting not in VALID_DOMAINS:
+        raise ValueError(
+            f"domain must be one of {VALID_DOMAINS} (got {domain!r})"
+        )
+    if setting == "none":
+        return None
+    if setting == "medical":
+        return "medical"
+    base = str(language or "").strip().lower().split("-")[0]
+    return "medical" if base in MEDICAL_DOMAIN_LANGUAGES else None
 
 # This threshold only marks lexical rule matches for review. It never creates
 # a correction without a matching, validated rule.
@@ -129,6 +176,8 @@ class SessionResult:
     # Flattened final-only words; segment offsets point into this list so
     # reports do not duplicate each word under every final segment.
     word_results: list[dict[str, Any]] = field(default_factory=list)
+    #: Non-fatal parse/metadata problems (the transcript itself was kept).
+    warnings: list[str] = field(default_factory=list)
     started_at: Optional[float] = None
     first_partial_ms: Optional[float] = None
     ended_at: Optional[float] = None
@@ -178,7 +227,11 @@ class SpeechmaticsRealtime:
         self.max_delay = float(max_delay)
         self.model = model
         self.max_delay_mode = max_delay_mode
-        self.domain = domain
+        self.domain = str(domain)
+        #: The domain actually sent for this language (``None`` = omitted).
+        #: ``domain="medical"`` is only sent where Speechmatics documents the
+        #: Enhanced Medical model for the language (or when forced).
+        self.effective_domain = resolve_domain(language, self.domain)
         self.result = SessionResult(language=language)
 
     # ------------------------------------------------------------------ util
@@ -300,58 +353,80 @@ class SpeechmaticsRealtime:
         """Stream ``audio_iter`` to Speechmatics and collect the session.
 
         Raises on SDK/network/session errors after recording the error in
-        ``result.error``; the client and the audio iterator are always
-        released (``finally`` + context manager).
+        ``result.error``. Every path after ``started_at`` — including SDK
+        import and configuration failures — runs the same ``finally``: the
+        audio iterator is always released and ``ended_at`` is always set.
         """
         self.result.started_at = time.perf_counter()
         try:
-            from speechmatics.rt import (
-                AsyncClient,
-                AudioEncoding,
-                AudioFormat,
-                Model,
-                ServerMessageType,
-                TranscriptionConfig,
-                TranscriptResult,
+            try:
+                from speechmatics.rt import (
+                    AsyncClient,
+                    AudioEncoding,
+                    AudioFormat,
+                    Model,
+                    ServerMessageType,
+                    TranscriptionConfig,
+                    TranscriptResult,
+                )
+            except ImportError as exc:
+                self.result.error = f"{type(exc).__name__}: {exc}"
+                raise RuntimeError(
+                    "Speechmatics realtime SDK import failed. "
+                    "Run: python -m pip install --upgrade speechmatics-rt\n"
+                    f"Original import error: {exc}"
+                ) from exc
+
+            audio_format = AudioFormat(
+                encoding=AudioEncoding.PCM_S16LE,
+                sample_rate=16000,
+                chunk_size=3200 * 2,  # bytes per 200 ms chunk (16-bit)
             )
-        except ImportError as exc:
-            self.result.error = f"{type(exc).__name__}: {exc}"
-            raise RuntimeError(
-                "Speechmatics realtime SDK import failed. "
-                "Run: python -m pip install --upgrade speechmatics-rt\n"
-                f"Original import error: {exc}"
-            ) from exc
 
-        audio_format = AudioFormat(
-            encoding=AudioEncoding.PCM_S16LE,
-            sample_rate=16000,
-            chunk_size=3200 * 2,  # bytes per 200 ms chunk (16-bit)
-        )
+            config_kwargs: dict = {
+                "language": self.language,
+                "model": Model(self.model),
+                "enable_partials": True,
+                "max_delay": self.max_delay,
+                "max_delay_mode": self.max_delay_mode,
+            }
+            # Only send a domain where the Enhanced Medical model is
+            # documented for the language; resolve_domain returns None for
+            # Persian under the default ``auto`` setting.
+            if self.effective_domain:
+                config_kwargs["domain"] = self.effective_domain
+            vocab = self._clean_vocab(self.additional_vocab)
+            if vocab:
+                config_kwargs["additional_vocab"] = vocab
 
-        config_kwargs: dict = {
-            "language": self.language,
-            "domain": self.domain,
-            "model": Model(self.model),
-            "enable_partials": True,
-            "max_delay": self.max_delay,
-            "max_delay_mode": self.max_delay_mode,
-        }
-        vocab = self._clean_vocab(self.additional_vocab)
-        if vocab:
-            config_kwargs["additional_vocab"] = vocab
+            try:
+                transcription_config = TranscriptionConfig(**config_kwargs)
+            except Exception as exc:
+                self.result.error = f"{type(exc).__name__}: {exc}"
+                raise RuntimeError(
+                    "Speechmatics rejected the transcription configuration.\n"
+                    f"Configuration: {config_kwargs}\n"
+                    f"Original error: {exc}"
+                ) from exc
 
-        try:
-            transcription_config = TranscriptionConfig(**config_kwargs)
-        except Exception as exc:
-            self.result.error = f"{type(exc).__name__}: {exc}"
-            raise RuntimeError(
-                "Speechmatics rejected the transcription configuration.\n"
-                f"Configuration: {config_kwargs}\n"
-                f"Original error: {exc}"
-            ) from exc
-
-        try:
             async with AsyncClient(api_key=self.api_key) as client:
+                # Set when the service sends an Error message (expired key,
+                # quota, rejected session). The SDK itself only logs the
+                # reason and marks its session done, so the adapter records
+                # the reason and stops feeding audio into the dead session.
+                session_error = asyncio.Event()
+
+                @client.on(ServerMessageType.ERROR)
+                def handle_server_error(message):
+                    reason = (
+                        message.get("reason")
+                        if isinstance(message, dict) else None
+                    ) or "unknown server error"
+                    if self.result.error is None:
+                        self.result.error = f"server error: {reason}"
+                    print(f"\n[server error] {reason}")
+                    session_error.set()
+
                 @client.on(ServerMessageType.ADD_PARTIAL_TRANSCRIPT)
                 def handle_partial(message):
                     try:
@@ -377,15 +452,10 @@ class SpeechmaticsRealtime:
 
                 @client.on(ServerMessageType.ADD_TRANSCRIPT)
                 def handle_final(message):
-                    try:
-                        result = TranscriptResult.from_message(message)
-                        text = (
-                            self._field(result.metadata, "transcript") or ""
-                        ).strip()
-                        words = self._extract_word_results(result)
-                    except Exception as exc:
-                        print(f"\n[final parse warning] {exc}")
-                        return
+                    text, words, metadata, warnings = (
+                        self._parse_final_message(message, TranscriptResult)
+                    )
+                    self.result.warnings.extend(warnings)
                     if not text:
                         return
                     elapsed_ms = (
@@ -399,7 +469,7 @@ class SpeechmaticsRealtime:
                         "word_start_index": word_start,
                         "word_end_index": len(self.result.word_results),
                     }
-                    segment.update(self._segment_timing(result.metadata))
+                    segment.update(self._segment_timing(metadata))
                     self.result.final_segments.append(segment)
                     on_final(text)
 
@@ -409,12 +479,32 @@ class SpeechmaticsRealtime:
                         audio_format=audio_format,
                     )
                     async for chunk in audio_iter:
+                        # Checked before AND after the send: an error that is
+                        # already known must not send any audio at all, and
+                        # one that lands during a send stops the loop in the
+                        # same iteration (at most one 200 ms chunk is wasted).
+                        if session_error.is_set():
+                            break
                         if chunk:
                             await client.send_audio(chunk)
-                    await client.stop_session()
+                            if session_error.is_set():
+                                break
+                    try:
+                        await asyncio.wait_for(
+                            client.stop_session(),
+                            timeout=STOP_SESSION_TIMEOUT,
+                        )
+                    except asyncio.TimeoutError as exc:
+                        raise RuntimeError(
+                            "Speechmatics did not send EndOfTranscript within "
+                            f"{STOP_SESSION_TIMEOUT:.0f}s of EndOfStream; "
+                            "closing the client (the transcript captured so "
+                            "far is preserved)"
+                        ) from exc
                 except Exception as exc:
                     self.result.error = f"{type(exc).__name__}: {exc}"
                     raise
+
         finally:
             self.result.ended_at = time.perf_counter()
             aclose = getattr(audio_iter, "aclose", None)
@@ -425,3 +515,65 @@ class SpeechmaticsRealtime:
                     pass
 
         return self.result
+
+    # ------------------------------------------------------- final parsing
+
+    @staticmethod
+    def _transcript_from_raw_message(message: Any) -> str:
+        """Last-resort transcript recovery from the raw event payload.
+
+        Used only when the strict SDK parser raised: the dict-shaped wire
+        message may still carry the dictated text while its structured
+        results/metadata are unusable.
+        """
+        if not isinstance(message, dict):
+            return ""
+        metadata = message.get("metadata")
+        candidates = [message.get("transcript")]
+        if isinstance(metadata, dict):
+            candidates.append(metadata.get("transcript"))
+        for candidate in candidates:
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
+        return ""
+
+    def _parse_final_message(
+        self, message: Any, transcript_result_cls: Any
+    ) -> tuple[str, list[dict[str, Any]], Any, list[str]]:
+        """Extract ``(text, words, metadata, warnings)`` from a final event.
+
+        The transcript text is what the clinician dictated; word-level
+        evidence is optional metadata. A malformed ``results`` list must
+        never cost the transcript (it used to drop the whole final segment),
+        so text recovery and word extraction are intentionally separate.
+        ``transcript_result_cls`` is the SDK ``TranscriptResult`` imported
+        inside ``run()``.
+        """
+        warnings: list[str] = []
+        try:
+            result = transcript_result_cls.from_message(message)
+            text = (self._field(result.metadata, "transcript") or "").strip()
+        except Exception as exc:
+            text = self._transcript_from_raw_message(message)
+            if not text:
+                warnings.append(
+                    f"final event was dropped: {type(exc).__name__}: {exc}"
+                )
+                print(f"\n[final parse warning] {exc}")
+                return "", [], None, warnings
+            warnings.append(
+                f"final metadata was malformed ({type(exc).__name__}: {exc}); "
+                "transcript kept without word evidence"
+            )
+            print(f"\n[final kept without word metadata] {exc}")
+            return text, [], None, warnings
+
+        try:
+            words = self._extract_word_results(result)
+        except Exception as exc:
+            words = []
+            warnings.append(
+                f"word metadata ignored ({type(exc).__name__}: {exc})"
+            )
+            print(f"\n[final word-metadata warning] {exc}")
+        return text, words, self._field(result, "metadata"), warnings

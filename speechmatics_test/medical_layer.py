@@ -40,6 +40,15 @@ class MedicalLayer:
     def engine(self) -> str:
         return self.fst.engine
 
+    @property
+    def max_rule_tokens(self) -> int:
+        """Longest rule form in tokens (see MedicalFST.max_rule_tokens)."""
+        return self.fst.max_rule_tokens
+
+    def is_rule_token_prefix(self, tokens: list[str]) -> bool:
+        """Whether ``tokens`` start some rule form (see MedicalFST)."""
+        return self.fst.is_rule_token_prefix(tokens)
+
     def canonicalize(
         self,
         normalized_text: str,

@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import os
+import queue
 import signal
 import threading
 import time
@@ -16,13 +17,14 @@ from speechmatics_test.cleanliness import inspect_text
 from speechmatics_test.evaluation import evaluate_stages
 from speechmatics_test.medical_layer import MedicalLayer
 from speechmatics_test.realtime import (
-    DEFAULT_DOMAIN,
     DEFAULT_MAX_DELAY,
     DEFAULT_MAX_DELAY_MODE,
     DEFAULT_MODEL,
     MAX_MAX_DELAY,
     MIN_MAX_DELAY,
+    VALID_DOMAINS,
     confidence_summary,
+    resolve_domain,
 )
 from speechmatics_test.text import normalize_text
 
@@ -58,6 +60,14 @@ def parse_args() -> argparse.Namespace:
                    default=DEFAULT_MAX_DELAY_MODE,
                    help="flexible lets the engine finish spoken entities (numbers) "
                         "(default: %(default)s)")
+    p.add_argument("--domain", choices=list(VALID_DOMAINS), default="auto",
+                   help="auto: send domain=medical only for languages where "
+                        "Speechmatics documents the Enhanced Medical model "
+                        "(fa is NOT one of them); medical: force it; none: "
+                        "never send a domain (default: %(default)s)")
+    p.add_argument("--no-focus-guard", action="store_true",
+                   help="Disable the injection focus guard (Windows: paste "
+                        "only while the armed target window is focused)")
     p.add_argument("--save-report", action="store_true",
                    help="Save the text/metadata session report as JSON "
                         "(always saved when --test-id is given)")
@@ -128,6 +138,169 @@ def create_injector(enabled: bool):
         return None
 
 
+class FinalStreamCanonicalizer:
+    """One canonicalization state shared by injection AND the final report.
+
+    Fixes the segment/report divergence: a medical phrase that spans
+    Speechmatics final-segment boundaries (e.g. "فشار خون" + "بالا دارد")
+    used to be canonicalized per segment at injection time ("BP بالا") and
+    over the joined transcript in the report ("HTN دارد"), so the pasted
+    text could not be reproduced from the report.
+
+    Raw final segments are accumulated and canonicalized incrementally.
+    Only the longest prefix that NO future final can still extend into a
+    longer rule match is emitted for injection; the short unresolved tail
+    stays buffered until the next final (or the end-of-session flush).
+
+    The report's canonical stage is built from the exact emitted pieces,
+    so the report always equals what was injected.
+    """
+
+    def __init__(self, medical: MedicalLayer | None) -> None:
+        self._medical = medical
+        # Buffered, not-yet-emitted text as ordered pieces (normalized final
+        # segments, or the leftover of a segment split by an emission cut).
+        self._pieces: list[dict] = []
+        self._buffer = ""                # " ".join(piece texts), derived
+        self.parts: list[str] = []       # emitted canonical pieces, in order
+        self.hits: list[dict] = []       # medical hits of the emitted pieces
+
+    @property
+    def canonical_text(self) -> str:
+        """The canonical transcript exactly as it was (is being) injected."""
+        return " ".join(self.parts).strip()
+
+    def add(self, normalized_text: str, words: list[dict]) -> str | None:
+        """Add one normalized final segment; return the text to inject now."""
+        if not normalized_text:
+            return None
+        if self._buffer:
+            self._buffer += " " + normalized_text
+        else:
+            self._buffer = normalized_text
+        self._pieces.append({"text": normalized_text, "words": list(words)})
+        return self._emit(self._safe_cut())
+
+    def flush(self) -> str | None:
+        """Emit everything still buffered (end of session)."""
+        return self._emit(len(self._buffer))
+
+    # ------------------------------------------------------------ internals
+
+    def _safe_cut(self) -> int:
+        """Character length of the longest prefix safe to emit now.
+
+        A future final can only invalidate already-emitted text if some
+        rule form's leading tokens match a suffix of the buffered text
+        (that phrase could still complete across the boundary), so the
+        emission stops right before the earliest such suffix.
+        """
+        tokens = self._buffer.split()
+        if self._medical is None or not tokens:
+            return len(self._buffer)
+        for i in range(len(tokens)):
+            if self._medical.is_rule_token_prefix(tokens[i:]):
+                if i == 0:
+                    return 0
+                return sum(len(t) + 1 for t in tokens[:i]) - 1
+        return len(self._buffer)
+
+    def _emit(self, cut: int) -> str | None:
+        emitted_text = self._buffer[:cut].strip()
+        if not emitted_text:
+            return None
+
+        # Walk the pieces against the cut: fully covered pieces are emitted
+        # with their word evidence. A cut inside a piece emits that piece's
+        # evidence with the text it annotates and keeps only its leftover
+        # characters buffered (evidence is optional ASR annotation).
+        words: list[dict] = []
+        consumed = 0            # pieces fully inside the emitted text
+        partial_index: int | None = None
+        position = 0
+        for index, piece in enumerate(self._pieces):
+            end = position + len(piece["text"])
+            if end <= cut:
+                words.extend(piece["words"])
+                consumed = index + 1
+                position = end + 1  # +1: the joining space
+            else:
+                partial_index = index
+                break
+
+        if partial_index is not None:
+            # The partial piece's evidence travels with its emitted text.
+            words.extend(self._pieces[partial_index]["words"])
+
+        if self._medical is None:
+            canonical, hits = emitted_text, []
+        else:
+            canonical, hits = self._medical.canonicalize(emitted_text, words)
+
+        remaining = self._pieces[consumed:]
+        if partial_index is not None:
+            partial = self._pieces[partial_index]
+            leftover = self._buffer[cut:position + len(partial["text"])].strip()
+            remaining = (
+                ([{"text": leftover, "words": []}] if leftover else [])
+                + self._pieces[partial_index + 1:]
+            )
+        self._pieces = remaining
+        self._buffer = " ".join(piece["text"] for piece in self._pieces)
+        self.parts.append(canonical)
+        self.hits.extend(hits)
+        return canonical
+
+
+class InjectionWorker:
+    """Serialized FIFO injection performed OFF the SDK receive thread.
+
+    ``paste_text`` blocks on clipboard retries, modifier keys and the paste
+    settle delay. It used to run inside the synchronous Speechmatics receive
+    callback, stalling websocket message dispatch (partials/finals arrived
+    late). Jobs are queued and executed in submission order, so final
+    ordering is preserved exactly.
+    """
+
+    #: Upper bound for draining pending pastes at shutdown; pastes normally
+    #: take ~0.3s each (settle delay), so this covers long sessions.
+    SHUTDOWN_TIMEOUT_SECONDS = 60.0
+
+    def __init__(self, injector, on_result=None) -> None:
+        self._injector = injector
+        self._on_result = on_result or (lambda record: None)
+        self._queue: "queue.Queue[str | None]" = queue.Queue()
+        self.records: list[dict] = []
+        self._thread = threading.Thread(
+            target=self._run, name="injection-worker", daemon=True
+        )
+        self._thread.start()
+
+    def submit(self, canonical: str) -> None:
+        self._queue.put(canonical)
+
+    def _run(self) -> None:
+        while True:
+            item = self._queue.get()
+            if item is None:
+                return
+            self._injector.reset_partial()
+            ok = self._injector.paste_text(item + " ", add_rtl_mark=True)
+            record = {"text": item, "success": bool(ok)}
+            self.records.append(record)
+            self._on_result(record)
+
+    def shutdown(self) -> None:
+        """Stop after draining everything submitted so far."""
+        self._queue.put(None)
+        self._thread.join(timeout=self.SHUTDOWN_TIMEOUT_SECONDS)
+        if self._thread.is_alive():
+            print(
+                "[injector] warning: injection worker did not finish in time; "
+                "injection results in the report may be incomplete"
+            )
+
+
 def print_cleanliness(label: str, text: str) -> dict:
     report = inspect_text(text).to_dict()
     print()
@@ -156,7 +329,7 @@ async def main() -> int:
     from speechmatics_test.microphone import MicrophoneRecorder
     from speechmatics_test.realtime import SpeechmaticsRealtime
 
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     json_path = (
         ROOT / "results" / f"session_{stamp}_{args.language}.json"
         if (args.save_report or args.test_id) else None
@@ -168,6 +341,11 @@ async def main() -> int:
     overlay = create_overlay(args.no_overlay)
     injector = create_injector(args.inject)
 
+    # The actually-sent Speechmatics domain (see resolve_domain: the medical
+    # domain is only documented for a fixed language set, which does NOT
+    # include Persian).
+    effective_domain = resolve_domain(args.language, args.domain)
+
     result = None
     injected_segments: list[dict] = []
 
@@ -176,7 +354,9 @@ async def main() -> int:
     print(" Aho-Corasick post-processing + automatic injection (no hotkeys)")
     print("=" * 72)
     print(f"Language stream : {args.language}")
-    print(f"Domain          : {DEFAULT_DOMAIN}")
+    print(f"Domain          : {args.domain}" +
+          (f" (sending: {effective_domain})" if effective_domain
+           else " (sending: none)"))
     print(f"Model           : {args.model}")
     print(f"Max delay       : {args.max_delay:.1f}s ({args.max_delay_mode})")
     print(f"Medical vocab   : {'ON' if vocab else 'OFF'}")
@@ -187,6 +367,13 @@ async def main() -> int:
     print(f"Max duration    : {args.max_seconds:.1f} sec")
     print(f"Auto-injection  : {'ON — every finalized segment is pasted at the cursor' if injector else 'OFF'}")
     print("=" * 72)
+    if args.domain == "auto" and effective_domain is None:
+        print(
+            f"[config] The Enhanced Medical domain is not documented by "
+            f"Speechmatics for language '{args.language}' — continuing WITHOUT "
+            f"a domain on the {args.model} model. Use --domain medical to "
+            f"force it explicitly."
+        )
     if injector:
         print("Click the field where the transcript must go ONCE, then dictate.")
         print("Every finalized segment is pasted automatically. No keys to press.")
@@ -200,16 +387,39 @@ async def main() -> int:
         if overlay:
             overlay.set_partial(clean)
 
+    def on_injection_result(record: dict):
+        # Runs on the injection worker thread.
+        if overlay and record["success"]:
+            overlay.set_done(record["text"])
+
+    # One canonicalization state for injection AND the report: finals are
+    # accumulated so medical phrases that span Speechmatics final-segment
+    # boundaries canonicalize identically on both sides (see the class
+    # docstring). Injection runs on a FIFO worker thread because paste_text
+    # blocks (clipboard retries + settle delay) and must never stall the
+    # synchronous SDK receive callback.
+    accumulator = FinalStreamCanonicalizer(
+        None if args.no_medical_layer else medical
+    )
+    worker = (
+        InjectionWorker(injector, on_result=on_injection_result)
+        if injector else None
+    )
+    worker_armed = False
+
     def on_final(text: str):
         # Finalized segment. The pipeline is fixed and single-pass:
         #
-        #   Speechmatics final -> normalize_text -> MedicalLayer.canonicalize
-        #     -> canonical segment -> overlay.set_final(canonical)
-        #                          -> injector.paste_text(canonical)
+        #   Speechmatics final -> normalize_text -> accumulated
+        #     MedicalLayer.canonicalize (cross-segment safe)
+        #       -> emitted canonical -> overlay.set_final
+        #                           -> InjectionWorker.submit (ordered)
         #
-        # ``canonical`` is clean LOGICAL Unicode: it carries no RLM/RLE/PDF.
-        # The overlay and the injector each add their own presentation
-        # controls on top of it; neither rewrites the medical content.
+        # Emitted canonical text is clean LOGICAL Unicode: it carries no
+        # RLM/RLE/PDF. The overlay and the injector each add their own
+        # presentation controls on top of it; neither rewrites the medical
+        # content.
+        nonlocal worker_armed
         clean = normalize_text(text)
         if not clean:
             return
@@ -217,22 +427,44 @@ async def main() -> int:
         final_words = stt.result.word_results[
             segment["word_start_index"]:segment["word_end_index"]
         ]
-        canonical, _hits = (
-            medical.canonicalize(clean, final_words) if not args.no_medical_layer
-            else (clean, [])
-        )
-        print("\n[final]   " + canonical)
+        emitted = accumulator.add(clean, final_words)
+        if emitted:
+            print("\n[final]   " + emitted)
+        else:
+            print("\n[final]   (segment buffered — the next final may still "
+                  "complete a cross-segment medical phrase)")
         if overlay:
-            overlay.set_final(canonical)
+            overlay.set_final(accumulator.canonical_text)
 
-        if injector:
-            # Trailing space keeps consecutive segments separated in the
-            # target field; prepare_mixed_text keeps it inside the BiDi wrap.
-            injector.reset_partial()
-            ok = injector.paste_text(canonical + " ", add_rtl_mark=True)
-            injected_segments.append({"text": canonical, "success": bool(ok)})
-            if overlay and ok:
-                overlay.set_done(canonical)
+        if worker and emitted:
+            if not worker_armed:
+                worker_armed = True
+                if not args.no_focus_guard:
+                    # Arm whatever field the user clicked for dictation; later
+                    # pastes are aborted while any other window is focused.
+                    injector.arm_target()
+            worker.submit(emitted)
+
+    def finish_injection() -> list[dict]:
+        """Flush the canonical tail, drain the worker, return its records."""
+        nonlocal worker_armed
+        # Flush regardless of injection: the report's canonical stage is
+        # built from these emissions, with or without a worker.
+        tail = accumulator.flush()
+        if tail:
+            print("\n[final]   " + tail + "  (flushed at end of session)")
+            if overlay:
+                overlay.set_final(accumulator.canonical_text)
+        if worker is None:
+            return []
+        if not worker_armed:
+            worker_armed = True
+            if not args.no_focus_guard:
+                injector.arm_target()
+        if tail:
+            worker.submit(tail)
+        worker.shutdown()
+        return worker.records
 
     # Ctrl+C must STOP THE RECORDING, not kill the program: everything after
     # this point (canonicalization, cleanliness, report) is exactly what the
@@ -264,8 +496,20 @@ async def main() -> int:
         except (ValueError, OSError):
             previous_sigint = None
 
-    recorder = MicrophoneRecorder(device_index=args.device_index)
     try:
+        try:
+            # Constructed INSIDE the cleanup boundary: an initialization
+            # failure (no device, PyAudio missing) must still remove the
+            # SIGINT handler and close the overlay below.
+            recorder = MicrophoneRecorder(device_index=args.device_index)
+        except Exception as exc:
+            print(f"\n[microphone error] {type(exc).__name__}: {exc}")
+            print(
+                "A microphone is required for dictation. Check that a device "
+                "is connected and PyAudio is installed "
+                "(Linux: sudo apt install portaudio19-dev python3-dev first)."
+            )
+            return 1
         with recorder:
             stt = SpeechmaticsRealtime(
                 api_key=api_key,
@@ -274,6 +518,7 @@ async def main() -> int:
                 max_delay=args.max_delay,
                 model=args.model,
                 max_delay_mode=args.max_delay_mode,
+                domain=args.domain,
             )
             audio = audio_source(recorder, args.max_seconds, stop_event)
             try:
@@ -289,6 +534,11 @@ async def main() -> int:
                 result = stt.result
             finally:
                 await audio.aclose()
+                # Flush the buffered canonical tail even when the session
+                # failed, drain the worker (ordered pastes), and collect the
+                # injection records for the report — before the overlay and
+                # the report are finalized.
+                injected_segments = finish_injection()
     finally:
         if installed_signal_handler:
             try:
@@ -309,11 +559,15 @@ async def main() -> int:
     # Stage 2: generic text normalization.
     normalized = normalize_text(raw)
     # Stage 3: deterministic medical Aho-Corasick canonicalization.
+    #
+    # The canonical stage comes from the SAME accumulated state that fed the
+    # injection worker, so the report always matches the pasted text — even
+    # when a medical phrase spans Speechmatics final-segment boundaries.
+    # (Re-canonicalizing the joined transcript here used to disagree with the
+    # injected segments.)
     word_results = getattr(result, "word_results", []) if result is not None else []
-    if not args.no_medical_layer:
-        canonical, medical_hits = medical.canonicalize(normalized, word_results)
-    else:
-        canonical, medical_hits = normalized, []
+    canonical = accumulator.canonical_text
+    medical_hits = accumulator.hits
 
     raw_clean = print_cleanliness("RAW TRANSCRIPT", raw)
     normalized_clean = print_cleanliness("NORMALIZED TRANSCRIPT", normalized)
@@ -342,7 +596,9 @@ async def main() -> int:
             "max_delay": args.max_delay,
             "max_delay_mode": args.max_delay_mode,
             "speechmatics": {
-                "domain": DEFAULT_DOMAIN,
+                # What was actually sent (None = no domain key was sent).
+                "domain": effective_domain,
+                "domain_requested": args.domain,
                 "model": args.model,
                 "max_delay": args.max_delay,
                 "max_delay_mode": args.max_delay_mode,
@@ -350,6 +606,8 @@ async def main() -> int:
             "device_index": args.device_index,
             "first_partial_latency_ms": getattr(result, "first_partial_ms", None),
             "session_error": getattr(result, "error", None),
+            "parse_warnings": getattr(result, "warnings", []) if result else [],
+            "audio_overflow_events": getattr(recorder, "overflow_events", None),
             "partials": getattr(result, "partials", []),
             "final_segments": getattr(result, "final_segments", []),
             "word_results": word_results,
