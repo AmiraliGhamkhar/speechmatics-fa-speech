@@ -29,7 +29,6 @@ from speechmatics_test.presentation import (
     PDF,
     RLE,
     RLM,
-    contains_rtl,
     detect_direction,
     strip_bidi_controls,
     wrap_for_direction,
@@ -46,23 +45,6 @@ try:
     _TK_AVAILABLE = True
 except Exception:
     _TK_AVAILABLE = False
-
-_RTL_RANGES = (
-    ("\u0600", "\u06ff"),
-    ("\u0750", "\u077f"),
-    ("\ufb50", "\ufdff"),
-    ("\ufe70", "\ufeff"),
-)
-
-
-def _count_rtl(text: str) -> int:
-    n = 0
-    for ch in text:
-        for lo, hi in _RTL_RANGES:
-            if lo <= ch <= hi:
-                n += 1
-                break
-    return n
 
 
 def display_text(text: str) -> str:
