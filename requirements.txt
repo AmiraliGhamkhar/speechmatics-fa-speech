@@ -1,7 +1,7 @@
-speechmatics-rt==1.1.1
-PyAudio==0.2.14
-python-dotenv==1.2.3
-pytest>=8.0
+speechmatics-rt
+PyAudio
+python-dotenv
+pytest
 
 # Post-processing engine: Aho-Corasick automaton.
 # pyahocorasick is a lean C extension with Windows/macOS/Linux wheels, unlike
@@ -9,15 +9,15 @@ pytest>=8.0
 # full C++ toolchain elsewhere. If the wheel is unavailable the layer falls
 # back to a built-in pure-Python automaton with identical output
 # (`MedicalFST.uses_ahocorasick` reports which backend is active).
-pyahocorasick>=2.0.0
+pyahocorasick
 
 # Non-Windows fallback injection (pyautogui hotkeys + pyperclip clipboard).
 # The Windows path uses the native ctypes implementation and needs neither.
 # Declared because create_injector() only imports them lazily at the first
 # paste, which made a clean Linux/macOS install start happily and then fail
 # every single paste at runtime.
-pyautogui>=0.9.14; sys_platform != "win32"
-pyperclip>=1.8.2; sys_platform != "win32"
+pyautogui
+pyperclip
 
 # NOTE: python-bidi is no longer used. The application keeps all text in
 # LOGICAL Unicode order and controls direction with explicit Unicode controls
