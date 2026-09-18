@@ -140,10 +140,12 @@ def test_end_to_end_session_with_report(tmp_path, monkeypatch):
         assert report["session_error"] is None
         assert report["matcher_engine"].startswith("aho-corasick")
         # New structured fields coexist with the established report contract.
+        # Persian is not documented for Enhanced Medical: auto sends none.
         assert report["speechmatics"] == {
-            "domain": "medical", "model": "enhanced", "max_delay": 2.0,
-            "max_delay_mode": "flexible",
+            "domain": None, "domain_requested": "auto", "model": "enhanced",
+            "max_delay": 2.0, "max_delay_mode": "flexible",
         }
+        assert report["parse_warnings"] == []
         assert report["word_results"][3] == {
             "content": "سی", "confidence": 0.52, "language": "fa",
             "start_time": 0.4, "end_time": 0.5,
@@ -181,7 +183,9 @@ def test_no_vocab_and_medical_flags_remain_independent(tmp_path, monkeypatch):
     try:
         report = json.loads(reports[-1].read_text(encoding="utf-8"))
         assert "additional_vocab" not in registry["configs"][0]
-        assert registry["configs"][0]["domain"] == "medical"
+        # Persian under --domain auto: the medical domain is not sent
+        assert "domain" not in registry["configs"][0]
+        assert report["speechmatics"]["domain"] is None
         assert report["medical_vocab_enabled"] is False
         assert report["medical_layer_enabled"] is False
         assert report["final_transcript_normalized"] == "سی تی اسکن"
@@ -196,10 +200,17 @@ def test_auto_injection_fires_per_final_segment(tmp_path, monkeypatch):
     pasted = []
 
     class FakeInjector:
+        calls = []
+
+        def arm_target(self):
+            FakeInjector.calls.append("arm")
+            return True
+
         def reset_partial(self):
-            pass
+            FakeInjector.calls.append("reset")
 
         def paste_text(self, text, add_rtl_mark=False):
+            FakeInjector.calls.append("paste")
             pasted.append((text, add_rtl_mark))
             return True
 
@@ -219,6 +230,7 @@ def test_auto_injection_fires_per_final_segment(tmp_path, monkeypatch):
         ],
     })
 
+    FakeInjector.calls = []
     code = asyncio.run(app_module.main())
     assert code == 0
 
@@ -229,6 +241,9 @@ def test_auto_injection_fires_per_final_segment(tmp_path, monkeypatch):
         "HTN دارد ",
     ]
     assert all(mark for _, mark in pasted)
+    # the focus guard armed the target once, before the first paste
+    assert FakeInjector.calls[0] == "arm"
+    assert FakeInjector.calls[1:4] == ["reset", "paste", "reset"]
 
 
 def test_injection_disabled_with_no_inject_flag(tmp_path, monkeypatch):
@@ -334,3 +349,128 @@ def test_sigint_handler_is_removed_after_the_session(tmp_path, monkeypatch):
     before = signal.getsignal(signal.SIGINT)
     assert asyncio.run(app_module.main()) == 0
     assert signal.getsignal(signal.SIGINT) is before
+
+
+def test_cross_segment_medical_phrase_injects_and_reports_identically(
+    tmp_path, monkeypatch
+):
+    """H3 regression: a phrase split across finals ("فشار خون" + "بالا دارد")
+    must inject and report the same canonical text ("HTN دارد"), instead of
+    injecting "BP بالا" while the report claimed "HTN دارد"."""
+    pasted = []
+
+    class FakeInjector:
+        def arm_target(self):
+            return True
+
+        def reset_partial(self):
+            pass
+
+        def paste_text(self, text, add_rtl_mark=False):
+            pasted.append(text)
+            return True
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(app_module, "create_injector", lambda enabled: FakeInjector())
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--save-report",
+    ])
+    install_fake_sdk(monkeypatch, {
+        "script": [
+            ("final", "فشار خون"),
+            ("final", "بالا دارد"),
+        ],
+    })
+
+    assert asyncio.run(app_module.main()) == 0
+
+    # the first final is buffered (it could still extend), then the phrase
+    # resolves once and is injected exactly once
+    assert pasted == ["HTN دارد "]
+
+    reports = sorted((app_module.ROOT / "results").glob("session_*.json"))
+    assert reports
+    try:
+        report = json.loads(reports[-1].read_text(encoding="utf-8"))
+        # the report's canonical stage IS the injected text
+        assert report["final_transcript_canonical"] == "HTN دارد"
+        assert report["final_transcript_normalized"] == "فشار خون بالا دارد"
+        injected = " ".join(t.strip() for t in pasted).strip()
+        assert report["final_transcript_canonical"] == injected
+        assert report["injection"]["segments"] == [
+            {"text": "HTN دارد", "success": True}
+        ]
+        assert any(h["canonical"] == "HTN" for h in report["medical_hits"])
+    finally:
+        for p in reports:
+            p.unlink(missing_ok=True)
+
+
+def test_no_focus_guard_skips_arming(tmp_path, monkeypatch):
+    armed = []
+
+    class FakeInjector:
+        def arm_target(self):
+            armed.append(True)
+            return True
+
+        def reset_partial(self):
+            pass
+
+        def paste_text(self, text, add_rtl_mark=False):
+            return True
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(app_module, "create_injector", lambda enabled: FakeInjector())
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--no-focus-guard",
+    ])
+    install_fake_sdk(monkeypatch, {"script": [("final", "سی تی اسکن")]})
+
+    assert asyncio.run(app_module.main()) == 0
+    assert armed == []  # guard disabled: nothing was armed
+
+
+def test_microphone_failure_cleans_up_and_exits_with_error(
+    tmp_path, monkeypatch, capsys
+):
+    """BUG 3 regression: microphone construction sat OUTSIDE the cleanup
+    boundary, so a missing device/PyAudio skipped SIGINT-handler removal and
+    overlay close. It must produce a clear message, exit code 1, and full
+    cleanup."""
+    import signal
+
+    from speechmatics_test.microphone import MicrophoneError
+
+    class FailingRecorder:
+        def __init__(self, device_index=None, pyaudio_module=None):
+            raise MicrophoneError("no audio device available")
+
+    class FakeOverlay:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    fake_overlay = FakeOverlay()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FailingRecorder)
+    monkeypatch.setattr(app_module, "create_overlay", lambda disabled: fake_overlay)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-inject",
+    ])
+
+    before = signal.getsignal(signal.SIGINT)
+    assert asyncio.run(app_module.main()) == 1
+    # the cleanup boundary ran: SIGINT handler removed, overlay closed
+    assert signal.getsignal(signal.SIGINT) is before
+    assert fake_overlay.closed is True
+    assert "[microphone error]" in capsys.readouterr().out

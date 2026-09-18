@@ -142,10 +142,28 @@ class TranscriptOverlay:
         if not self._ready.wait(timeout=4.0):
             log.warning("Overlay UI startup timed out — falling back to console mode")
             self.enabled = False
+            # The UI thread may still be mid-construction (or reach mainloop
+            # later): mark closed so it destroys its own window instead of
+            # leaking an invisible always-on-top Tk root.
+            self.close()
+
+    def _abort_if_closed(self, root: "tk.Tk") -> bool:
+        """Destroy a root created after shutdown and report whether to abort."""
+        if not self._closed:
+            return False
+        try:
+            root.destroy()
+        except Exception:
+            pass
+        return True
 
     def _run(self) -> None:
         try:
             self._root = tk.Tk()
+            # A startup timeout may have abandoned this thread while Tk was
+            # being constructed: never surface a window afterwards.
+            if self._abort_if_closed(self._root):
+                return
             self._root.title("SwiftMedics STT Overlay")
             self._root.overrideredirect(True)
             self._root.attributes("-topmost", True)
@@ -193,13 +211,25 @@ class TranscriptOverlay:
             self._label.pack(fill="both", expand=True)
 
             self._root.geometry("+100+100")
-            self._ready.set()
+            if self._abort_if_closed(self._root):
+                return
             self._tick_follow()
+            # Ready only once the event loop is actually processing
+            # callbacks: marking ready before mainloop() let other threads
+            # schedule UI updates into a window that was still starting up.
+            self._root.after(0, self._ready.set)
             self._root.mainloop()
         except Exception as e:
             log.warning("Failed to initialize overlay window: %s", e)
             self.enabled = False
             self._ready.set()
+            root = self._root
+            self._root = None
+            if root is not None:
+                try:
+                    root.destroy()
+                except Exception:
+                    pass
 
     def _tick_follow(self) -> None:
         """Keep the overlay hovering near the mouse pointer with screen edge clamping."""

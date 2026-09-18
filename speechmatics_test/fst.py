@@ -45,6 +45,7 @@ engine problem can never cost the clinician their finished transcript.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import deque
 from dataclasses import dataclass, field
@@ -652,6 +653,30 @@ class MedicalFST:
             return f"{ENGINE_NAME} (pure-python)"
         return "none (no rules)"
 
+    @property
+    def max_rule_tokens(self) -> int:
+        """Longest rule form measured in whitespace tokens (0 without rules)."""
+        return max((len(rule.form.split()) for rule in self.rules), default=0)
+
+    def is_rule_token_prefix(self, tokens: list[str]) -> bool:
+        """True when ``tokens`` start some rule form (prefix or full form).
+
+        Used by the incremental final-segment canonicalizer: a buffered text
+        suffix that matches the leading tokens of a rule form could still
+        grow into a longer (longest-match) rule once future ASR text
+        arrives, so emission must stop before it. Comparison mirrors the
+        matcher exactly: normalized tokens, case-folded per
+        ``casefold_preserving``.
+        """
+        if not tokens:
+            return False
+        parts = [casefold_preserving(token) for token in tokens]
+        for rule in self.rules:
+            form_tokens = rule.match_form.split()
+            if len(form_tokens) >= len(parts) and form_tokens[: len(parts)] == parts:
+                return True
+        return False
+
     def canonicalize(
         self, text: str, word_results: Optional[list[dict[str, Any]]] = None
     ) -> tuple[str, list[dict[str, Any]]]:
@@ -671,8 +696,13 @@ class MedicalFST:
             # An engine failure must never cost the clinician their finished
             # transcript: the naive scanner implements the identical priority
             # scheme and is verified against the automaton by the test suite.
+            # The warning is copied into shared JSON reports, so it carries a
+            # length + truncated SHA-256 digest instead of transcript content
+            # (the digest is only a correlation aid, never reversible output).
+            digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
             self.warnings.append(
-                f"aho-corasick engine failed for {text[:40]!r} ({exc}); "
+                f"aho-corasick engine failed on {len(text)} chars "
+                f"(sha256:{digest}) ({exc}); "
                 f"using the equivalent reference scanner output"
             )
             return self._scan_reference(text, word_results)

@@ -488,3 +488,46 @@ def test_automaton_scales_with_many_rules(fst):
     out, hits = fst.canonicalize(text)
     assert hits == []
     assert out == text
+
+
+# --------------------------------------------- token-prefix emission guard
+
+def test_max_rule_tokens_matches_longest_form(fst):
+    longest = max(len(rule.form.split()) for rule in fst.rules)
+    assert fst.max_rule_tokens == longest
+    assert fst.max_rule_tokens >= 3  # e.g. "فشار خون بالا"
+
+
+def test_is_rule_token_prefix_detects_full_and_partial_forms(fst):
+    # an exact rule form is (trivially) a token-prefix of itself
+    assert fst.is_rule_token_prefix(["فشار", "خون", "بالا"]) is True
+    # a leading fragment of a multi-token form is a prefix
+    assert fst.is_rule_token_prefix(["فشار", "خون"]) is True
+    # an unrelated token sequence is not
+    assert fst.is_rule_token_prefix(["بیمار", "دارد"]) is False
+    assert fst.is_rule_token_prefix([]) is False
+    # matching ignores case (English forms)
+    assert fst.is_rule_token_prefix(["ct"]) is True
+
+
+# ----------------------------------------------- privacy of engine warning
+
+def test_engine_failure_warning_does_not_leak_transcript(fst, monkeypatch):
+    secret = "بیمار محرمانه فشار خون بالا دارد today"
+    calls = {"n": 0}
+
+    def boom(text, word_results=None):
+        calls["n"] += 1
+        raise RuntimeError("engine exploded")
+
+    monkeypatch.setattr(fst, "_scan", boom)
+    canonical, hits = fst.canonicalize(normalize_text(secret), [])
+    assert calls["n"] == 1
+    # the reference scanner still produced the canonical transcript
+    assert "HTN" in canonical
+    failure_warnings = [w for w in fst.warnings if "engine failed" in w]
+    assert failure_warnings, "expected an engine-failure warning"
+    for warning in failure_warnings:
+        assert "محرمانه" not in warning
+        assert "بیمار" not in warning
+        assert "chars (sha256:" in warning

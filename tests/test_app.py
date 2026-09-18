@@ -162,3 +162,148 @@ def test_overlay_close_schedules_destroy_after_marking_closed():
     # Closing is idempotent and must not schedule another Tk operation.
     overlay.close()
     assert events == [("after", 0), ("destroy",)]
+
+
+# ------------------------------------ FinalStreamCanonicalizer (H3 fix)
+
+def make_accumulator(no_medical=False):
+    from speechmatics_test.medical_layer import MedicalLayer
+
+    return app_module.FinalStreamCanonicalizer(
+        None if no_medical else MedicalLayer(app_module.ROOT)
+    )
+
+
+def test_accumulator_holds_phrase_until_it_completes_across_segments():
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    first = acc.add(normalize_text("فشار خون"), [])
+    # "فشار خون" can still extend to the longest rule "فشار خون بالا":
+    # nothing may be injected yet
+    assert first is None
+    second = acc.add(normalize_text("بالا دارد"), [])
+    assert second == "HTN دارد"
+    assert acc.canonical_text == "HTN دارد"
+    assert [h["canonical"] for h in acc.hits if h["canonical"] == "HTN"]
+
+
+def test_accumulator_flush_emits_the_remaining_tail():
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    assert acc.add(normalize_text("فشار خون"), []) is None
+    assert acc.flush() == "BP"
+    assert acc.canonical_text == "BP"
+
+
+def test_accumulator_emitted_pieces_never_duplicate_text():
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    emissions = [
+        acc.add(normalize_text(s), [])
+        for s in ["بیمار در سی تی اسکن", "لیژن در رایت لانگ"]
+    ]
+    emissions.append(acc.flush())
+    joined = " ".join(e.strip() for e in emissions if e).strip()
+    # every emitted piece survives exactly once, in order
+    assert joined == acc.canonical_text
+    assert acc.canonical_text == "بیمار در CT scan lesion در right lung"
+
+
+def test_accumulator_without_medical_layer_passes_text_through():
+    acc = make_accumulator(no_medical=True)
+    from speechmatics_test.text import normalize_text
+
+    assert acc.add(normalize_text("سی تی اسکن"), []) == "سی تی اسکن"
+    assert acc.add(normalize_text("فشار خون"), []) == "فشار خون"
+    assert acc.canonical_text == "سی تی اسکن فشار خون"
+    assert acc.hits == []
+
+
+def test_accumulator_empty_adds_are_ignored():
+    acc = make_accumulator(no_medical=True)
+    assert acc.add("", []) is None
+    assert acc.flush() is None
+    assert acc.canonical_text == ""
+
+
+# ---------------------------------------------- InjectionWorker (H2 fix)
+
+class FakeInjector:
+    def __init__(self, fail_on=None, delay=0.0):
+        self.pasted = []
+        self.resets = 0
+        self.fail_on = fail_on
+        self.delay = delay
+
+    def arm_target(self):
+        return True
+
+    def reset_partial(self):
+        self.resets += 1
+
+    def paste_text(self, text, add_rtl_mark=False):
+        if self.delay:
+            import time
+            time.sleep(self.delay)
+        self.pasted.append((text, add_rtl_mark))
+        return self.fail_on != text
+
+
+def test_injection_worker_preserves_final_order_and_records_results():
+    injector = FakeInjector()
+    worker = app_module.InjectionWorker(injector)
+    worker.submit("یک")
+    worker.submit("دو")
+    worker.submit("سه")
+    worker.shutdown()
+    assert injector.pasted == [("یک ", True), ("دو ", True), ("سه ", True)]
+    assert injector.resets == 3
+    assert worker.records == [
+        {"text": "یک", "success": True},
+        {"text": "دو", "success": True},
+        {"text": "سه", "success": True},
+    ]
+
+
+def test_injection_worker_records_failed_pastes_and_keeps_going():
+    injector = FakeInjector(fail_on="bad ")
+    results = []
+    worker = app_module.InjectionWorker(injector, on_result=results.append)
+    worker.submit("bad")
+    worker.submit("good")
+    worker.shutdown()
+    assert [r["success"] for r in worker.records] == [False, True]
+    assert [r["text"] for r in worker.records] == ["bad", "good"]
+    assert results == worker.records
+
+
+def test_injection_worker_shutdown_is_safe_without_jobs():
+    worker = app_module.InjectionWorker(FakeInjector())
+    worker.shutdown()
+    assert worker.records == []
+    worker.shutdown()  # idempotent
+    assert worker.records == []
+
+
+# ------------------------------------------------- overlay lifecycle (M7)
+
+def test_overlay_abort_destroys_root_created_after_shutdown():
+    from overlay import TranscriptOverlay
+
+    destroyed = []
+
+    class Root:
+        def destroy(self):
+            destroyed.append(True)
+
+    overlay = TranscriptOverlay.__new__(TranscriptOverlay)
+    overlay._closed = True
+    assert overlay._abort_if_closed(Root()) is True
+    assert destroyed == [True]
+
+    overlay._closed = False
+    assert overlay._abort_if_closed(Root()) is False
+    assert destroyed == [True]  # live overlay: nothing destroyed

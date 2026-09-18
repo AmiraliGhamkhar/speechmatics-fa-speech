@@ -229,6 +229,10 @@ class TextInjector:
     """Injects Persian/RTL and Unicode text at current cursor position."""
 
     #: Modifiers that silently turn Ctrl+V into a different command.
+    #: Ctrl itself is deliberately NOT here: the paste sequence below handles
+    #: a user-held Ctrl separately instead of releasing and re-pressing it
+    #: (synthesizing Ctrl-up under a physically held Ctrl key corrupted the
+    #: logical modifier state).
     _INTERFERING_MODIFIERS = ("VK_SHIFT", "VK_MENU", "VK_LWIN", "VK_RWIN")
 
     def __init__(
@@ -250,6 +254,9 @@ class TextInjector:
         #: Serializes all injection entry points: realtime callbacks and the
         #: main thread must never interleave clipboard writes/keystrokes.
         self._lock = threading.RLock()
+        #: Focus guard (see ``arm_target``): when armed, pastes are refused
+        #: unless this exact foreground window handle is still focused.
+        self._armed_hwnd: Optional[int] = None
 
     # ------------------------------------------------------- payload prep
 
@@ -328,6 +335,45 @@ class TextInjector:
             "title": buf.value,
             "pid": int(pid.value),
         }
+
+    # ------------------------------------------------------- focus guard
+
+    def arm_target(self) -> bool:
+        """Arm the current foreground window as the only paste target.
+
+        Automatic injection targets whatever window has keyboard focus at
+        paste time. Without a guard, alt-tabbing during dictation silently
+        pasted medical text into the wrong application. After arming, every
+        Windows paste verifies that the armed window is STILL focused and
+        refuses to paste anywhere else. Returns False when the platform
+        cannot identify the foreground window (non-Windows).
+        """
+        info = self.get_foreground_window_info()
+        hwnd = info.get("hwnd")
+        if not hwnd:
+            print("  [injector] focus guard unavailable on this platform")
+            self._armed_hwnd = None
+            return False
+        self._armed_hwnd = int(hwnd)
+        return True
+
+    @property
+    def armed_target(self) -> Optional[int]:
+        """The armed foreground-window handle (``None`` = guard inactive)."""
+        return self._armed_hwnd
+
+    def _focus_guard_ok(self) -> bool:
+        """True when injection may proceed w.r.t. the armed target."""
+        if self._armed_hwnd is None:
+            return True
+        current = self.get_foreground_window_info().get("hwnd")
+        if current == self._armed_hwnd:
+            return True
+        print(
+            "  [injector] focus changed - paste skipped to protect the "
+            f"armed window (armed hwnd={self._armed_hwnd}, current={current})"
+        )
+        return False
 
     def reset_partial(self) -> None:
         """Reset the streaming state (call when a sentence is finalized)."""
@@ -574,38 +620,72 @@ class TextInjector:
         """
         Direct Win32 Unicode clipboard injection + Ctrl+V synthesis.
         Guarantees zero character corruption for complex Persian text.
+
+        The user's previous clipboard content is restored on EVERY exit path:
+        the clipboard is overwritten the moment Empty/SetClipboardData
+        succeeds, so an early failure return used to leave transcript data
+        (or an empty clipboard) behind instead of the user's content.
         """
+        # Focus guard first: never touch the clipboard at all when the
+        # armed target window lost focus.
+        if not self._focus_guard_ok():
+            return False
+
         previous: Optional[str] = None
         if self.restore_clipboard:
             previous = self._get_windows_clipboard()
 
-        if not self._set_windows_clipboard(text):
-            return False
-
-        # Confirm the text really landed before pressing Ctrl+V; otherwise we
-        # would paste whatever the previous owner left behind.
-        if self._get_windows_clipboard() != text:
-            time.sleep(0.03)
+        clipboard_changed = False
+        try:
             if not self._set_windows_clipboard(text):
                 return False
+            clipboard_changed = True
+
+            # Confirm the text really landed before pressing Ctrl+V; otherwise
+            # we would paste whatever the previous owner left behind.
             if self._get_windows_clipboard() != text:
-                # Report failure instead of typing here: the caller owns the
-                # fallback, and doing it in both places double-injected text.
-                print("  [paste warn] clipboard verification failed")
-                return False
+                time.sleep(0.03)
+                if not self._set_windows_clipboard(text):
+                    return False
+                if self._get_windows_clipboard() != text:
+                    # Report failure instead of typing here: the caller owns
+                    # the fallback, and doing it in both places double-
+                    # injected text.
+                    print("  [paste warn] clipboard verification failed")
+                    return False
 
-        ok = self._send_paste_keystroke()
+            ok = self._send_paste_keystroke()
 
-        # Let the target application actually read the clipboard. Pasting is
-        # asynchronous: returning immediately let the NEXT utterance overwrite
-        # the clipboard mid-read, which duplicated or dropped sentences.
-        if self.paste_settle_seconds:
-            time.sleep(self.paste_settle_seconds)
+            # Let the target application actually read the clipboard. Pasting
+            # is asynchronous: returning immediately let the NEXT utterance
+            # overwrite the clipboard mid-read, duplicating/dropping sentences.
+            if self.paste_settle_seconds:
+                time.sleep(self.paste_settle_seconds)
 
-        if self.restore_clipboard and previous is not None and previous != text:
-            self._set_windows_clipboard(previous)
+            return ok
+        finally:
+            # Restore on success AND on every failure/exception path. (When
+            # the clipboard could not be read up front we must not blindly
+            # overwrite it with an empty restore.)
+            if clipboard_changed and previous is not None and previous != text:
+                self._set_windows_clipboard(previous)
 
-        return ok
+    @staticmethod
+    def _paste_key_sequence(ctrl_already_down: bool) -> List[str]:
+        """Ordered logical steps of the paste keystroke.
+
+        A user-held Ctrl must NEVER receive a synthetic Ctrl-up: the physical
+        key stays down while the logical state is released, leaving every
+        later keypress modified. When Ctrl is already down we only tap V and
+        let the user's own Ctrl produce the accelerator.
+        """
+        steps: List[str] = []
+        if not ctrl_already_down:
+            steps.append("ctrl_down")
+        steps += ["v_down", "v_up"]
+        if not ctrl_already_down:
+            steps.append("ctrl_up")
+        return steps
 
     def _send_paste_keystroke(self) -> bool:
         """Synthesize a clean Ctrl+V with no foreign modifiers attached."""
@@ -621,12 +701,14 @@ class TextInjector:
         # NOTE: VK_V (not the layout-dependent character) — under a Persian
         # keyboard layout the physical V key produces "ر", but the paste
         # accelerator is bound to the virtual key, so this stays correct.
-        sequence = [
-            self._key_input(VK_CONTROL, ctrl_scan, 0),
-            self._key_input(VK_V, v_scan, 0),
-            self._key_input(VK_V, v_scan, KEYEVENTF_KEYUP),
-            self._key_input(VK_CONTROL, ctrl_scan, KEYEVENTF_KEYUP),
-        ]
+        keyups = {
+            "ctrl_down": self._key_input(VK_CONTROL, ctrl_scan, 0),
+            "v_down": self._key_input(VK_V, v_scan, 0),
+            "v_up": self._key_input(VK_V, v_scan, KEYEVENTF_KEYUP),
+            "ctrl_up": self._key_input(VK_CONTROL, ctrl_scan, KEYEVENTF_KEYUP),
+        }
+        ctrl_already_down = bool(user32.GetAsyncKeyState(VK_CONTROL) & 0x8000)
+        sequence = [keyups[step] for step in self._paste_key_sequence(ctrl_already_down)]
         ok = self._send_inputs(sequence)
 
         # Restore whatever the user was genuinely holding down.
@@ -730,20 +812,30 @@ class TextInjector:
             except Exception:
                 previous = None
 
-        pyperclip.copy(text)
-        time.sleep(0.05)
+        clipboard_changed = False
+        ok = True
+        try:
+            pyperclip.copy(text)
+            clipboard_changed = True
+            time.sleep(0.05)
 
-        if _SYSTEM == "darwin":
-            pyautogui.hotkey("command", "v")
-        else:
-            pyautogui.hotkey("ctrl", "v")
-
-        if self.paste_settle_seconds:
-            time.sleep(self.paste_settle_seconds)
-
-        if previous is not None and previous != text:
             try:
-                pyperclip.copy(previous)
-            except Exception:
-                pass
-        return True
+                if _SYSTEM == "darwin":
+                    pyautogui.hotkey("command", "v")
+                else:
+                    pyautogui.hotkey("ctrl", "v")
+            except Exception as exc:
+                # A failed hotkey used to escape past the restoration below,
+                # leaving transcript data in the user's clipboard.
+                print(f"  [paste error] {exc}")
+                ok = False
+
+            if self.paste_settle_seconds:
+                time.sleep(self.paste_settle_seconds)
+        finally:
+            if clipboard_changed and previous is not None and previous != text:
+                try:
+                    pyperclip.copy(previous)
+                except Exception:
+                    pass
+        return ok

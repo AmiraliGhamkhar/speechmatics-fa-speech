@@ -49,6 +49,13 @@ class MicrophoneRecorder:
         self.audio = module.PyAudio()
         self.stream = None
         self._closed = False
+        #: Diagnostics only (never audio content): how many reads found more
+        #: than one chunk of audio queued, i.e. the consumer fell behind and
+        #: PortAudio may have dropped samples in its input ring
+        #: (exception_on_overflow is disabled, so loss would otherwise be
+        #: completely silent).
+        self.overflow_events = 0
+        self.chunks_read = 0
 
     # -------------------------------------------------------- context mgmt
 
@@ -81,7 +88,20 @@ class MicrophoneRecorder:
         """Read one 200 ms PCM16 chunk (in memory only)."""
         if self.stream is None:
             raise MicrophoneError("MicrophoneRecorder is not started")
-        return self.stream.read(self.CHUNK, exception_on_overflow=False)
+        # Overflow observability: with exception_on_overflow disabled,
+        # PortAudio silently discards samples when the consumer is slower
+        # than the microphone. More than one chunk queued means the
+        # consumer fell behind and samples may have been dropped; count it
+        # so the session report can show missing-word risk instead of
+        # hiding it.
+        try:
+            if self.stream.get_read_available() > self.CHUNK:
+                self.overflow_events += 1
+        except Exception:
+            pass  # backend/fake without the API: nothing to observe
+        data = self.stream.read(self.CHUNK, exception_on_overflow=False)
+        self.chunks_read += 1
+        return data
 
     # -------------------------------------------------------------- close
 

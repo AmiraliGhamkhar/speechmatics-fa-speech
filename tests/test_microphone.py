@@ -161,3 +161,50 @@ def test_missing_pyaudio_raises_clear_error(monkeypatch):
     monkeypatch.setattr(microphone_module, "pyaudio", None)
     with pytest.raises(MicrophoneError, match="PyAudio"):
         MicrophoneRecorder()
+
+
+# ------------------------------------------------- overflow observability
+
+def test_read_counts_suspected_overflow_and_chunks():
+    events = []
+
+    class OverflowStream:
+        def get_read_available(self):
+            return MicrophoneRecorder.CHUNK * 3  # backlog: audio was dropped
+
+        def read(self, n, exception_on_overflow=False):
+            events.append(("read", n))
+            return b"\x00" * (n * 2)
+
+        def stop_stream(self):
+            events.append("stop_stream")
+
+        def close(self):
+            events.append("stream_closed")
+
+    class FakeInstance:
+        def open(self, **kwargs):
+            events.append("open")
+            return OverflowStream()
+
+        def terminate(self):
+            events.append("terminate")
+
+    fake = type("FakePyAudioModule", (), {})()
+    fake.paInt16 = 8
+    fake.PyAudio = FakeInstance
+
+    with MicrophoneRecorder(pyaudio_module=fake) as rec:
+        rec.read()
+        rec.read()
+    assert rec.overflow_events == 2
+    assert rec.chunks_read == 2
+
+
+def test_read_without_get_read_available_still_works():
+    fake, state = make_fake_pyaudio()
+    with MicrophoneRecorder(pyaudio_module=fake) as rec:
+        assert rec.read() == b"\x00" * (MicrophoneRecorder.CHUNK * 2)
+    # fake stream has no get_read_available: nothing crashed, none counted
+    assert rec.overflow_events == 0
+    assert rec.chunks_read == 1

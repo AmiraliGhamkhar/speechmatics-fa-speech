@@ -41,8 +41,11 @@ def install_fake_sdk(monkeypatch, behavior=None):
     ``behavior``:
       - script: list of ("partial"|"final", text) delivered one per chunk
       - fail_start: exception to raise from start_session
+      - server_error: server Error reason delivered at session start
+      - error_after_send: dispatch a server Error after N successful sends
       - fail_send_after: fail send_audio after N successful sends
       - fail_stop: exception to raise from stop_session
+      - hang_stop: stop_session never completes (silent-server scenario)
     """
     behavior = behavior or {}
     registry = {"configs": [], "clients": []}
@@ -50,6 +53,7 @@ def install_fake_sdk(monkeypatch, behavior=None):
     class ServerMessageType(Enum):
         ADD_PARTIAL_TRANSCRIPT = "AddPartialTranscript"
         ADD_TRANSCRIPT = "AddTranscript"
+        ERROR = "Error"
 
     class Model(Enum):
         STANDARD = "standard"
@@ -84,6 +88,10 @@ def install_fake_sdk(monkeypatch, behavior=None):
 
         @classmethod
         def from_message(cls, message):
+            if behavior.get("fail_final_parse"):
+                # Simulate the strict real SDK parser hitting malformed
+                # structured fields on a final event.
+                raise KeyError("results")
             metadata = message.get("metadata") or {}
             return cls(
                 _Metadata(
@@ -121,12 +129,21 @@ def install_fake_sdk(monkeypatch, behavior=None):
                                 audio_format=None, **kw):
             if behavior.get("fail_start"):
                 raise behavior["fail_start"]
+            if behavior.get("server_error"):
+                handler = self.handlers.get(ServerMessageType.ERROR)
+                if handler:
+                    handler({"message": "Error", "reason": behavior["server_error"]})
 
         async def send_audio(self, chunk):
             if behavior.get("fail_send_after") is not None and \
                     len(self.sent) >= behavior["fail_send_after"]:
                 raise RuntimeError("websocket send failed")
             self.sent.append(chunk)
+            if behavior.get("error_after_send") and \
+                    len(self.sent) == behavior["error_after_send"]:
+                handler = self.handlers.get(ServerMessageType.ERROR)
+                if handler:
+                    handler({"message": "Error", "reason": "session rejected"})
             if self._script:
                 item = self._script.pop(0)
                 kind, text = item[:2]
@@ -146,6 +163,10 @@ def install_fake_sdk(monkeypatch, behavior=None):
         async def stop_session(self):
             if behavior.get("fail_stop"):
                 raise behavior["fail_stop"]
+            if behavior.get("hang_stop"):
+                # Mimics AsyncClient.stop_session waiting on a session-done
+                # event that only EndOfTranscript can set.
+                await asyncio.sleep(3600)
             self.stopped = True
 
     rt = types.ModuleType("speechmatics.rt")
@@ -384,7 +405,9 @@ def test_no_vocab_omits_only_custom_vocabulary(monkeypatch):
     asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
     cfg = registry["configs"][0]
     assert "additional_vocab" not in cfg
-    assert cfg["domain"] == "medical"
+    # fa is not documented for the Enhanced Medical model: auto omits it
+    assert "domain" not in cfg
+    assert stt.effective_domain is None
 
 
 # -------------------------------------------------------------- session end
@@ -453,3 +476,192 @@ def test_bad_message_is_skipped_not_fatal(monkeypatch):
     result = asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
     assert [f["text"] for f in result.final_segments] == ["ok"]
     assert result.error is None
+
+
+# ------------------------------------------------- domain language support
+
+def test_resolve_domain_matrix():
+    from speechmatics_test.realtime import resolve_domain
+    # documented Enhanced Medical languages keep the domain under auto
+    for language in ["en", "de", "ar", "sv", "EN", "en-US"]:
+        assert resolve_domain(language, "auto") == "medical"
+    # Persian is not documented for Enhanced Medical
+    assert resolve_domain("fa", "auto") is None
+    assert resolve_domain("fa-IR", "auto") is None
+    # explicit settings win
+    assert resolve_domain("fa", "medical") == "medical"
+    assert resolve_domain("en", "none") is None
+    assert resolve_domain("fa", "none") is None
+
+
+def test_config_invalid_domain_rejected():
+    with pytest.raises(ValueError):
+        SpeechmaticsRealtime(api_key="k", language="en", domain="bogus")
+
+
+def test_fa_omits_undocumented_medical_domain(monkeypatch):
+    registry = install_fake_sdk(monkeypatch, {"script": []})
+    stt = SpeechmaticsRealtime(api_key="k", language="fa")
+    asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+    assert "domain" not in registry["configs"][0]
+    assert stt.effective_domain is None
+
+
+def test_medical_domain_can_be_forced(monkeypatch):
+    registry = install_fake_sdk(monkeypatch, {"script": []})
+    stt = SpeechmaticsRealtime(api_key="k", language="fa", domain="medical")
+    asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+    assert registry["configs"][0]["domain"] == "medical"
+    assert stt.effective_domain == "medical"
+
+
+def test_domain_none_omits_even_for_supported_languages(monkeypatch):
+    registry = install_fake_sdk(monkeypatch, {"script": []})
+    stt = SpeechmaticsRealtime(api_key="k", language="en", domain="none")
+    asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+    assert "domain" not in registry["configs"][0]
+    assert stt.effective_domain is None
+
+
+# ------------------------------------------- malformed final metadata (M3)
+
+def test_malformed_final_metadata_keeps_transcript(monkeypatch):
+    install_fake_sdk(monkeypatch, {
+        "script": [("final", "بیمار در سی سی یو است")],
+        "fail_final_parse": True,
+    })
+    stt = SpeechmaticsRealtime(api_key="k", language="fa")
+    finals = []
+    result = asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, finals.append))
+    # the dictated text survives without word evidence
+    assert finals == ["بیمار در سی سی یو است"]
+    assert result.final_text == "بیمار در سی سی یو است"
+    assert result.word_results == []
+    assert result.final_segments[0]["word_start_index"] == 0
+    assert result.final_segments[0]["word_end_index"] == 0
+    assert result.warnings and "malformed" in result.warnings[0]
+    assert result.error is None
+
+
+def test_word_metadata_failure_keeps_transcript_and_words(monkeypatch):
+    install_fake_sdk(monkeypatch, {"script": [("final", "CT scan")]})
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+
+    def broken_extract(transcript_result):
+        raise TypeError("bad results payload")
+
+    monkeypatch.setattr(SpeechmaticsRealtime, "_extract_word_results", staticmethod(broken_extract))
+    result = asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+    assert result.final_text == "CT scan"
+    assert result.word_results == []
+    assert result.warnings and "word metadata ignored" in result.warnings[0]
+
+
+def test_transcript_from_raw_message_recovers_both_shapes():
+    parse = SpeechmaticsRealtime._transcript_from_raw_message
+    assert parse({"transcript": "top level"}) == "top level"
+    assert parse({"metadata": {"transcript": "in metadata"}}) == "in metadata"
+    assert parse({"metadata": "junk", "transcript": "  padded  "}) == "padded"
+    assert parse({"metadata": {}}) == ""
+    assert parse("not a dict") == ""
+    assert parse({}) == ""
+
+
+# ------------------------------------- setup-failure cleanup (M4/H1 paths)
+
+def test_import_failure_releases_audio_and_sets_ended_at(monkeypatch):
+    install_fake_sdk(monkeypatch, {"script": []})
+    rt_module = sys.modules["speechmatics.rt"]
+    monkeypatch.delattr(rt_module, "Model")
+    stt = SpeechmaticsRealtime(api_key="k", language="fa")
+    audio = FakeAudio([b"a"])
+    with pytest.raises(RuntimeError, match="import failed"):
+        asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
+    assert stt.result.ended_at is not None
+    assert audio.closed is True
+    assert stt.result.error and "ImportError" in stt.result.error
+
+
+def test_audio_format_failure_releases_audio_and_sets_ended_at(monkeypatch):
+    install_fake_sdk(monkeypatch, {"script": []})
+    rt_module = sys.modules["speechmatics.rt"]
+
+    class Boom:
+        def __init__(self, **kwargs):
+            raise TypeError("bad audio format")
+
+    monkeypatch.setattr(rt_module, "AudioFormat", Boom)
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    audio = FakeAudio([b"a"])
+    with pytest.raises(TypeError, match="bad audio format"):
+        asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
+    assert stt.result.ended_at is not None
+    assert audio.closed is True
+
+
+# ------------------------------------------ hung EndOfTranscript (BUG 1)
+
+def test_stop_session_hang_is_bounded_and_preserves_transcript(monkeypatch):
+    """A server that stalls on a HEALTHY connection must not hang the app
+    forever: the EndOfTranscript wait is bounded, the transcript captured
+    so far survives, and every resource is still released."""
+    import speechmatics_test.realtime as realtime_module
+
+    registry = install_fake_sdk(monkeypatch, {
+        "script": [("final", "بیمار در سی سی یو است")],
+        "hang_stop": True,
+    })
+    monkeypatch.setattr(realtime_module, "STOP_SESSION_TIMEOUT", 0.05)
+    stt = SpeechmaticsRealtime(api_key="k", language="fa")
+    audio = FakeAudio([b"a", b"b"])
+    finals = []
+    with pytest.raises(RuntimeError, match="EndOfTranscript"):
+        asyncio.run(stt.run(audio, lambda t: None, finals.append))
+    # the dictated transcript survived the shutdown hang
+    assert finals == ["بیمار در سی سی یو است"]
+    assert stt.result.final_text == "بیمار در سی سی یو است"
+    assert "EndOfTranscript" in stt.result.error
+    assert stt.result.ended_at is not None
+    assert audio.closed is True
+    client = registry["clients"][0]
+    assert client.closed is True   # context-manager teardown still ran
+    assert client.stopped is False  # stop_session never completed
+
+
+# --------------------------------------------- server Error message (BUG 2)
+
+def test_server_error_is_recorded_and_stops_the_send_loop(monkeypatch):
+    """The service's Error message must land in result.error and the app
+    must stop streaming audio into the dead session immediately."""
+    registry = install_fake_sdk(monkeypatch, {"server_error": "quota exceeded"})
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    audio = FakeAudio([b"a", b"b", b"c", b"d"])
+    result = asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
+    assert result.error == "server error: quota exceeded"
+    # the error was known before the first send: no audio enters a dead session
+    assert registry["clients"][0].sent == []
+    assert audio.closed is True
+    assert result.ended_at is not None
+
+
+def test_server_error_mid_stream_stops_after_at_most_one_chunk(monkeypatch):
+    """An Error landing during a send suppresses every further chunk (the
+    in-flight 200 ms chunk is the unavoidable worst case)."""
+    registry = install_fake_sdk(monkeypatch, {"error_after_send": 1})
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    audio = FakeAudio([b"a", b"b", b"c", b"d"])
+    result = asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
+    assert result.error == "server error: session rejected"
+    assert registry["clients"][0].sent == [b"a"]
+    assert result.final_text == ""
+
+
+def test_server_error_before_any_audio_still_completes(monkeypatch):
+    registry = install_fake_sdk(monkeypatch, {"server_error": "rejected"})
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    audio = FakeAudio([b"a"])
+    result = asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
+    assert result.error == "server error: rejected"
+    assert registry["clients"][0].sent == []
+    assert result.final_text == ""
+    assert result.ended_at is not None
