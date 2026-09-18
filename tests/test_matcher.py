@@ -611,16 +611,6 @@ def test_medicalfst_constructs_and_matches_identically(fst):
     assert legacy_named.canonicalize(text) == fst.canonicalize(text)
 
 
-def test_medicalfst_importable_from_legacy_module():
-    """speechmatics_test.fst re-exports the public surface (API stability)."""
-    from speechmatics_test import fst as legacy_module
-
-    assert legacy_module.MedicalFST is MedicalMatcher
-    assert legacy_module.FstError is FstError
-    assert legacy_module.AhoAutomaton is AhoAutomaton
-    assert callable(legacy_module.casefold_preserving)
-
-
 # ------------------------------------------ pre-migration behavior fixture
 
 def test_consolidated_dictionary_reproduces_legacy_behavior(fst):

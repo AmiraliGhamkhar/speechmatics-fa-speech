@@ -1,4 +1,4 @@
-"""Matcher performance benchmark (before/after the dictionary consolidation).
+"""Matcher performance benchmark.
 
 For synthetic medical dictionaries of ~100 / 500 / 1000 / 2000 terms this
 script measures:
@@ -10,10 +10,9 @@ script measures:
   dictionary-size-sensitive path, and match-heavy sentences);
 - peak traced memory during one build (tracemalloc).
 
-The benchmark root is generated with BOTH dictionary layouts (the legacy
-``fst_terms.json`` multi-file layout and the consolidated
-``medical_dictionary.json``), so the identical script can run against the
-code base before and after the refactor and produce comparable numbers.
+``benchmark/results_before.json`` / ``results_after.json`` record the
+consolidation-refactor comparison (before = pre-consolidation code at commit
+a4a7e07, measured with the same loop against the legacy multi-file loader).
 
 Usage:
     python benchmark/benchmark_matcher.py --out benchmark/results.json
@@ -31,7 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from speechmatics_test.fst import MedicalFST  # stable public class (§0)
+from speechmatics_test.matcher import MedicalFST  # stable public class (§0)
 from speechmatics_test.text import normalize_text
 
 ROOT = Path(__file__).resolve().parent
@@ -59,29 +58,31 @@ _FORM_TAILS = [
     "شایع", "نادر", "موضعی", "گسترده", "سریع", "آهسته",
 ]
 
-LEGACY_TIERS = ("abbreviation", "phrase", "validated_term")
+SYNTH_TIERS = ("abbreviation", "phrase", "validated_term")
 SYNTH_CANONICAL_TEMPLATE = "Synth-{stem}-{tail}-{n}"
 
 
 def _synthetic_terms(count: int) -> list[dict]:
     """Deterministic synthetic dictionary of ``count`` terms.
 
-    Each term has a Persian multi-token form and a lowercase English variant,
-    mirroring the shape of the real medical dictionary (multi-word Persian
-    phrases + single Latin tokens). Terms never collide with real vocabulary.
+    Each term has a Persian multi-token form, mirroring the shape of the
+    real medical dictionary (multi-word Persian phrases). Terms never
+    collide with real vocabulary.
     """
     terms: list[dict] = []
     for n in range(count):
         stem = _FORM_STEMS[n % len(_FORM_STEMS)]
         tail = _FORM_TAILS[(n // len(_FORM_STEMS)) % len(_FORM_TAILS)]
         seq = n // (len(_FORM_STEMS) * len(_FORM_TAILS))
-        # "سندرم خاص" forms are plain Persian phrases with the token forms
+        # "سندرم خاص" forms are plain Persian phrases with the token shapes
         # the real dictionary uses; padding keeps them unique per n.
         form = f"{stem} {tail}" + (f" نوع {seq}" if seq else "")
         terms.append({
-            "form": form,
+            "id": f"synth-{n}",
             "canonical": SYNTH_CANONICAL_TEMPLATE.format(stem=stem, tail=tail, n=n),
-            "tier": LEGACY_TIERS[n % len(LEGACY_TIERS)],
+            "type": "term",
+            "tier": SYNTH_TIERS[n % len(SYNTH_TIERS)],
+            "forms": [form],
         })
     return terms
 
@@ -91,42 +92,19 @@ def _match_sentences(terms: list[dict]) -> list[str]:
     sentences = []
     for group in range(0, min(len(terms), 24), 4):
         chunk = terms[group:group + 4]
-        forms = " و ".join(t["form"] for t in chunk)
+        forms = " و ".join(t["forms"][0] for t in chunk)
         sentences.append(f"بیمار دارای {forms} ارزیابی شد")
         sentences.append(f"patient shows {chunk[0]['canonical']} under review")
     return sentences or ["بیمار بررسی شد"]
 
 
 def write_dictionary(root: Path, terms: list[dict]) -> None:
-    """Write the SAME rule set in both layouts into ``root``."""
+    """Write the synthetic dictionary (consolidated layout) into ``root``."""
     knowledge = root / "medical_knowledge"
     knowledge.mkdir(parents=True, exist_ok=True)
-    # Legacy layout (read by the pre-refactor code).
-    (knowledge / "fst_terms.json").write_text(json.dumps({
-        "version": 1,
-        "description": "synthetic benchmark dictionary (legacy layout)",
-        "tiers": {
-            "abbreviation": 0, "observed_alias": 1, "phrase": 2,
-            "validated_term": 3, "unit": 4,
-        },
-        "rules": [
-            {"form": t["form"], "canonical": t["canonical"], "tier": t["tier"]}
-            for t in terms
-        ],
-    }, ensure_ascii=False), encoding="utf-8")
-    # Consolidated layout (read by the post-refactor code).
     (knowledge / "medical_dictionary.json").write_text(json.dumps({
         "version": 1,
-        "terms": [
-            {
-                "id": f"synth-{i}",
-                "canonical": t["canonical"],
-                "type": "term",
-                "tier": t["tier"],
-                "forms": [t["form"]],
-            }
-            for i, t in enumerate(terms)
-        ],
+        "terms": terms,
     }, ensure_ascii=False), encoding="utf-8")
 
 

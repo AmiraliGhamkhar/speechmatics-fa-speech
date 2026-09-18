@@ -234,25 +234,32 @@ def test_sounds_like_only_feeds_vocabulary_never_rules(tmp_path):
         matcher.additional_vocab
 
 
-# ---------------------------------------------------------------- migration
+# ------------------------------------------------- vocabulary artifact
 
-def test_migration_check_passes():
-    """scripts/migrate_dictionary.py --check: dictionary in sync + vocab parity."""
+def test_vocab_export_check_passes():
+    """scripts/export_additional_vocab.py --check: artifact in sync with the
+    dictionary's speechmatics: true entries (the §9 bounded generation step)."""
     result = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "migrate_dictionary.py"), "--check"],
+        [sys.executable, str(ROOT / "scripts" / "export_additional_vocab.py"),
+         "--check"],
         capture_output=True, text=True, cwd=ROOT,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "CHECK: OK" in result.stdout
+    assert "speechmatics-eligible vocab" in result.stdout
 
 
-def test_migration_report_counts():
-    """The migration report states what it produced (auditable resolution)."""
+def test_vocab_export_reproduces_the_committed_artifact(tmp_path):
+    """Writing the artifact is deterministic: same dictionary, same file."""
+    script = ROOT / "scripts" / "export_additional_vocab.py"
+    committed = json.loads(
+        (KNOWLEDGE / "speechmatics_additional_vocab.json").read_text(encoding="utf-8")
+    )
     result = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "migrate_dictionary.py")],
+        [sys.executable, str(script), "--check"],
         capture_output=True, text=True, cwd=ROOT,
     )
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "vocab parity" in result.stdout
-    # the known tier-flip resolution is reported explicitly
-    assert "hypertension" in result.stdout
+    assert result.returncode == 0  # committed artifact == derived vocabulary
+    # and the derived vocabulary is exactly what the matcher exposes
+    matcher = MedicalMatcher(ROOT)
+    assert matcher.additional_vocab == committed

@@ -56,7 +56,7 @@ It is **deterministic lexical canonicalization only**. It does not infer diagnos
 
 ## The Aho-Corasick engine
 
-`speechmatics_test/matcher.py` — class `MedicalMatcher`, exported as `MedicalFST` for a stable API (the historical name predates the Aho-Corasick engine and is kept on purpose; `speechmatics_test/fst.py` remains a thin re-export shim):
+`speechmatics_test/matcher.py` — class `MedicalMatcher`, exported as `MedicalFST` for a stable API (the historical name predates the Aho-Corasick engine and is kept on purpose):
 
 ```text
 medical_dictionary.json --(load+validate once)-->  rules (deduped, tier-resolved)
@@ -192,7 +192,7 @@ Useful flags:
 - **sounds_like** — pronunciation hints handed to Speechmatics for vocab entries only; they never become matcher rules.
 - **source_file** — optional migration traceability back to the legacy knowledge file.
 
-Legacy files (kept until their removal is approved, no longer read at runtime): `fst_terms.json` → `curated` (its unit-level rules → `unit`), `abbreviations.json` → `abbreviation`, `observed_asr_aliases.json` → `observed_alias`, `nursing_phrases.json` → `phrase`, `nursing_terms.json` → `validated_term`. `scripts/migrate_dictionary.py` regenerates the dictionary from them and verifies parity (`--check`); `medical_knowledge/speechmatics_additional_vocab.json` is a generated artifact mirroring the derived vocabulary for inspection.
+The dictionary was consolidated from five legacy knowledge files, each into its own tier: `fst_terms.json` → `curated` (its unit-level rules → `unit`), `abbreviations.json` → `abbreviation`, `observed_asr_aliases.json` → `observed_alias`, `nursing_phrases.json` → `phrase`, `nursing_terms.json` → `validated_term`. Those files were removed after the migration was verified (a 432-case behavioral snapshot in `tests/fixtures/pre_migration_canonicalization.json` proves the consolidated dictionary reproduces the old outputs exactly, including hit positions); each term's `source_file` records its historical origin. `medical_knowledge/speechmatics_additional_vocab.json` is a generated artifact mirroring the derived vocabulary for inspection — regenerate it with `scripts/export_additional_vocab.py` (`--check` verifies sync).
 
 ## Evaluation
 
@@ -211,7 +211,7 @@ Each saved report JSON contains WER, number accuracy, and similarity for the raw
 - `scripts/run_fa.ps1` / `scripts/run_en.ps1` — quick language runs
 - `scripts/run_benchmark.ps1` — benchmark case
 - `scripts/run_matcher_benchmark.ps1` — matcher micro-benchmark (dictionary build/latency/memory at ~100–2000 terms)
-- `scripts/migrate_dictionary.py` — regenerate `medical_dictionary.json` from the legacy knowledge files and verify parity (`--check`)
+- `scripts/export_additional_vocab.py` — regenerate the Speechmatics `additional_vocab` artifact from the dictionary's `speechmatics: true` entries (`--check` verifies sync)
 - `scripts/run_no_vocab.ps1` — vocabulary-disabled run
 - `scripts/test_injector.ps1` — standalone injector smoke test
 
