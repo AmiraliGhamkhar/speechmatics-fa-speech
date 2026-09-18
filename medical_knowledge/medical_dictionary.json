@@ -1,0 +1,1155 @@
+{
+  "version": 1,
+  "terms": [
+    {
+      "id": "ccu",
+      "canonical": "CCU",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "سی سی یو",
+        "سی سی یو،",
+        "بخش مراقبت های ویژه قلب"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "C C U",
+        "سی سی یو"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "icu",
+      "canonical": "ICU",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "آی سی یو",
+        "بخش مراقبت های ویژه"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "I C U",
+        "آی سی یو"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "ct-scan",
+      "canonical": "CT scan",
+      "type": "imaging",
+      "tier": "curated",
+      "forms": [
+        "سی تی اسکن",
+        "ct scan"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "C T scan",
+        "سی تی اسکن"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "ct",
+      "canonical": "CT",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "سی تی",
+        "ct"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "C T",
+        "سی تی"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "bp",
+      "canonical": "BP",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "بی پی",
+        "فشار خون"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "B P",
+        "بی پی"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "htn",
+      "canonical": "HTN",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "اچ تی ان",
+        "ایچ تی ان",
+        "فشار خون بالا"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "H T N",
+        "اچ تی ان"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "dm",
+      "canonical": "DM",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "دی ام",
+        "دیابت ملیتوس"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "D M",
+        "دی ام"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "iv",
+      "canonical": "IV",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "آی وی",
+        "iv",
+        "وریدی",
+        "داخل وریدی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "I V",
+        "آی وی"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "im",
+      "canonical": "IM",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "آی ام",
+        "درون عضلانی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "I M",
+        "آی ام"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "sc",
+      "canonical": "SC",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "اس سی",
+        "زیر جلدی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "S C",
+        "اس سی"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "npo",
+      "canonical": "NPO",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "ان پی او",
+        "ناشتا از راه دهان",
+        "عدم مصرف خوراکی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "N P O",
+        "ان پی او"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "cpr",
+      "canonical": "CPR",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "سی پی آر",
+        "احیای قلبی ریوی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "C P R",
+        "سی پی آر"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "fbs",
+      "canonical": "FBS",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "اف بی اس",
+        "قند خون ناشتا"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "F B S",
+        "اف بی اس"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "cbc",
+      "canonical": "CBC",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "سی بی سی",
+        "شمارش کامل سلول های خون"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "C B C",
+        "سی بی سی"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "u-a",
+      "canonical": "U/A",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "یو ای",
+        "تجزیه ادرار"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "U A",
+        "یو ای"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "cxr",
+      "canonical": "CXR",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "سی ایکس آر",
+        "عکس قفسه سینه"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "C X R",
+        "سی ایکس آر"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "ecg",
+      "canonical": "ECG",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "ای سی جی",
+        "ecg",
+        "الکتروکاردیوگرام"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "E C G",
+        "ای سی جی"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "abg",
+      "canonical": "ABG",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "ای بی جی",
+        "abg",
+        "گاز خون شریانی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "A B G",
+        "ای بی جی"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "prn",
+      "canonical": "PRN",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "پی آر ان",
+        "در صورت نیاز"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "P R N",
+        "پی آر ان"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "q2h",
+      "canonical": "q2h",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "کیو تو اچ",
+        "هر دو ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "q two h",
+        "کیو تو اچ"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "tds",
+      "canonical": "tds",
+      "type": "abbreviation",
+      "tier": "curated",
+      "forms": [
+        "تی دی اس",
+        "سه بار در روز"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "T D S",
+        "تی دی اس"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "right-lung",
+      "canonical": "right lung",
+      "type": "anatomy",
+      "tier": "curated",
+      "forms": [
+        "رایت لانگ"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "رایت لانگ"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "lesion",
+      "canonical": "lesion",
+      "type": "condition",
+      "tier": "curated",
+      "forms": [
+        "لیژن"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "لیژن"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "cyst",
+      "canonical": "cyst",
+      "type": "condition",
+      "tier": "curated",
+      "forms": [
+        "کیست"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "کیست"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "cystic",
+      "canonical": "cystic",
+      "type": "condition",
+      "tier": "curated",
+      "forms": [
+        "کیستیک"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "کیستیک"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "hemorrhagic",
+      "canonical": "hemorrhagic",
+      "type": "condition",
+      "tier": "curated",
+      "forms": [
+        "هموراژیک"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "هموراژیک"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "hypertension",
+      "canonical": "hypertension",
+      "type": "condition",
+      "tier": "curated",
+      "forms": [
+        "هایپرتنشن",
+        "هایپر تنشن"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "hyper tension",
+        "هایپرتنشن"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "diabetes",
+      "canonical": "diabetes",
+      "type": "condition",
+      "tier": "curated",
+      "forms": [
+        "دیابت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "دیابت"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "mri",
+      "canonical": "MRI",
+      "type": "imaging",
+      "tier": "curated",
+      "forms": [
+        "ام آر آی",
+        "mri"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "M R I",
+        "ام آر آی"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "ultrasound",
+      "canonical": "ultrasound",
+      "type": "imaging",
+      "tier": "curated",
+      "forms": [
+        "الترسوند",
+        "اولتراسوند"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "ultra sound",
+        "اولتراسوند",
+        "الترسوند"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "blood-pressure",
+      "canonical": "blood pressure",
+      "type": "vital_sign",
+      "tier": "observed_alias",
+      "forms": [
+        "بلاد پرشر",
+        "بلد پرشر",
+        "فشار خون"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "فشار خون"
+      ],
+      "source_file": "observed_asr_aliases.json"
+    },
+    {
+      "id": "vital-signs",
+      "canonical": "vital signs",
+      "type": "phrase",
+      "tier": "phrase",
+      "forms": [
+        "علائم حیاتی"
+      ],
+      "speechmatics": false,
+      "source_file": "nursing_phrases.json"
+    },
+    {
+      "id": "heart-rate",
+      "canonical": "heart rate",
+      "type": "vital_sign",
+      "tier": "phrase",
+      "forms": [
+        "هارت ریت"
+      ],
+      "speechmatics": false,
+      "source_file": "nursing_phrases.json"
+    },
+    {
+      "id": "oxygen-saturation",
+      "canonical": "oxygen saturation",
+      "type": "vital_sign",
+      "tier": "phrase",
+      "forms": [
+        "اکسیژن ساتوریشن",
+        "ساتوریشن"
+      ],
+      "speechmatics": false,
+      "source_file": "nursing_phrases.json"
+    },
+    {
+      "id": "nothing-by-mouth",
+      "canonical": "nothing by mouth",
+      "type": "phrase",
+      "tier": "phrase",
+      "forms": [
+        "ان پی او"
+      ],
+      "speechmatics": false,
+      "source_file": "nursing_phrases.json"
+    },
+    {
+      "id": "intravenous",
+      "canonical": "intravenous",
+      "type": "route",
+      "tier": "phrase",
+      "forms": [
+        "آی وی",
+        "وریدی"
+      ],
+      "speechmatics": false,
+      "source_file": "nursing_phrases.json"
+    },
+    {
+      "id": "intramuscular",
+      "canonical": "intramuscular",
+      "type": "route",
+      "tier": "phrase",
+      "forms": [
+        "آی ام"
+      ],
+      "speechmatics": false,
+      "source_file": "nursing_phrases.json"
+    },
+    {
+      "id": "subcutaneous",
+      "canonical": "subcutaneous",
+      "type": "route",
+      "tier": "phrase",
+      "forms": [
+        "اس سی"
+      ],
+      "speechmatics": false,
+      "source_file": "nursing_phrases.json"
+    },
+    {
+      "id": "as-needed",
+      "canonical": "as needed",
+      "type": "phrase",
+      "tier": "phrase",
+      "forms": [
+        "پی آر ان"
+      ],
+      "speechmatics": false,
+      "source_file": "nursing_phrases.json"
+    },
+    {
+      "id": "every-two-hours",
+      "canonical": "every two hours",
+      "type": "phrase",
+      "tier": "phrase",
+      "forms": [
+        "هر دو ساعت",
+        "کیو تو اچ"
+      ],
+      "speechmatics": false,
+      "source_file": "nursing_phrases.json"
+    },
+    {
+      "id": "three-times-daily",
+      "canonical": "three times daily",
+      "type": "phrase",
+      "tier": "phrase",
+      "forms": [
+        "سه بار در روز",
+        "تی دی اس"
+      ],
+      "speechmatics": false,
+      "source_file": "nursing_phrases.json"
+    },
+    {
+      "id": "Mg",
+      "canonical": "Mg",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [
+        "منیزیم"
+      ],
+      "speechmatics": false,
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "hba1c",
+      "canonical": "HbA1c",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "H B A one C",
+        "اچ بی ای وان سی"
+      ]
+    },
+    {
+      "id": "o2",
+      "canonical": "O2",
+      "type": "vital_sign",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "O two",
+        "او دو"
+      ]
+    },
+    {
+      "id": "c3-c4",
+      "canonical": "C3-C4",
+      "type": "anatomy",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "C three C four",
+        "C three to C four",
+        "سی سه سی چهار"
+      ]
+    },
+    {
+      "id": "cardiac-care-unit",
+      "canonical": "Cardiac Care Unit",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true
+    },
+    {
+      "id": "intensive-care-unit",
+      "canonical": "Intensive Care Unit",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true
+    },
+    {
+      "id": "acetaminophen",
+      "canonical": "acetaminophen",
+      "type": "drug",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "acetaminofen",
+        "استامینوفن"
+      ]
+    },
+    {
+      "id": "metformin",
+      "canonical": "metformin",
+      "type": "drug",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "met for min",
+        "متفورمین"
+      ]
+    },
+    {
+      "id": "insulin",
+      "canonical": "insulin",
+      "type": "drug",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "insuline",
+        "انسولین"
+      ]
+    },
+    {
+      "id": "amoxicillin",
+      "canonical": "amoxicillin",
+      "type": "drug",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "amoxycillin",
+        "آموکسی سیلین"
+      ]
+    },
+    {
+      "id": "ceftriaxone",
+      "canonical": "ceftriaxone",
+      "type": "drug",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "cef tri axone",
+        "سفتریاکسون"
+      ]
+    },
+    {
+      "id": "vancomycin",
+      "canonical": "vancomycin",
+      "type": "drug",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "van co mycin",
+        "وانکومایسین"
+      ]
+    },
+    {
+      "id": "heparin",
+      "canonical": "heparin",
+      "type": "drug",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "hep a rin",
+        "هپارین"
+      ]
+    },
+    {
+      "id": "warfarin",
+      "canonical": "warfarin",
+      "type": "drug",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "war far in",
+        "وارفارین"
+      ]
+    },
+    {
+      "id": "furosemide",
+      "canonical": "furosemide",
+      "type": "drug",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "furo semide",
+        "فوروزماید"
+      ]
+    },
+    {
+      "id": "ondansetron",
+      "canonical": "ondansetron",
+      "type": "drug",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "on dan setron",
+        "اندانسترون"
+      ]
+    },
+    {
+      "id": "magnesium",
+      "canonical": "Magnesium",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "منیزیم"
+      ]
+    },
+    {
+      "id": "diabetes-mellitus",
+      "canonical": "diabetes mellitus",
+      "type": "condition",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "دیابت ملیتوس"
+      ]
+    },
+    {
+      "id": "pneumonia",
+      "canonical": "pneumonia",
+      "type": "condition",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "new monia",
+        "پنومونی"
+      ]
+    },
+    {
+      "id": "sepsis",
+      "canonical": "sepsis",
+      "type": "condition",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "sep sis",
+        "سپسیس"
+      ]
+    },
+    {
+      "id": "myocardial-infarction",
+      "canonical": "myocardial infarction",
+      "type": "condition",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "myocardial infarct",
+        "انفارکتوس میوکارد"
+      ]
+    },
+    {
+      "id": "heart-failure",
+      "canonical": "heart failure",
+      "type": "condition",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "cardiac failure",
+        "نارسایی قلبی"
+      ]
+    },
+    {
+      "id": "asthma",
+      "canonical": "asthma",
+      "type": "condition",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "azma",
+        "آسم"
+      ]
+    },
+    {
+      "id": "echocardiogram",
+      "canonical": "echocardiogram",
+      "type": "imaging",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "echo cardiogram",
+        "اکوکاردیوگرام"
+      ]
+    },
+    {
+      "id": "x-ray",
+      "canonical": "X-ray",
+      "type": "imaging",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "x ray",
+        "اشعه ایکس"
+      ]
+    },
+    {
+      "id": "intubation",
+      "canonical": "intubation",
+      "type": "procedure",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "in tube ation",
+        "اینتوبیشن"
+      ]
+    },
+    {
+      "id": "catheterization",
+      "canonical": "catheterization",
+      "type": "procedure",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "catheterisation",
+        "کاتتریزاسیون"
+      ]
+    },
+    {
+      "id": "biopsy",
+      "canonical": "biopsy",
+      "type": "procedure",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "bye op see",
+        "بیوپسی"
+      ]
+    },
+    {
+      "id": "dialysis",
+      "canonical": "dialysis",
+      "type": "procedure",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "dy al sis",
+        "دیالیز"
+      ]
+    },
+    {
+      "id": "hemoglobin",
+      "canonical": "hemoglobin",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "hemo globin",
+        "هموگلوبین"
+      ]
+    },
+    {
+      "id": "creatinine",
+      "canonical": "creatinine",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "creat inine",
+        "کراتینین"
+      ]
+    },
+    {
+      "id": "troponin",
+      "canonical": "troponin",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "tro po nin",
+        "تروپونین"
+      ]
+    },
+    {
+      "id": "glucose",
+      "canonical": "glucose",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "gloo cose",
+        "گلوکز"
+      ]
+    },
+    {
+      "id": "sodium",
+      "canonical": "sodium",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "so dium",
+        "سدیم"
+      ]
+    },
+    {
+      "id": "potassium",
+      "canonical": "potassium",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "po tassium",
+        "پتاسیم"
+      ]
+    },
+    {
+      "id": "blood-culture",
+      "canonical": "blood culture",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "blood cultures",
+        "کشت خون"
+      ]
+    },
+    {
+      "id": "left-lung",
+      "canonical": "left lung",
+      "type": "anatomy",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "لفت لانگ"
+      ]
+    },
+    {
+      "id": "coronary-artery",
+      "canonical": "coronary artery",
+      "type": "anatomy",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "کرونری آرتری"
+      ]
+    },
+    {
+      "id": "liver",
+      "canonical": "liver",
+      "type": "anatomy",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "لیور"
+      ]
+    },
+    {
+      "id": "kidney",
+      "canonical": "kidney",
+      "type": "anatomy",
+      "tier": "validated_term",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "کیدنی"
+      ]
+    },
+    {
+      "id": "mg",
+      "canonical": "mg",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "میلی گرم"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "milligram",
+        "میلی گرم"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "ml",
+      "canonical": "mL",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "میلی لیتر"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "milliliter",
+        "میلی لیتر"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "l",
+      "canonical": "L",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "لیتر"
+      ],
+      "speechmatics": false,
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "kg",
+      "canonical": "kg",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "کیلوگرم"
+      ],
+      "speechmatics": false,
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "percent",
+      "canonical": "%",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "درصد"
+      ],
+      "speechmatics": false,
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "mmhg",
+      "canonical": "mmHg",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "میلی متر جیوه"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "millimeters of mercury",
+        "میلی متر جیوه"
+      ],
+      "source_file": "fst_terms.json"
+    }
+  ]
+}

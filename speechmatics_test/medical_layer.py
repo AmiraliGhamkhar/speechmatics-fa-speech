@@ -2,18 +2,19 @@
 
 Keeps the pipeline stages separate and explicit:
 
-    Speechmatics raw final  ->  normalize_text()  ->  MedicalFST  ->  canonical
+    Speechmatics raw final  ->  normalize_text()  ->  MedicalMatcher  ->  canonical
 
 - The RAW Speechmatics output is preserved untouched (see
   ``SpeechmaticsRealtime.SessionResult.final_text``).
 - ``normalize_text`` is generic text normalization only (script unification,
   ZWNJ/whitespace, punctuation spacing) - no medical knowledge.
-- ``MedicalFST`` performs deterministic lexical canonicalization using an
-  **Aho-Corasick** automaton built from the rule set in
-  ``medical_knowledge/fst_terms.json`` plus the other knowledge files, each
-  kept in its own tier. The automaton learns every form once and searches
-  all of them simultaneously in a single pass, so the layer stays fast no
-  matter how large the rule set grows.
+- ``MedicalMatcher`` (aliased ``MedicalFST``) performs deterministic lexical
+  canonicalization using an Aho-Corasick automaton compiled once from
+  ``medical_knowledge/medical_dictionary.json``: every form is learned once
+  and searched simultaneously in a single pass, so the layer stays fast no
+  matter how large the dictionary grows.
+- ``additional_vocab`` is the bounded Speechmatics custom vocabulary derived
+  from the dictionary's ``speechmatics: true`` entries only.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .fst import MedicalFST
+from .matcher import MedicalMatcher
 from .text import normalize_text
 
 
@@ -30,7 +31,7 @@ class MedicalLayer:
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
-        self.fst = MedicalFST(self.root)
+        self.fst = MedicalMatcher(self.root)
 
     @property
     def warnings(self) -> list[str]:
@@ -42,11 +43,16 @@ class MedicalLayer:
 
     @property
     def max_rule_tokens(self) -> int:
-        """Longest rule form in tokens (see MedicalFST.max_rule_tokens)."""
+        """Longest rule form in tokens (see MedicalMatcher.max_rule_tokens)."""
         return self.fst.max_rule_tokens
 
+    @property
+    def additional_vocab(self) -> list:
+        """Bounded Speechmatics vocabulary from speechmatics-eligible terms."""
+        return self.fst.additional_vocab
+
     def is_rule_token_prefix(self, tokens: list[str]) -> bool:
-        """Whether ``tokens`` start some rule form (see MedicalFST)."""
+        """Whether ``tokens`` start some rule form (see MedicalMatcher)."""
         return self.fst.is_rule_token_prefix(tokens)
 
     def canonicalize(

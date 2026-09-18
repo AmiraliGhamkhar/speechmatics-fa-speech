@@ -77,7 +77,13 @@ def test_load_benchmark(tmp_path):
 def test_curated_speechmatics_vocab_is_bounded_and_keeps_sounds_like():
     from speechmatics_test.realtime import SpeechmaticsRealtime
 
-    vocab = SpeechmaticsRealtime._clean_vocab(app_module.load_vocab())
+    # The vocabulary is derived from the dictionary's speechmatics:true
+    # entries (single source of truth), not read from a separate file.
+    from speechmatics_test.medical_layer import MedicalLayer
+
+    vocab = SpeechmaticsRealtime._clean_vocab(
+        MedicalLayer(app_module.ROOT).additional_vocab
+    )
     by_content = {item["content"]: item for item in vocab if isinstance(item, dict)}
     assert len(vocab) < 100  # ASR biasing vocabulary, not the local dictionary
     assert {

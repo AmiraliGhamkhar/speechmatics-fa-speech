@@ -6,10 +6,15 @@ pytest
 # Post-processing engine: Aho-Corasick automaton.
 # pyahocorasick is a lean C extension with Windows/macOS/Linux wheels, unlike
 # the old OpenFst/Pynini stack which shipped Linux-only wheels and needed a
-# full C++ toolchain elsewhere. If the wheel is unavailable the layer falls
-# back to a built-in pure-Python automaton with identical output
+# full C++ toolchain elsewhere. Pinned to the version the parity tests and
+# benchmarks run against. If the package is unavailable the layer falls back
+# to a built-in pure-Python automaton with identical output
 # (`MedicalFST.uses_ahocorasick` reports which backend is active).
+<<<<<<< HEAD
 pyahocorasick
+=======
+pyahocorasick==2.3.1
+>>>>>>> a66d32c824de2a1417d11b7275e090dc4e4944d8
 
 # Non-Windows fallback injection (pyautogui hotkeys + pyperclip clipboard).
 # The Windows path uses the native ctypes implementation and needs neither.

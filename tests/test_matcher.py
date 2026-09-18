@@ -1,9 +1,10 @@
-"""Medical Aho-Corasick layer tests.
+"""Medical Aho-Corasick matcher tests.
 
 Covers: requirement examples, longest match / overlapping phrases,
 Persian-English mixed terminology, abbreviations, numbers and units,
-token-aware matching, hit reporting, determinism, idempotence, and the
-automaton/reference-scanner agreement.
+token-aware matching, hit reporting, determinism, idempotence, ZWNJ
+variants, tier-based conflict resolution, the automaton/reference-scanner
+agreement, native/pure-python engine parity, and the ``MedicalFST`` alias.
 """
 
 import json
@@ -11,20 +12,51 @@ from pathlib import Path
 
 import pytest
 
-from speechmatics_test.fst import AhoAutomaton, FstError, MedicalFST
+from speechmatics_test.matcher import (
+    AhoAutomaton,
+    FstError,
+    MedicalFST,
+    MedicalMatcher,
+    TIER_ORDER,
+)
 from speechmatics_test.text import normalize_text
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(scope="module")
-def fst():
-    return MedicalFST(ROOT)
+def matcher() -> MedicalMatcher:
+    return MedicalMatcher(ROOT)
 
 
-def canon(fst, text):
-    out, _ = fst.canonicalize(normalize_text(text))
+# Back-compat: the public name must stay constructible and identical.
+@pytest.fixture(scope="module")
+def fst(matcher) -> MedicalMatcher:
+    return matcher
+
+
+def canon(matcher, text):
+    out, _ = matcher.canonicalize(normalize_text(text))
     return out
+
+
+# ------------------------------------------------------------- dictionary io
+
+def write_dictionary(root: Path, terms: list[dict]) -> Path:
+    """Write a synthetic medical_dictionary.json (new consolidated schema)."""
+    knowledge = root / "medical_knowledge"
+    knowledge.mkdir(parents=True, exist_ok=True)
+    path = knowledge / "medical_dictionary.json"
+    path.write_text(
+        json.dumps({"version": 1, "terms": terms}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return root
+
+
+def term(term_id, canonical, tier, forms, type="term", **extra):
+    return {"id": term_id, "canonical": canonical, "type": type,
+            "tier": tier, "forms": forms, **extra}
 
 
 # ------------------------------------------------------------ requirement map
@@ -88,19 +120,11 @@ def test_overlapping_substring_forms(fst):
 
 
 def test_overlapping_forms_longest_wins(tmp_path):
-    (tmp_path / "medical_knowledge").mkdir()
-    tiers = {
-        "abbreviation": 0, "observed_alias": 1, "phrase": 2,
-        "validated_term": 3, "unit": 4,
-    }
-    (tmp_path / "medical_knowledge" / "fst_terms.json").write_text(json.dumps({
-        "tiers": tiers,
-        "rules": [
-            {"form": "آی وی", "canonical": "IV", "tier": "abbreviation"},
-            {"form": "آی وی اف", "canonical": "IVF", "tier": "phrase"},
-        ],
-    }), encoding="utf-8")
-    layer = MedicalFST(tmp_path)
+    write_dictionary(tmp_path, [
+        term("iv", "IV", "abbreviation", ["آی وی"], type="abbreviation"),
+        term("ivf", "IVF", "phrase", ["آی وی اف"], type="phrase"),
+    ])
+    layer = MedicalMatcher(tmp_path)
     assert canon(layer, "آی وی اف") == "IVF"     # longer form wins
     assert canon(layer, "آی وی") == "IV"          # shorter form alone
     assert canon(layer, "آی وی اف و آی وی") == "IVF و IV"
@@ -197,6 +221,15 @@ def test_structured_numeric_entities_are_preserved(fst):
     assert hits == []
 
 
+# --------------------------------------------------------------- ZWNJ variants
+
+def test_zwnj_input_variants_match_the_same_form(fst):
+    """ASR emits نیم‌فاصله and space interchangeably; both must match."""
+    assert canon(fst, "بی‌پی") == "BP"
+    assert canon(fst, "میلی‌گرم") == "mg"
+    assert canon(fst, "فشار خون بالا با بی‌پی") == "HTN با BP"
+
+
 # ------------------------------------------------ confidence / language evidence
 
 def test_low_confidence_validated_alias_is_auditable_not_automatic(fst):
@@ -254,6 +287,14 @@ def test_hits_reported(fst):
     for h in hits:
         assert set(h) == {"form", "canonical", "tier", "source", "position"}
         assert isinstance(h["position"], int)
+        assert h["tier"] in TIER_ORDER  # auditable tier NAME, not a magic int
+
+
+def test_hit_reports_provenance(fst):
+    out, hits = fst.canonicalize(normalize_text("میلی گرم"))
+    assert hits[0]["tier"] == "unit"
+    assert hits[0]["source"] == "fst_terms.json"
+    assert hits[0]["position"] == 0
 
 
 def test_no_hits_when_no_match(fst):
@@ -281,6 +322,16 @@ def test_idempotent(fst):
 
 def test_empty_input(fst):
     assert fst.canonicalize("") == ("", [])
+
+
+def test_matching_does_not_mutate_matcher_state(fst):
+    before_rules = list(fst.rules)
+    before_vocab = list(fst.additional_vocab)
+    before_automaton = fst._ac_native
+    fst.canonicalize(normalize_text("سی سی یو و آی وی و فشار خون بالا"))
+    assert fst.rules == before_rules
+    assert fst.additional_vocab == before_vocab
+    assert fst._ac_native is before_automaton
 
 
 # --------------------------------------------- automaton / reference parity
@@ -317,10 +368,27 @@ def test_native_and_pure_python_engines_have_identical_output(fst):
         {"content": content, "confidence": 0.60, "language": "fa"}
         for content in text.split()
     ]
-    fallback = MedicalFST(ROOT)
+    fallback = MedicalMatcher(ROOT)
     fallback._ac_native = None
     fallback._ac_python = AhoAutomaton([rule.match_form for rule in fallback.rules])
     assert fst.canonicalize(text, words) == fallback.canonicalize(text, words)
+
+
+def test_pure_python_engine_matches_reference_scanner():
+    """Full parity sweep: pure-python automaton == naive reference scanner."""
+    matcher = MedicalMatcher(ROOT)
+    matcher._ac_native = None
+    matcher._ac_python = AhoAutomaton([rule.match_form for rule in matcher.rules])
+    fixture = json.loads(
+        (ROOT / "tests" / "fixtures" / "pre_migration_canonicalization.json")
+        .read_text(encoding="utf-8")
+    )
+    for case in fixture["cases"]:
+        normalized = normalize_text(case["raw"])
+        ac_out, ac_hits = matcher._scan(normalized)
+        ref_out, ref_hits = matcher._scan_reference(normalized)
+        assert ac_out == ref_out
+        assert ac_hits == ref_hits, case["raw"]
 
 
 def test_automaton_persian_digits(fst):
@@ -333,7 +401,7 @@ def test_automaton_persian_digits(fst):
 def test_engine_failure_degrades_to_reference_scanner(fst, monkeypatch):
     """An engine failure must not cost the user their finished transcript."""
 
-    def boom(_text):
+    def boom(_text, _words=None):
         raise RuntimeError("simulated engine failure")
 
     monkeypatch.setattr(fst, "_scan", boom)
@@ -346,8 +414,7 @@ def test_engine_failure_degrades_to_reference_scanner(fst, monkeypatch):
 
 
 def test_engine_is_built_once_and_reported(fst):
-    """No per-input automaton rebuilds (the old FST cache problem is gone):
-    the automaton is compiled a single time at load."""
+    """No per-input automaton rebuilds: compiled a single time at load."""
     assert fst.uses_ahocorasick is True
     assert fst._ac_native is not None
     assert fst.engine.startswith("aho-corasick")
@@ -381,95 +448,93 @@ def test_pure_python_automaton_is_deterministic():
 # ------------------------------------------------------------- rule loading
 
 def test_conflicting_forms_resolve_deterministically(tmp_path):
-    (tmp_path / "medical_knowledge").mkdir()
-    tiers = {
-        "abbreviation": 0, "observed_alias": 1, "phrase": 2,
-        "validated_term": 3, "unit": 4,
-    }
-    (tmp_path / "medical_knowledge" / "fst_terms.json").write_text(json.dumps({
-        "tiers": tiers,
-        "rules": [
-            {"form": "آی وی", "canonical": "IV", "tier": "abbreviation"},
-            {"form": "سی تی اسکن", "canonical": "CT scan", "tier": "phrase"},
-            {"form": "سی تی", "canonical": "CT", "tier": "abbreviation"},
-        ],
-    }), encoding="utf-8")
-    layer = MedicalFST(tmp_path)
+    write_dictionary(tmp_path, [
+        term("iv", "IV", "curated", ["آی وی"], type="abbreviation"),
+        term("ct-scan", "CT scan", "curated", ["سی تی اسکن"], type="imaging"),
+        term("ct", "CT", "curated", ["سی تی"], type="abbreviation"),
+    ])
+    layer = MedicalMatcher(tmp_path)
     assert layer.warnings == []
     assert canon(layer, "آی وی") == "IV"
     assert canon(layer, "سی تی اسکن") == "CT scan"
 
 
-def test_conflict_keeps_curated_source_and_warns(tmp_path):
-    (tmp_path / "medical_knowledge").mkdir()
-    tiers = {
-        "abbreviation": 0, "observed_alias": 1, "phrase": 2,
-        "validated_term": 3, "unit": 4,
-    }
-    (tmp_path / "medical_knowledge" / "fst_terms.json").write_text(json.dumps({
-        "tiers": tiers,
-        "rules": [
-            {"form": "آی وی", "canonical": "IV", "tier": "abbreviation"},
-        ],
-    }), encoding="utf-8")
-    (tmp_path / "medical_knowledge" / "observed_asr_aliases.json").write_text(
-        json.dumps({"آی وی": {"spoken_forms": ["آی وی"]}}), encoding="utf-8")
-    layer = MedicalFST(tmp_path)
-    # same canonical -> clean dedupe, no warning
-    assert layer.warnings == []
+def test_conflict_keeps_first_source_and_warns(tmp_path):
+    write_dictionary(tmp_path, [
+        term("iv", "IV", "curated", ["آی وی"], type="abbreviation"),
+        term("intravenous", "intravenous", "phrase", ["آی وی"], type="route"),
+    ])
+    layer = MedicalMatcher(tmp_path)
+    # different canonicals for the same form: reported conflict, curated wins
+    assert any("conflicting canonicals" in w for w in layer.warnings)
     out, _ = layer.canonicalize("آی وی")
     assert out == "IV"
 
 
-def test_conflicting_canonicals_warn(tmp_path):
-    (tmp_path / "medical_knowledge").mkdir()
-    tiers = {
-        "abbreviation": 0, "observed_alias": 1, "phrase": 2,
-        "validated_term": 3, "unit": 4,
-    }
-    (tmp_path / "medical_knowledge" / "fst_terms.json").write_text(json.dumps({
-        "tiers": tiers,
-        "rules": [
-            {"form": "آی وی", "canonical": "IV", "tier": "abbreviation"},
-        ],
-    }), encoding="utf-8")
-    (tmp_path / "medical_knowledge" / "observed_asr_aliases.json").write_text(
-        json.dumps({"intravenous": {"spoken_forms": ["آی وی"]}}),
-        encoding="utf-8",
-    )
-    layer = MedicalFST(tmp_path)
+def test_duplicate_forms_within_one_term_dedupe_silently(tmp_path):
+    write_dictionary(tmp_path, [
+        term("iv", "IV", "curated", ["آی وی", "آی وی", "آی‌وی"],
+             type="abbreviation"),
+    ])
+    layer = MedicalMatcher(tmp_path)
+    # same form (incl. a ZWNJ variant) listed repeatedly: clean dedupe
+    assert layer.warnings == []
+    assert len(layer.rules) == 1
+    out, _ = layer.canonicalize("آی وی")
+    assert out == "IV"
+
+
+def test_higher_tier_beats_file_order(tmp_path):
+    """A lower-ranked term listed FIRST must still lose a tier conflict."""
+    write_dictionary(tmp_path, [
+        term("route", "intravenous", "phrase", ["آی وی"], type="route"),
+        term("iv", "IV", "curated", ["آی وی"], type="abbreviation"),
+    ])
+    layer = MedicalMatcher(tmp_path)
     assert any("conflicting canonicals" in w for w in layer.warnings)
     out, _ = layer.canonicalize("آی وی")
-    assert out == "IV"  # curated fst_terms.json wins
+    assert out == "IV"  # curated beats phrase regardless of file order
+
+
+def test_same_tier_conflict_resolves_by_stable_order(tmp_path):
+    write_dictionary(tmp_path, [
+        term("first", "A", "validated_term", ["فرم مشترک"]),
+        term("second", "B", "validated_term", ["فرم مشترک"]),
+    ])
+    layer = MedicalMatcher(tmp_path)
+    out, hits = layer.canonicalize("فرم مشترک")
+    assert out == "A"  # first term in stable file order wins
+    assert hits[0]["canonical"] == "A"
+
+
+def test_conflicting_canonicals_warn(tmp_path):
+    write_dictionary(tmp_path, [
+        term("iv", "IV", "curated", ["آی وی"], type="abbreviation"),
+        term("intravenous", "intravenous", "observed_alias", ["آی وی"]),
+    ])
+    layer = MedicalMatcher(tmp_path)
+    assert any("conflicting canonicals" in w for w in layer.warnings)
+    out, _ = layer.canonicalize("آی وی")
+    assert out == "IV"  # curated tier wins
 
 
 def test_punctuation_forms_are_skipped(tmp_path):
-    (tmp_path / "medical_knowledge").mkdir()
-    tiers = {
-        "abbreviation": 0, "observed_alias": 1, "phrase": 2,
-        "validated_term": 3, "unit": 4,
-    }
-    (tmp_path / "medical_knowledge" / "fst_terms.json").write_text(json.dumps({
-        "tiers": tiers,
-        "rules": [
-            {"form": "سی سی یو", "canonical": "CCU", "tier": "phrase"},
-            {"form": "سی سی یو،", "canonical": "CCU", "tier": "observed_alias"},
-        ],
-    }), encoding="utf-8")
-    layer = MedicalFST(tmp_path)
+    write_dictionary(tmp_path, [
+        term("ccu", "CCU", "curated", ["سی سی یو", "سی سی یو،"],
+             type="abbreviation"),
+    ])
+    layer = MedicalMatcher(tmp_path)
     assert any("punctuation" in w for w in layer.warnings)
     out, _ = layer.canonicalize("سی سی یو،")
     assert out == "CCU،"  # clean form matches, comma preserved
 
 
 def test_unknown_tier_raises(tmp_path):
-    (tmp_path / "medical_knowledge").mkdir()
-    (tmp_path / "medical_knowledge" / "fst_terms.json").write_text(json.dumps({
-        "tiers": {"phrase": 0},
-        "rules": [{"form": "x", "canonical": "y", "tier": "nope"}],
-    }), encoding="utf-8")
+    write_dictionary(tmp_path, [
+        term("x", "y", "nope", ["فرم"]),
+    ])
     with pytest.raises(FstError):
-        MedicalFST(tmp_path)
+        MedicalMatcher(tmp_path)
 
 
 def test_uses_ahocorasick_flag(fst):
@@ -531,3 +596,39 @@ def test_engine_failure_warning_does_not_leak_transcript(fst, monkeypatch):
         assert "محرمانه" not in warning
         assert "بیمار" not in warning
         assert "chars (sha256:" in warning
+
+
+# ------------------------------------------------- MedicalFST alias (§0)
+
+def test_medicalfst_alias_is_the_matcher():
+    assert MedicalFST is MedicalMatcher
+
+
+def test_medicalfst_constructs_and_matches_identically(fst):
+    legacy_named = MedicalFST(ROOT)
+    assert legacy_named.engine == fst.engine
+    text = normalize_text("در سی تی اسکن یک لیژن دیده شد")
+    assert legacy_named.canonicalize(text) == fst.canonicalize(text)
+
+
+# ------------------------------------------ pre-migration behavior fixture
+
+def test_consolidated_dictionary_reproduces_legacy_behavior(fst):
+    """Every pre-consolidation output must be reproduced exactly."""
+    fixture = json.loads(
+        (ROOT / "tests" / "fixtures" / "pre_migration_canonicalization.json")
+        .read_text(encoding="utf-8")
+    )
+    assert len(fixture["cases"]) >= 400
+    mismatches = []
+    for case in fixture["cases"]:
+        normalized = normalize_text(case["raw"])
+        out, hits = fst.canonicalize(normalized)
+        expected_hits = [
+            {"form": h["form"], "canonical": h["canonical"],
+             "position": h["position"]}
+            for h in hits
+        ]
+        if out != case["canonical"] or expected_hits != case["hits"]:
+            mismatches.append(case["raw"])
+    assert mismatches == []

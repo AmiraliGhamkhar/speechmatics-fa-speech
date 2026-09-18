@@ -1,0 +1,4918 @@
+{
+ "description": "Behavioral snapshot of the pre-consolidation matcher (fst_terms.json era). tests/test_matcher.py asserts the consolidated dictionary reproduces these outputs exactly.",
+ "cases": [
+  {
+   "raw": "سی تی",
+   "canonical": "CT",
+   "hits": [
+    {
+     "form": "سی تی",
+     "canonical": "CT",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "سی تی دارد",
+   "canonical": "CT دارد",
+   "hits": [
+    {
+     "form": "سی تی",
+     "canonical": "CT",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار سی تی است",
+   "canonical": "بیمار CT است",
+   "hits": [
+    {
+     "form": "سی تی",
+     "canonical": "CT",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "سی تی و سی تی",
+   "canonical": "CT و CT",
+   "hits": [
+    {
+     "form": "سی تی",
+     "canonical": "CT",
+     "position": 0
+    },
+    {
+     "form": "سی تی",
+     "canonical": "CT",
+     "position": 8
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 سی تی داده شود",
+   "canonical": "دوز 20 CT داده شود",
+   "hits": [
+    {
+     "form": "سی تی",
+     "canonical": "CT",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "بی پی",
+   "canonical": "BP",
+   "hits": [
+    {
+     "form": "بی پی",
+     "canonical": "BP",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بی پی دارد",
+   "canonical": "BP دارد",
+   "hits": [
+    {
+     "form": "بی پی",
+     "canonical": "BP",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار بی پی است",
+   "canonical": "بیمار BP است",
+   "hits": [
+    {
+     "form": "بی پی",
+     "canonical": "BP",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "بی پی و بی پی",
+   "canonical": "BP و BP",
+   "hits": [
+    {
+     "form": "بی پی",
+     "canonical": "BP",
+     "position": 0
+    },
+    {
+     "form": "بی پی",
+     "canonical": "BP",
+     "position": 8
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 بی پی داده شود",
+   "canonical": "دوز 20 BP داده شود",
+   "hits": [
+    {
+     "form": "بی پی",
+     "canonical": "BP",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "فشار خون",
+   "canonical": "BP",
+   "hits": [
+    {
+     "form": "فشار خون",
+     "canonical": "BP",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "فشار خون دارد",
+   "canonical": "BP دارد",
+   "hits": [
+    {
+     "form": "فشار خون",
+     "canonical": "BP",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار فشار خون است",
+   "canonical": "بیمار BP است",
+   "hits": [
+    {
+     "form": "فشار خون",
+     "canonical": "BP",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "فشار خون و فشار خون",
+   "canonical": "BP و BP",
+   "hits": [
+    {
+     "form": "فشار خون",
+     "canonical": "BP",
+     "position": 0
+    },
+    {
+     "form": "فشار خون",
+     "canonical": "BP",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 فشار خون داده شود",
+   "canonical": "دوز 20 BP داده شود",
+   "hits": [
+    {
+     "form": "فشار خون",
+     "canonical": "BP",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "اچ تی ان",
+   "canonical": "HTN",
+   "hits": [
+    {
+     "form": "اچ تی ان",
+     "canonical": "HTN",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "اچ تی ان دارد",
+   "canonical": "HTN دارد",
+   "hits": [
+    {
+     "form": "اچ تی ان",
+     "canonical": "HTN",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار اچ تی ان است",
+   "canonical": "بیمار HTN است",
+   "hits": [
+    {
+     "form": "اچ تی ان",
+     "canonical": "HTN",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "اچ تی ان و اچ تی ان",
+   "canonical": "HTN و HTN",
+   "hits": [
+    {
+     "form": "اچ تی ان",
+     "canonical": "HTN",
+     "position": 0
+    },
+    {
+     "form": "اچ تی ان",
+     "canonical": "HTN",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 اچ تی ان داده شود",
+   "canonical": "دوز 20 HTN داده شود",
+   "hits": [
+    {
+     "form": "اچ تی ان",
+     "canonical": "HTN",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "ایچ تی ان",
+   "canonical": "HTN",
+   "hits": [
+    {
+     "form": "ایچ تی ان",
+     "canonical": "HTN",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "ایچ تی ان دارد",
+   "canonical": "HTN دارد",
+   "hits": [
+    {
+     "form": "ایچ تی ان",
+     "canonical": "HTN",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار ایچ تی ان است",
+   "canonical": "بیمار HTN است",
+   "hits": [
+    {
+     "form": "ایچ تی ان",
+     "canonical": "HTN",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "ایچ تی ان و ایچ تی ان",
+   "canonical": "HTN و HTN",
+   "hits": [
+    {
+     "form": "ایچ تی ان",
+     "canonical": "HTN",
+     "position": 0
+    },
+    {
+     "form": "ایچ تی ان",
+     "canonical": "HTN",
+     "position": 12
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 ایچ تی ان داده شود",
+   "canonical": "دوز 20 HTN داده شود",
+   "hits": [
+    {
+     "form": "ایچ تی ان",
+     "canonical": "HTN",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "فشار خون بالا",
+   "canonical": "HTN",
+   "hits": [
+    {
+     "form": "فشار خون بالا",
+     "canonical": "HTN",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "فشار خون بالا دارد",
+   "canonical": "HTN دارد",
+   "hits": [
+    {
+     "form": "فشار خون بالا",
+     "canonical": "HTN",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار فشار خون بالا است",
+   "canonical": "بیمار HTN است",
+   "hits": [
+    {
+     "form": "فشار خون بالا",
+     "canonical": "HTN",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "فشار خون بالا و فشار خون بالا",
+   "canonical": "HTN و HTN",
+   "hits": [
+    {
+     "form": "فشار خون بالا",
+     "canonical": "HTN",
+     "position": 0
+    },
+    {
+     "form": "فشار خون بالا",
+     "canonical": "HTN",
+     "position": 16
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 فشار خون بالا داده شود",
+   "canonical": "دوز 20 HTN داده شود",
+   "hits": [
+    {
+     "form": "فشار خون بالا",
+     "canonical": "HTN",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "دی ام",
+   "canonical": "DM",
+   "hits": [
+    {
+     "form": "دی ام",
+     "canonical": "DM",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "دی ام دارد",
+   "canonical": "DM دارد",
+   "hits": [
+    {
+     "form": "دی ام",
+     "canonical": "DM",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار دی ام است",
+   "canonical": "بیمار DM است",
+   "hits": [
+    {
+     "form": "دی ام",
+     "canonical": "DM",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "دی ام و دی ام",
+   "canonical": "DM و DM",
+   "hits": [
+    {
+     "form": "دی ام",
+     "canonical": "DM",
+     "position": 0
+    },
+    {
+     "form": "دی ام",
+     "canonical": "DM",
+     "position": 8
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 دی ام داده شود",
+   "canonical": "دوز 20 DM داده شود",
+   "hits": [
+    {
+     "form": "دی ام",
+     "canonical": "DM",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "دیابت ملیتوس",
+   "canonical": "DM",
+   "hits": [
+    {
+     "form": "دیابت ملیتوس",
+     "canonical": "DM",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "دیابت ملیتوس دارد",
+   "canonical": "DM دارد",
+   "hits": [
+    {
+     "form": "دیابت ملیتوس",
+     "canonical": "DM",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار دیابت ملیتوس است",
+   "canonical": "بیمار DM است",
+   "hits": [
+    {
+     "form": "دیابت ملیتوس",
+     "canonical": "DM",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "دیابت ملیتوس و دیابت ملیتوس",
+   "canonical": "DM و DM",
+   "hits": [
+    {
+     "form": "دیابت ملیتوس",
+     "canonical": "DM",
+     "position": 0
+    },
+    {
+     "form": "دیابت ملیتوس",
+     "canonical": "DM",
+     "position": 15
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 دیابت ملیتوس داده شود",
+   "canonical": "دوز 20 DM داده شود",
+   "hits": [
+    {
+     "form": "دیابت ملیتوس",
+     "canonical": "DM",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "آی وی",
+   "canonical": "IV",
+   "hits": [
+    {
+     "form": "آی وی",
+     "canonical": "IV",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "آی وی دارد",
+   "canonical": "IV دارد",
+   "hits": [
+    {
+     "form": "آی وی",
+     "canonical": "IV",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار آی وی است",
+   "canonical": "بیمار IV است",
+   "hits": [
+    {
+     "form": "آی وی",
+     "canonical": "IV",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "آی وی و آی وی",
+   "canonical": "IV و IV",
+   "hits": [
+    {
+     "form": "آی وی",
+     "canonical": "IV",
+     "position": 0
+    },
+    {
+     "form": "آی وی",
+     "canonical": "IV",
+     "position": 8
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 آی وی داده شود",
+   "canonical": "دوز 20 IV داده شود",
+   "hits": [
+    {
+     "form": "آی وی",
+     "canonical": "IV",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "آی ام",
+   "canonical": "IM",
+   "hits": [
+    {
+     "form": "آی ام",
+     "canonical": "IM",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "آی ام دارد",
+   "canonical": "IM دارد",
+   "hits": [
+    {
+     "form": "آی ام",
+     "canonical": "IM",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار آی ام است",
+   "canonical": "بیمار IM است",
+   "hits": [
+    {
+     "form": "آی ام",
+     "canonical": "IM",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "آی ام و آی ام",
+   "canonical": "IM و IM",
+   "hits": [
+    {
+     "form": "آی ام",
+     "canonical": "IM",
+     "position": 0
+    },
+    {
+     "form": "آی ام",
+     "canonical": "IM",
+     "position": 8
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 آی ام داده شود",
+   "canonical": "دوز 20 IM داده شود",
+   "hits": [
+    {
+     "form": "آی ام",
+     "canonical": "IM",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "اس سی",
+   "canonical": "SC",
+   "hits": [
+    {
+     "form": "اس سی",
+     "canonical": "SC",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "اس سی دارد",
+   "canonical": "SC دارد",
+   "hits": [
+    {
+     "form": "اس سی",
+     "canonical": "SC",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار اس سی است",
+   "canonical": "بیمار SC است",
+   "hits": [
+    {
+     "form": "اس سی",
+     "canonical": "SC",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "اس سی و اس سی",
+   "canonical": "SC و SC",
+   "hits": [
+    {
+     "form": "اس سی",
+     "canonical": "SC",
+     "position": 0
+    },
+    {
+     "form": "اس سی",
+     "canonical": "SC",
+     "position": 8
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 اس سی داده شود",
+   "canonical": "دوز 20 SC داده شود",
+   "hits": [
+    {
+     "form": "اس سی",
+     "canonical": "SC",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "ان پی او",
+   "canonical": "NPO",
+   "hits": [
+    {
+     "form": "ان پی او",
+     "canonical": "NPO",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "ان پی او دارد",
+   "canonical": "NPO دارد",
+   "hits": [
+    {
+     "form": "ان پی او",
+     "canonical": "NPO",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار ان پی او است",
+   "canonical": "بیمار NPO است",
+   "hits": [
+    {
+     "form": "ان پی او",
+     "canonical": "NPO",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "ان پی او و ان پی او",
+   "canonical": "NPO و NPO",
+   "hits": [
+    {
+     "form": "ان پی او",
+     "canonical": "NPO",
+     "position": 0
+    },
+    {
+     "form": "ان پی او",
+     "canonical": "NPO",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 ان پی او داده شود",
+   "canonical": "دوز 20 NPO داده شود",
+   "hits": [
+    {
+     "form": "ان پی او",
+     "canonical": "NPO",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "سی پی آر",
+   "canonical": "CPR",
+   "hits": [
+    {
+     "form": "سی پی آر",
+     "canonical": "CPR",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "سی پی آر دارد",
+   "canonical": "CPR دارد",
+   "hits": [
+    {
+     "form": "سی پی آر",
+     "canonical": "CPR",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار سی پی آر است",
+   "canonical": "بیمار CPR است",
+   "hits": [
+    {
+     "form": "سی پی آر",
+     "canonical": "CPR",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "سی پی آر و سی پی آر",
+   "canonical": "CPR و CPR",
+   "hits": [
+    {
+     "form": "سی پی آر",
+     "canonical": "CPR",
+     "position": 0
+    },
+    {
+     "form": "سی پی آر",
+     "canonical": "CPR",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 سی پی آر داده شود",
+   "canonical": "دوز 20 CPR داده شود",
+   "hits": [
+    {
+     "form": "سی پی آر",
+     "canonical": "CPR",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "اف بی اس",
+   "canonical": "FBS",
+   "hits": [
+    {
+     "form": "اف بی اس",
+     "canonical": "FBS",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "اف بی اس دارد",
+   "canonical": "FBS دارد",
+   "hits": [
+    {
+     "form": "اف بی اس",
+     "canonical": "FBS",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار اف بی اس است",
+   "canonical": "بیمار FBS است",
+   "hits": [
+    {
+     "form": "اف بی اس",
+     "canonical": "FBS",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "اف بی اس و اف بی اس",
+   "canonical": "FBS و FBS",
+   "hits": [
+    {
+     "form": "اف بی اس",
+     "canonical": "FBS",
+     "position": 0
+    },
+    {
+     "form": "اف بی اس",
+     "canonical": "FBS",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 اف بی اس داده شود",
+   "canonical": "دوز 20 FBS داده شود",
+   "hits": [
+    {
+     "form": "اف بی اس",
+     "canonical": "FBS",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "سی بی سی",
+   "canonical": "CBC",
+   "hits": [
+    {
+     "form": "سی بی سی",
+     "canonical": "CBC",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "سی بی سی دارد",
+   "canonical": "CBC دارد",
+   "hits": [
+    {
+     "form": "سی بی سی",
+     "canonical": "CBC",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار سی بی سی است",
+   "canonical": "بیمار CBC است",
+   "hits": [
+    {
+     "form": "سی بی سی",
+     "canonical": "CBC",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "سی بی سی و سی بی سی",
+   "canonical": "CBC و CBC",
+   "hits": [
+    {
+     "form": "سی بی سی",
+     "canonical": "CBC",
+     "position": 0
+    },
+    {
+     "form": "سی بی سی",
+     "canonical": "CBC",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 سی بی سی داده شود",
+   "canonical": "دوز 20 CBC داده شود",
+   "hits": [
+    {
+     "form": "سی بی سی",
+     "canonical": "CBC",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "یو ای",
+   "canonical": "U/A",
+   "hits": [
+    {
+     "form": "یو ای",
+     "canonical": "U/A",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "یو ای دارد",
+   "canonical": "U/A دارد",
+   "hits": [
+    {
+     "form": "یو ای",
+     "canonical": "U/A",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار یو ای است",
+   "canonical": "بیمار U/A است",
+   "hits": [
+    {
+     "form": "یو ای",
+     "canonical": "U/A",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "یو ای و یو ای",
+   "canonical": "U/A و U/A",
+   "hits": [
+    {
+     "form": "یو ای",
+     "canonical": "U/A",
+     "position": 0
+    },
+    {
+     "form": "یو ای",
+     "canonical": "U/A",
+     "position": 8
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 یو ای داده شود",
+   "canonical": "دوز 20 U/A داده شود",
+   "hits": [
+    {
+     "form": "یو ای",
+     "canonical": "U/A",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "سی ایکس آر",
+   "canonical": "CXR",
+   "hits": [
+    {
+     "form": "سی ایکس آر",
+     "canonical": "CXR",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "سی ایکس آر دارد",
+   "canonical": "CXR دارد",
+   "hits": [
+    {
+     "form": "سی ایکس آر",
+     "canonical": "CXR",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار سی ایکس آر است",
+   "canonical": "بیمار CXR است",
+   "hits": [
+    {
+     "form": "سی ایکس آر",
+     "canonical": "CXR",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "سی ایکس آر و سی ایکس آر",
+   "canonical": "CXR و CXR",
+   "hits": [
+    {
+     "form": "سی ایکس آر",
+     "canonical": "CXR",
+     "position": 0
+    },
+    {
+     "form": "سی ایکس آر",
+     "canonical": "CXR",
+     "position": 13
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 سی ایکس آر داده شود",
+   "canonical": "دوز 20 CXR داده شود",
+   "hits": [
+    {
+     "form": "سی ایکس آر",
+     "canonical": "CXR",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "ای سی جی",
+   "canonical": "ECG",
+   "hits": [
+    {
+     "form": "ای سی جی",
+     "canonical": "ECG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "ای سی جی دارد",
+   "canonical": "ECG دارد",
+   "hits": [
+    {
+     "form": "ای سی جی",
+     "canonical": "ECG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار ای سی جی است",
+   "canonical": "بیمار ECG است",
+   "hits": [
+    {
+     "form": "ای سی جی",
+     "canonical": "ECG",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "ای سی جی و ای سی جی",
+   "canonical": "ECG و ECG",
+   "hits": [
+    {
+     "form": "ای سی جی",
+     "canonical": "ECG",
+     "position": 0
+    },
+    {
+     "form": "ای سی جی",
+     "canonical": "ECG",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 ای سی جی داده شود",
+   "canonical": "دوز 20 ECG داده شود",
+   "hits": [
+    {
+     "form": "ای سی جی",
+     "canonical": "ECG",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "ای بی جی",
+   "canonical": "ABG",
+   "hits": [
+    {
+     "form": "ای بی جی",
+     "canonical": "ABG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "ای بی جی دارد",
+   "canonical": "ABG دارد",
+   "hits": [
+    {
+     "form": "ای بی جی",
+     "canonical": "ABG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار ای بی جی است",
+   "canonical": "بیمار ABG است",
+   "hits": [
+    {
+     "form": "ای بی جی",
+     "canonical": "ABG",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "ای بی جی و ای بی جی",
+   "canonical": "ABG و ABG",
+   "hits": [
+    {
+     "form": "ای بی جی",
+     "canonical": "ABG",
+     "position": 0
+    },
+    {
+     "form": "ای بی جی",
+     "canonical": "ABG",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 ای بی جی داده شود",
+   "canonical": "دوز 20 ABG داده شود",
+   "hits": [
+    {
+     "form": "ای بی جی",
+     "canonical": "ABG",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "پی آر ان",
+   "canonical": "PRN",
+   "hits": [
+    {
+     "form": "پی آر ان",
+     "canonical": "PRN",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "پی آر ان دارد",
+   "canonical": "PRN دارد",
+   "hits": [
+    {
+     "form": "پی آر ان",
+     "canonical": "PRN",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار پی آر ان است",
+   "canonical": "بیمار PRN است",
+   "hits": [
+    {
+     "form": "پی آر ان",
+     "canonical": "PRN",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "پی آر ان و پی آر ان",
+   "canonical": "PRN و PRN",
+   "hits": [
+    {
+     "form": "پی آر ان",
+     "canonical": "PRN",
+     "position": 0
+    },
+    {
+     "form": "پی آر ان",
+     "canonical": "PRN",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 پی آر ان داده شود",
+   "canonical": "دوز 20 PRN داده شود",
+   "hits": [
+    {
+     "form": "پی آر ان",
+     "canonical": "PRN",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "کیو تو اچ",
+   "canonical": "q2h",
+   "hits": [
+    {
+     "form": "کیو تو اچ",
+     "canonical": "q2h",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "کیو تو اچ دارد",
+   "canonical": "q2h دارد",
+   "hits": [
+    {
+     "form": "کیو تو اچ",
+     "canonical": "q2h",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار کیو تو اچ است",
+   "canonical": "بیمار q2h است",
+   "hits": [
+    {
+     "form": "کیو تو اچ",
+     "canonical": "q2h",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "کیو تو اچ و کیو تو اچ",
+   "canonical": "q2h و q2h",
+   "hits": [
+    {
+     "form": "کیو تو اچ",
+     "canonical": "q2h",
+     "position": 0
+    },
+    {
+     "form": "کیو تو اچ",
+     "canonical": "q2h",
+     "position": 12
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 کیو تو اچ داده شود",
+   "canonical": "دوز 20 q2h داده شود",
+   "hits": [
+    {
+     "form": "کیو تو اچ",
+     "canonical": "q2h",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "تی دی اس",
+   "canonical": "tds",
+   "hits": [
+    {
+     "form": "تی دی اس",
+     "canonical": "tds",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "تی دی اس دارد",
+   "canonical": "tds دارد",
+   "hits": [
+    {
+     "form": "تی دی اس",
+     "canonical": "tds",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار تی دی اس است",
+   "canonical": "بیمار tds است",
+   "hits": [
+    {
+     "form": "تی دی اس",
+     "canonical": "tds",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "تی دی اس و تی دی اس",
+   "canonical": "tds و tds",
+   "hits": [
+    {
+     "form": "تی دی اس",
+     "canonical": "tds",
+     "position": 0
+    },
+    {
+     "form": "تی دی اس",
+     "canonical": "tds",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 تی دی اس داده شود",
+   "canonical": "دوز 20 tds داده شود",
+   "hits": [
+    {
+     "form": "تی دی اس",
+     "canonical": "tds",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "سی سی یو",
+   "canonical": "CCU",
+   "hits": [
+    {
+     "form": "سی سی یو",
+     "canonical": "CCU",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "سی سی یو دارد",
+   "canonical": "CCU دارد",
+   "hits": [
+    {
+     "form": "سی سی یو",
+     "canonical": "CCU",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار سی سی یو است",
+   "canonical": "بیمار CCU است",
+   "hits": [
+    {
+     "form": "سی سی یو",
+     "canonical": "CCU",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "سی سی یو و سی سی یو",
+   "canonical": "CCU و CCU",
+   "hits": [
+    {
+     "form": "سی سی یو",
+     "canonical": "CCU",
+     "position": 0
+    },
+    {
+     "form": "سی سی یو",
+     "canonical": "CCU",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 سی سی یو داده شود",
+   "canonical": "دوز 20 CCU داده شود",
+   "hits": [
+    {
+     "form": "سی سی یو",
+     "canonical": "CCU",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "آی سی یو",
+   "canonical": "ICU",
+   "hits": [
+    {
+     "form": "آی سی یو",
+     "canonical": "ICU",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "آی سی یو دارد",
+   "canonical": "ICU دارد",
+   "hits": [
+    {
+     "form": "آی سی یو",
+     "canonical": "ICU",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار آی سی یو است",
+   "canonical": "بیمار ICU است",
+   "hits": [
+    {
+     "form": "آی سی یو",
+     "canonical": "ICU",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "آی سی یو و آی سی یو",
+   "canonical": "ICU و ICU",
+   "hits": [
+    {
+     "form": "آی سی یو",
+     "canonical": "ICU",
+     "position": 0
+    },
+    {
+     "form": "آی سی یو",
+     "canonical": "ICU",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 آی سی یو داده شود",
+   "canonical": "دوز 20 ICU داده شود",
+   "hits": [
+    {
+     "form": "آی سی یو",
+     "canonical": "ICU",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "سی تی اسکن",
+   "canonical": "CT scan",
+   "hits": [
+    {
+     "form": "سی تی اسکن",
+     "canonical": "CT scan",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "سی تی اسکن دارد",
+   "canonical": "CT scan دارد",
+   "hits": [
+    {
+     "form": "سی تی اسکن",
+     "canonical": "CT scan",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار سی تی اسکن است",
+   "canonical": "بیمار CT scan است",
+   "hits": [
+    {
+     "form": "سی تی اسکن",
+     "canonical": "CT scan",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "سی تی اسکن و سی تی اسکن",
+   "canonical": "CT scan و CT scan",
+   "hits": [
+    {
+     "form": "سی تی اسکن",
+     "canonical": "CT scan",
+     "position": 0
+    },
+    {
+     "form": "سی تی اسکن",
+     "canonical": "CT scan",
+     "position": 13
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 سی تی اسکن داده شود",
+   "canonical": "دوز 20 CT scan داده شود",
+   "hits": [
+    {
+     "form": "سی تی اسکن",
+     "canonical": "CT scan",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "رایت لانگ",
+   "canonical": "right lung",
+   "hits": [
+    {
+     "form": "رایت لانگ",
+     "canonical": "right lung",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "رایت لانگ دارد",
+   "canonical": "right lung دارد",
+   "hits": [
+    {
+     "form": "رایت لانگ",
+     "canonical": "right lung",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار رایت لانگ است",
+   "canonical": "بیمار right lung است",
+   "hits": [
+    {
+     "form": "رایت لانگ",
+     "canonical": "right lung",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "رایت لانگ و رایت لانگ",
+   "canonical": "right lung و right lung",
+   "hits": [
+    {
+     "form": "رایت لانگ",
+     "canonical": "right lung",
+     "position": 0
+    },
+    {
+     "form": "رایت لانگ",
+     "canonical": "right lung",
+     "position": 12
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 رایت لانگ داده شود",
+   "canonical": "دوز 20 right lung داده شود",
+   "hits": [
+    {
+     "form": "رایت لانگ",
+     "canonical": "right lung",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "لیژن",
+   "canonical": "lesion",
+   "hits": [
+    {
+     "form": "لیژن",
+     "canonical": "lesion",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "لیژن دارد",
+   "canonical": "lesion دارد",
+   "hits": [
+    {
+     "form": "لیژن",
+     "canonical": "lesion",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار لیژن است",
+   "canonical": "بیمار lesion است",
+   "hits": [
+    {
+     "form": "لیژن",
+     "canonical": "lesion",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "لیژن و لیژن",
+   "canonical": "lesion و lesion",
+   "hits": [
+    {
+     "form": "لیژن",
+     "canonical": "lesion",
+     "position": 0
+    },
+    {
+     "form": "لیژن",
+     "canonical": "lesion",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 لیژن داده شود",
+   "canonical": "دوز 20 lesion داده شود",
+   "hits": [
+    {
+     "form": "لیژن",
+     "canonical": "lesion",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "کیست",
+   "canonical": "cyst",
+   "hits": [
+    {
+     "form": "کیست",
+     "canonical": "cyst",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "کیست دارد",
+   "canonical": "cyst دارد",
+   "hits": [
+    {
+     "form": "کیست",
+     "canonical": "cyst",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار کیست است",
+   "canonical": "بیمار cyst است",
+   "hits": [
+    {
+     "form": "کیست",
+     "canonical": "cyst",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "کیست و کیست",
+   "canonical": "cyst و cyst",
+   "hits": [
+    {
+     "form": "کیست",
+     "canonical": "cyst",
+     "position": 0
+    },
+    {
+     "form": "کیست",
+     "canonical": "cyst",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 کیست داده شود",
+   "canonical": "دوز 20 cyst داده شود",
+   "hits": [
+    {
+     "form": "کیست",
+     "canonical": "cyst",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "کیستیک",
+   "canonical": "cystic",
+   "hits": [
+    {
+     "form": "کیستیک",
+     "canonical": "cystic",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "کیستیک دارد",
+   "canonical": "cystic دارد",
+   "hits": [
+    {
+     "form": "کیستیک",
+     "canonical": "cystic",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار کیستیک است",
+   "canonical": "بیمار cystic است",
+   "hits": [
+    {
+     "form": "کیستیک",
+     "canonical": "cystic",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "کیستیک و کیستیک",
+   "canonical": "cystic و cystic",
+   "hits": [
+    {
+     "form": "کیستیک",
+     "canonical": "cystic",
+     "position": 0
+    },
+    {
+     "form": "کیستیک",
+     "canonical": "cystic",
+     "position": 9
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 کیستیک داده شود",
+   "canonical": "دوز 20 cystic داده شود",
+   "hits": [
+    {
+     "form": "کیستیک",
+     "canonical": "cystic",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "هموراژیک",
+   "canonical": "hemorrhagic",
+   "hits": [
+    {
+     "form": "هموراژیک",
+     "canonical": "hemorrhagic",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "هموراژیک دارد",
+   "canonical": "hemorrhagic دارد",
+   "hits": [
+    {
+     "form": "هموراژیک",
+     "canonical": "hemorrhagic",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار هموراژیک است",
+   "canonical": "بیمار hemorrhagic است",
+   "hits": [
+    {
+     "form": "هموراژیک",
+     "canonical": "hemorrhagic",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "هموراژیک و هموراژیک",
+   "canonical": "hemorrhagic و hemorrhagic",
+   "hits": [
+    {
+     "form": "هموراژیک",
+     "canonical": "hemorrhagic",
+     "position": 0
+    },
+    {
+     "form": "هموراژیک",
+     "canonical": "hemorrhagic",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 هموراژیک داده شود",
+   "canonical": "دوز 20 hemorrhagic داده شود",
+   "hits": [
+    {
+     "form": "هموراژیک",
+     "canonical": "hemorrhagic",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "هایپرتنشن",
+   "canonical": "hypertension",
+   "hits": [
+    {
+     "form": "هایپرتنشن",
+     "canonical": "hypertension",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "هایپرتنشن دارد",
+   "canonical": "hypertension دارد",
+   "hits": [
+    {
+     "form": "هایپرتنشن",
+     "canonical": "hypertension",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار هایپرتنشن است",
+   "canonical": "بیمار hypertension است",
+   "hits": [
+    {
+     "form": "هایپرتنشن",
+     "canonical": "hypertension",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "هایپرتنشن و هایپرتنشن",
+   "canonical": "hypertension و hypertension",
+   "hits": [
+    {
+     "form": "هایپرتنشن",
+     "canonical": "hypertension",
+     "position": 0
+    },
+    {
+     "form": "هایپرتنشن",
+     "canonical": "hypertension",
+     "position": 12
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 هایپرتنشن داده شود",
+   "canonical": "دوز 20 hypertension داده شود",
+   "hits": [
+    {
+     "form": "هایپرتنشن",
+     "canonical": "hypertension",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "هایپر تنشن",
+   "canonical": "hypertension",
+   "hits": [
+    {
+     "form": "هایپر تنشن",
+     "canonical": "hypertension",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "هایپر تنشن دارد",
+   "canonical": "hypertension دارد",
+   "hits": [
+    {
+     "form": "هایپر تنشن",
+     "canonical": "hypertension",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار هایپر تنشن است",
+   "canonical": "بیمار hypertension است",
+   "hits": [
+    {
+     "form": "هایپر تنشن",
+     "canonical": "hypertension",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "هایپر تنشن و هایپر تنشن",
+   "canonical": "hypertension و hypertension",
+   "hits": [
+    {
+     "form": "هایپر تنشن",
+     "canonical": "hypertension",
+     "position": 0
+    },
+    {
+     "form": "هایپر تنشن",
+     "canonical": "hypertension",
+     "position": 13
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 هایپر تنشن داده شود",
+   "canonical": "دوز 20 hypertension داده شود",
+   "hits": [
+    {
+     "form": "هایپر تنشن",
+     "canonical": "hypertension",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "دیابت",
+   "canonical": "diabetes",
+   "hits": [
+    {
+     "form": "دیابت",
+     "canonical": "diabetes",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "دیابت دارد",
+   "canonical": "diabetes دارد",
+   "hits": [
+    {
+     "form": "دیابت",
+     "canonical": "diabetes",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار دیابت است",
+   "canonical": "بیمار diabetes است",
+   "hits": [
+    {
+     "form": "دیابت",
+     "canonical": "diabetes",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "دیابت و دیابت",
+   "canonical": "diabetes و diabetes",
+   "hits": [
+    {
+     "form": "دیابت",
+     "canonical": "diabetes",
+     "position": 0
+    },
+    {
+     "form": "دیابت",
+     "canonical": "diabetes",
+     "position": 8
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 دیابت داده شود",
+   "canonical": "دوز 20 diabetes داده شود",
+   "hits": [
+    {
+     "form": "دیابت",
+     "canonical": "diabetes",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "ام آر آی",
+   "canonical": "MRI",
+   "hits": [
+    {
+     "form": "ام آر آی",
+     "canonical": "MRI",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "ام آر آی دارد",
+   "canonical": "MRI دارد",
+   "hits": [
+    {
+     "form": "ام آر آی",
+     "canonical": "MRI",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار ام آر آی است",
+   "canonical": "بیمار MRI است",
+   "hits": [
+    {
+     "form": "ام آر آی",
+     "canonical": "MRI",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "ام آر آی و ام آر آی",
+   "canonical": "MRI و MRI",
+   "hits": [
+    {
+     "form": "ام آر آی",
+     "canonical": "MRI",
+     "position": 0
+    },
+    {
+     "form": "ام آر آی",
+     "canonical": "MRI",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 ام آر آی داده شود",
+   "canonical": "دوز 20 MRI داده شود",
+   "hits": [
+    {
+     "form": "ام آر آی",
+     "canonical": "MRI",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "الترسوند",
+   "canonical": "ultrasound",
+   "hits": [
+    {
+     "form": "الترسوند",
+     "canonical": "ultrasound",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "الترسوند دارد",
+   "canonical": "ultrasound دارد",
+   "hits": [
+    {
+     "form": "الترسوند",
+     "canonical": "ultrasound",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار الترسوند است",
+   "canonical": "بیمار ultrasound است",
+   "hits": [
+    {
+     "form": "الترسوند",
+     "canonical": "ultrasound",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "الترسوند و الترسوند",
+   "canonical": "ultrasound و ultrasound",
+   "hits": [
+    {
+     "form": "الترسوند",
+     "canonical": "ultrasound",
+     "position": 0
+    },
+    {
+     "form": "الترسوند",
+     "canonical": "ultrasound",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 الترسوند داده شود",
+   "canonical": "دوز 20 ultrasound داده شود",
+   "hits": [
+    {
+     "form": "الترسوند",
+     "canonical": "ultrasound",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "اولتراسوند",
+   "canonical": "ultrasound",
+   "hits": [
+    {
+     "form": "اولتراسوند",
+     "canonical": "ultrasound",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "اولتراسوند دارد",
+   "canonical": "ultrasound دارد",
+   "hits": [
+    {
+     "form": "اولتراسوند",
+     "canonical": "ultrasound",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار اولتراسوند است",
+   "canonical": "بیمار ultrasound است",
+   "hits": [
+    {
+     "form": "اولتراسوند",
+     "canonical": "ultrasound",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "اولتراسوند و اولتراسوند",
+   "canonical": "ultrasound و ultrasound",
+   "hits": [
+    {
+     "form": "اولتراسوند",
+     "canonical": "ultrasound",
+     "position": 0
+    },
+    {
+     "form": "اولتراسوند",
+     "canonical": "ultrasound",
+     "position": 13
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 اولتراسوند داده شود",
+   "canonical": "دوز 20 ultrasound داده شود",
+   "hits": [
+    {
+     "form": "اولتراسوند",
+     "canonical": "ultrasound",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "iv",
+   "canonical": "IV",
+   "hits": [
+    {
+     "form": "iv",
+     "canonical": "IV",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "iv دارد",
+   "canonical": "IV دارد",
+   "hits": [
+    {
+     "form": "iv",
+     "canonical": "IV",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار iv است",
+   "canonical": "بیمار IV است",
+   "hits": [
+    {
+     "form": "iv",
+     "canonical": "IV",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "iv و iv",
+   "canonical": "IV و IV",
+   "hits": [
+    {
+     "form": "iv",
+     "canonical": "IV",
+     "position": 0
+    },
+    {
+     "form": "iv",
+     "canonical": "IV",
+     "position": 5
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 iv داده شود",
+   "canonical": "دوز 20 IV داده شود",
+   "hits": [
+    {
+     "form": "iv",
+     "canonical": "IV",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "mri",
+   "canonical": "MRI",
+   "hits": [
+    {
+     "form": "mri",
+     "canonical": "MRI",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "mri دارد",
+   "canonical": "MRI دارد",
+   "hits": [
+    {
+     "form": "mri",
+     "canonical": "MRI",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار mri است",
+   "canonical": "بیمار MRI است",
+   "hits": [
+    {
+     "form": "mri",
+     "canonical": "MRI",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "mri و mri",
+   "canonical": "MRI و MRI",
+   "hits": [
+    {
+     "form": "mri",
+     "canonical": "MRI",
+     "position": 0
+    },
+    {
+     "form": "mri",
+     "canonical": "MRI",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 mri داده شود",
+   "canonical": "دوز 20 MRI داده شود",
+   "hits": [
+    {
+     "form": "mri",
+     "canonical": "MRI",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "ct",
+   "canonical": "CT",
+   "hits": [
+    {
+     "form": "ct",
+     "canonical": "CT",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "ct دارد",
+   "canonical": "CT دارد",
+   "hits": [
+    {
+     "form": "ct",
+     "canonical": "CT",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار ct است",
+   "canonical": "بیمار CT است",
+   "hits": [
+    {
+     "form": "ct",
+     "canonical": "CT",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "ct و ct",
+   "canonical": "CT و CT",
+   "hits": [
+    {
+     "form": "ct",
+     "canonical": "CT",
+     "position": 0
+    },
+    {
+     "form": "ct",
+     "canonical": "CT",
+     "position": 5
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 ct داده شود",
+   "canonical": "دوز 20 CT داده شود",
+   "hits": [
+    {
+     "form": "ct",
+     "canonical": "CT",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "ct scan",
+   "canonical": "CT scan",
+   "hits": [
+    {
+     "form": "ct scan",
+     "canonical": "CT scan",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "ct scan دارد",
+   "canonical": "CT scan دارد",
+   "hits": [
+    {
+     "form": "ct scan",
+     "canonical": "CT scan",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار ct scan است",
+   "canonical": "بیمار CT scan است",
+   "hits": [
+    {
+     "form": "ct scan",
+     "canonical": "CT scan",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "ct scan و ct scan",
+   "canonical": "CT scan و CT scan",
+   "hits": [
+    {
+     "form": "ct scan",
+     "canonical": "CT scan",
+     "position": 0
+    },
+    {
+     "form": "ct scan",
+     "canonical": "CT scan",
+     "position": 10
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 ct scan داده شود",
+   "canonical": "دوز 20 CT scan داده شود",
+   "hits": [
+    {
+     "form": "ct scan",
+     "canonical": "CT scan",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "ecg",
+   "canonical": "ECG",
+   "hits": [
+    {
+     "form": "ecg",
+     "canonical": "ECG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "ecg دارد",
+   "canonical": "ECG دارد",
+   "hits": [
+    {
+     "form": "ecg",
+     "canonical": "ECG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار ecg است",
+   "canonical": "بیمار ECG است",
+   "hits": [
+    {
+     "form": "ecg",
+     "canonical": "ECG",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "ecg و ecg",
+   "canonical": "ECG و ECG",
+   "hits": [
+    {
+     "form": "ecg",
+     "canonical": "ECG",
+     "position": 0
+    },
+    {
+     "form": "ecg",
+     "canonical": "ECG",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 ecg داده شود",
+   "canonical": "دوز 20 ECG داده شود",
+   "hits": [
+    {
+     "form": "ecg",
+     "canonical": "ECG",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "abg",
+   "canonical": "ABG",
+   "hits": [
+    {
+     "form": "abg",
+     "canonical": "ABG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "abg دارد",
+   "canonical": "ABG دارد",
+   "hits": [
+    {
+     "form": "abg",
+     "canonical": "ABG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار abg است",
+   "canonical": "بیمار ABG است",
+   "hits": [
+    {
+     "form": "abg",
+     "canonical": "ABG",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "abg و abg",
+   "canonical": "ABG و ABG",
+   "hits": [
+    {
+     "form": "abg",
+     "canonical": "ABG",
+     "position": 0
+    },
+    {
+     "form": "abg",
+     "canonical": "ABG",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 abg داده شود",
+   "canonical": "دوز 20 ABG داده شود",
+   "hits": [
+    {
+     "form": "abg",
+     "canonical": "ABG",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "میلی گرم",
+   "canonical": "mg",
+   "hits": [
+    {
+     "form": "میلی گرم",
+     "canonical": "mg",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "میلی گرم دارد",
+   "canonical": "mg دارد",
+   "hits": [
+    {
+     "form": "میلی گرم",
+     "canonical": "mg",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار میلی گرم است",
+   "canonical": "بیمار mg است",
+   "hits": [
+    {
+     "form": "میلی گرم",
+     "canonical": "mg",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "میلی گرم و میلی گرم",
+   "canonical": "mg و mg",
+   "hits": [
+    {
+     "form": "میلی گرم",
+     "canonical": "mg",
+     "position": 0
+    },
+    {
+     "form": "میلی گرم",
+     "canonical": "mg",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 میلی گرم داده شود",
+   "canonical": "دوز 20 mg داده شود",
+   "hits": [
+    {
+     "form": "میلی گرم",
+     "canonical": "mg",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "میلی لیتر",
+   "canonical": "mL",
+   "hits": [
+    {
+     "form": "میلی لیتر",
+     "canonical": "mL",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "میلی لیتر دارد",
+   "canonical": "mL دارد",
+   "hits": [
+    {
+     "form": "میلی لیتر",
+     "canonical": "mL",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار میلی لیتر است",
+   "canonical": "بیمار mL است",
+   "hits": [
+    {
+     "form": "میلی لیتر",
+     "canonical": "mL",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "میلی لیتر و میلی لیتر",
+   "canonical": "mL و mL",
+   "hits": [
+    {
+     "form": "میلی لیتر",
+     "canonical": "mL",
+     "position": 0
+    },
+    {
+     "form": "میلی لیتر",
+     "canonical": "mL",
+     "position": 12
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 میلی لیتر داده شود",
+   "canonical": "دوز 20 mL داده شود",
+   "hits": [
+    {
+     "form": "میلی لیتر",
+     "canonical": "mL",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "لیتر",
+   "canonical": "L",
+   "hits": [
+    {
+     "form": "لیتر",
+     "canonical": "L",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "لیتر دارد",
+   "canonical": "L دارد",
+   "hits": [
+    {
+     "form": "لیتر",
+     "canonical": "L",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار لیتر است",
+   "canonical": "بیمار L است",
+   "hits": [
+    {
+     "form": "لیتر",
+     "canonical": "L",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "لیتر و لیتر",
+   "canonical": "L و L",
+   "hits": [
+    {
+     "form": "لیتر",
+     "canonical": "L",
+     "position": 0
+    },
+    {
+     "form": "لیتر",
+     "canonical": "L",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 لیتر داده شود",
+   "canonical": "دوز 20 L داده شود",
+   "hits": [
+    {
+     "form": "لیتر",
+     "canonical": "L",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "کیلوگرم",
+   "canonical": "kg",
+   "hits": [
+    {
+     "form": "کیلوگرم",
+     "canonical": "kg",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "کیلوگرم دارد",
+   "canonical": "kg دارد",
+   "hits": [
+    {
+     "form": "کیلوگرم",
+     "canonical": "kg",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار کیلوگرم است",
+   "canonical": "بیمار kg است",
+   "hits": [
+    {
+     "form": "کیلوگرم",
+     "canonical": "kg",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "کیلوگرم و کیلوگرم",
+   "canonical": "kg و kg",
+   "hits": [
+    {
+     "form": "کیلوگرم",
+     "canonical": "kg",
+     "position": 0
+    },
+    {
+     "form": "کیلوگرم",
+     "canonical": "kg",
+     "position": 10
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 کیلوگرم داده شود",
+   "canonical": "دوز 20 kg داده شود",
+   "hits": [
+    {
+     "form": "کیلوگرم",
+     "canonical": "kg",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "درصد",
+   "canonical": "%",
+   "hits": [
+    {
+     "form": "درصد",
+     "canonical": "%",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "درصد دارد",
+   "canonical": "% دارد",
+   "hits": [
+    {
+     "form": "درصد",
+     "canonical": "%",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار درصد است",
+   "canonical": "بیمار % است",
+   "hits": [
+    {
+     "form": "درصد",
+     "canonical": "%",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "درصد و درصد",
+   "canonical": "% و %",
+   "hits": [
+    {
+     "form": "درصد",
+     "canonical": "%",
+     "position": 0
+    },
+    {
+     "form": "درصد",
+     "canonical": "%",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 درصد داده شود",
+   "canonical": "دوز 20 % داده شود",
+   "hits": [
+    {
+     "form": "درصد",
+     "canonical": "%",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "میلی متر جیوه",
+   "canonical": "mmHg",
+   "hits": [
+    {
+     "form": "میلی متر جیوه",
+     "canonical": "mmHg",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "میلی متر جیوه دارد",
+   "canonical": "mmHg دارد",
+   "hits": [
+    {
+     "form": "میلی متر جیوه",
+     "canonical": "mmHg",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار میلی متر جیوه است",
+   "canonical": "بیمار mmHg است",
+   "hits": [
+    {
+     "form": "میلی متر جیوه",
+     "canonical": "mmHg",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "میلی متر جیوه و میلی متر جیوه",
+   "canonical": "mmHg و mmHg",
+   "hits": [
+    {
+     "form": "میلی متر جیوه",
+     "canonical": "mmHg",
+     "position": 0
+    },
+    {
+     "form": "میلی متر جیوه",
+     "canonical": "mmHg",
+     "position": 16
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 میلی متر جیوه داده شود",
+   "canonical": "دوز 20 mmHg داده شود",
+   "hits": [
+    {
+     "form": "میلی متر جیوه",
+     "canonical": "mmHg",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "وریدی",
+   "canonical": "IV",
+   "hits": [
+    {
+     "form": "وریدی",
+     "canonical": "IV",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "وریدی دارد",
+   "canonical": "IV دارد",
+   "hits": [
+    {
+     "form": "وریدی",
+     "canonical": "IV",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار وریدی است",
+   "canonical": "بیمار IV است",
+   "hits": [
+    {
+     "form": "وریدی",
+     "canonical": "IV",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "وریدی و وریدی",
+   "canonical": "IV و IV",
+   "hits": [
+    {
+     "form": "وریدی",
+     "canonical": "IV",
+     "position": 0
+    },
+    {
+     "form": "وریدی",
+     "canonical": "IV",
+     "position": 8
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 وریدی داده شود",
+   "canonical": "دوز 20 IV داده شود",
+   "hits": [
+    {
+     "form": "وریدی",
+     "canonical": "IV",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "داخل وریدی",
+   "canonical": "IV",
+   "hits": [
+    {
+     "form": "داخل وریدی",
+     "canonical": "IV",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "داخل وریدی دارد",
+   "canonical": "IV دارد",
+   "hits": [
+    {
+     "form": "داخل وریدی",
+     "canonical": "IV",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار داخل وریدی است",
+   "canonical": "بیمار IV است",
+   "hits": [
+    {
+     "form": "داخل وریدی",
+     "canonical": "IV",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "داخل وریدی و داخل وریدی",
+   "canonical": "IV و IV",
+   "hits": [
+    {
+     "form": "داخل وریدی",
+     "canonical": "IV",
+     "position": 0
+    },
+    {
+     "form": "داخل وریدی",
+     "canonical": "IV",
+     "position": 13
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 داخل وریدی داده شود",
+   "canonical": "دوز 20 IV داده شود",
+   "hits": [
+    {
+     "form": "داخل وریدی",
+     "canonical": "IV",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "درون عضلانی",
+   "canonical": "IM",
+   "hits": [
+    {
+     "form": "درون عضلانی",
+     "canonical": "IM",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "درون عضلانی دارد",
+   "canonical": "IM دارد",
+   "hits": [
+    {
+     "form": "درون عضلانی",
+     "canonical": "IM",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار درون عضلانی است",
+   "canonical": "بیمار IM است",
+   "hits": [
+    {
+     "form": "درون عضلانی",
+     "canonical": "IM",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "درون عضلانی و درون عضلانی",
+   "canonical": "IM و IM",
+   "hits": [
+    {
+     "form": "درون عضلانی",
+     "canonical": "IM",
+     "position": 0
+    },
+    {
+     "form": "درون عضلانی",
+     "canonical": "IM",
+     "position": 14
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 درون عضلانی داده شود",
+   "canonical": "دوز 20 IM داده شود",
+   "hits": [
+    {
+     "form": "درون عضلانی",
+     "canonical": "IM",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "زیر جلدی",
+   "canonical": "SC",
+   "hits": [
+    {
+     "form": "زیر جلدی",
+     "canonical": "SC",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "زیر جلدی دارد",
+   "canonical": "SC دارد",
+   "hits": [
+    {
+     "form": "زیر جلدی",
+     "canonical": "SC",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار زیر جلدی است",
+   "canonical": "بیمار SC است",
+   "hits": [
+    {
+     "form": "زیر جلدی",
+     "canonical": "SC",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "زیر جلدی و زیر جلدی",
+   "canonical": "SC و SC",
+   "hits": [
+    {
+     "form": "زیر جلدی",
+     "canonical": "SC",
+     "position": 0
+    },
+    {
+     "form": "زیر جلدی",
+     "canonical": "SC",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 زیر جلدی داده شود",
+   "canonical": "دوز 20 SC داده شود",
+   "hits": [
+    {
+     "form": "زیر جلدی",
+     "canonical": "SC",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "بخش مراقبت های ویژه",
+   "canonical": "ICU",
+   "hits": [
+    {
+     "form": "بخش مراقبت های ویژه",
+     "canonical": "ICU",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بخش مراقبت های ویژه دارد",
+   "canonical": "ICU دارد",
+   "hits": [
+    {
+     "form": "بخش مراقبت های ویژه",
+     "canonical": "ICU",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار بخش مراقبت های ویژه است",
+   "canonical": "بیمار ICU است",
+   "hits": [
+    {
+     "form": "بخش مراقبت های ویژه",
+     "canonical": "ICU",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "بخش مراقبت های ویژه و بخش مراقبت های ویژه",
+   "canonical": "ICU و ICU",
+   "hits": [
+    {
+     "form": "بخش مراقبت های ویژه",
+     "canonical": "ICU",
+     "position": 0
+    },
+    {
+     "form": "بخش مراقبت های ویژه",
+     "canonical": "ICU",
+     "position": 22
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 بخش مراقبت های ویژه داده شود",
+   "canonical": "دوز 20 ICU داده شود",
+   "hits": [
+    {
+     "form": "بخش مراقبت های ویژه",
+     "canonical": "ICU",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "بخش مراقبت های ویژه قلب",
+   "canonical": "CCU",
+   "hits": [
+    {
+     "form": "بخش مراقبت های ویژه قلب",
+     "canonical": "CCU",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بخش مراقبت های ویژه قلب دارد",
+   "canonical": "CCU دارد",
+   "hits": [
+    {
+     "form": "بخش مراقبت های ویژه قلب",
+     "canonical": "CCU",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار بخش مراقبت های ویژه قلب است",
+   "canonical": "بیمار CCU است",
+   "hits": [
+    {
+     "form": "بخش مراقبت های ویژه قلب",
+     "canonical": "CCU",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "بخش مراقبت های ویژه قلب و بخش مراقبت های ویژه قلب",
+   "canonical": "CCU و CCU",
+   "hits": [
+    {
+     "form": "بخش مراقبت های ویژه قلب",
+     "canonical": "CCU",
+     "position": 0
+    },
+    {
+     "form": "بخش مراقبت های ویژه قلب",
+     "canonical": "CCU",
+     "position": 26
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 بخش مراقبت های ویژه قلب داده شود",
+   "canonical": "دوز 20 CCU داده شود",
+   "hits": [
+    {
+     "form": "بخش مراقبت های ویژه قلب",
+     "canonical": "CCU",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "الکتروکاردیوگرام",
+   "canonical": "ECG",
+   "hits": [
+    {
+     "form": "الکتروکاردیوگرام",
+     "canonical": "ECG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "الکتروکاردیوگرام دارد",
+   "canonical": "ECG دارد",
+   "hits": [
+    {
+     "form": "الکتروکاردیوگرام",
+     "canonical": "ECG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار الکتروکاردیوگرام است",
+   "canonical": "بیمار ECG است",
+   "hits": [
+    {
+     "form": "الکتروکاردیوگرام",
+     "canonical": "ECG",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "الکتروکاردیوگرام و الکتروکاردیوگرام",
+   "canonical": "ECG و ECG",
+   "hits": [
+    {
+     "form": "الکتروکاردیوگرام",
+     "canonical": "ECG",
+     "position": 0
+    },
+    {
+     "form": "الکتروکاردیوگرام",
+     "canonical": "ECG",
+     "position": 19
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 الکتروکاردیوگرام داده شود",
+   "canonical": "دوز 20 ECG داده شود",
+   "hits": [
+    {
+     "form": "الکتروکاردیوگرام",
+     "canonical": "ECG",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "گاز خون شریانی",
+   "canonical": "ABG",
+   "hits": [
+    {
+     "form": "گاز خون شریانی",
+     "canonical": "ABG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "گاز خون شریانی دارد",
+   "canonical": "ABG دارد",
+   "hits": [
+    {
+     "form": "گاز خون شریانی",
+     "canonical": "ABG",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار گاز خون شریانی است",
+   "canonical": "بیمار ABG است",
+   "hits": [
+    {
+     "form": "گاز خون شریانی",
+     "canonical": "ABG",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "گاز خون شریانی و گاز خون شریانی",
+   "canonical": "ABG و ABG",
+   "hits": [
+    {
+     "form": "گاز خون شریانی",
+     "canonical": "ABG",
+     "position": 0
+    },
+    {
+     "form": "گاز خون شریانی",
+     "canonical": "ABG",
+     "position": 17
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 گاز خون شریانی داده شود",
+   "canonical": "دوز 20 ABG داده شود",
+   "hits": [
+    {
+     "form": "گاز خون شریانی",
+     "canonical": "ABG",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "ناشتا از راه دهان",
+   "canonical": "NPO",
+   "hits": [
+    {
+     "form": "ناشتا از راه دهان",
+     "canonical": "NPO",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "ناشتا از راه دهان دارد",
+   "canonical": "NPO دارد",
+   "hits": [
+    {
+     "form": "ناشتا از راه دهان",
+     "canonical": "NPO",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار ناشتا از راه دهان است",
+   "canonical": "بیمار NPO است",
+   "hits": [
+    {
+     "form": "ناشتا از راه دهان",
+     "canonical": "NPO",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "ناشتا از راه دهان و ناشتا از راه دهان",
+   "canonical": "NPO و NPO",
+   "hits": [
+    {
+     "form": "ناشتا از راه دهان",
+     "canonical": "NPO",
+     "position": 0
+    },
+    {
+     "form": "ناشتا از راه دهان",
+     "canonical": "NPO",
+     "position": 20
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 ناشتا از راه دهان داده شود",
+   "canonical": "دوز 20 NPO داده شود",
+   "hits": [
+    {
+     "form": "ناشتا از راه دهان",
+     "canonical": "NPO",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "عدم مصرف خوراکی",
+   "canonical": "NPO",
+   "hits": [
+    {
+     "form": "عدم مصرف خوراکی",
+     "canonical": "NPO",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "عدم مصرف خوراکی دارد",
+   "canonical": "NPO دارد",
+   "hits": [
+    {
+     "form": "عدم مصرف خوراکی",
+     "canonical": "NPO",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار عدم مصرف خوراکی است",
+   "canonical": "بیمار NPO است",
+   "hits": [
+    {
+     "form": "عدم مصرف خوراکی",
+     "canonical": "NPO",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "عدم مصرف خوراکی و عدم مصرف خوراکی",
+   "canonical": "NPO و NPO",
+   "hits": [
+    {
+     "form": "عدم مصرف خوراکی",
+     "canonical": "NPO",
+     "position": 0
+    },
+    {
+     "form": "عدم مصرف خوراکی",
+     "canonical": "NPO",
+     "position": 18
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 عدم مصرف خوراکی داده شود",
+   "canonical": "دوز 20 NPO داده شود",
+   "hits": [
+    {
+     "form": "عدم مصرف خوراکی",
+     "canonical": "NPO",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "احیای قلبی ریوی",
+   "canonical": "CPR",
+   "hits": [
+    {
+     "form": "احیای قلبی ریوی",
+     "canonical": "CPR",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "احیای قلبی ریوی دارد",
+   "canonical": "CPR دارد",
+   "hits": [
+    {
+     "form": "احیای قلبی ریوی",
+     "canonical": "CPR",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار احیای قلبی ریوی است",
+   "canonical": "بیمار CPR است",
+   "hits": [
+    {
+     "form": "احیای قلبی ریوی",
+     "canonical": "CPR",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "احیای قلبی ریوی و احیای قلبی ریوی",
+   "canonical": "CPR و CPR",
+   "hits": [
+    {
+     "form": "احیای قلبی ریوی",
+     "canonical": "CPR",
+     "position": 0
+    },
+    {
+     "form": "احیای قلبی ریوی",
+     "canonical": "CPR",
+     "position": 18
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 احیای قلبی ریوی داده شود",
+   "canonical": "دوز 20 CPR داده شود",
+   "hits": [
+    {
+     "form": "احیای قلبی ریوی",
+     "canonical": "CPR",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "قند خون ناشتا",
+   "canonical": "FBS",
+   "hits": [
+    {
+     "form": "قند خون ناشتا",
+     "canonical": "FBS",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "قند خون ناشتا دارد",
+   "canonical": "FBS دارد",
+   "hits": [
+    {
+     "form": "قند خون ناشتا",
+     "canonical": "FBS",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار قند خون ناشتا است",
+   "canonical": "بیمار FBS است",
+   "hits": [
+    {
+     "form": "قند خون ناشتا",
+     "canonical": "FBS",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "قند خون ناشتا و قند خون ناشتا",
+   "canonical": "FBS و FBS",
+   "hits": [
+    {
+     "form": "قند خون ناشتا",
+     "canonical": "FBS",
+     "position": 0
+    },
+    {
+     "form": "قند خون ناشتا",
+     "canonical": "FBS",
+     "position": 16
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 قند خون ناشتا داده شود",
+   "canonical": "دوز 20 FBS داده شود",
+   "hits": [
+    {
+     "form": "قند خون ناشتا",
+     "canonical": "FBS",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "شمارش کامل سلول های خون",
+   "canonical": "CBC",
+   "hits": [
+    {
+     "form": "شمارش کامل سلول های خون",
+     "canonical": "CBC",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "شمارش کامل سلول های خون دارد",
+   "canonical": "CBC دارد",
+   "hits": [
+    {
+     "form": "شمارش کامل سلول های خون",
+     "canonical": "CBC",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار شمارش کامل سلول های خون است",
+   "canonical": "بیمار CBC است",
+   "hits": [
+    {
+     "form": "شمارش کامل سلول های خون",
+     "canonical": "CBC",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "شمارش کامل سلول های خون و شمارش کامل سلول های خون",
+   "canonical": "CBC و CBC",
+   "hits": [
+    {
+     "form": "شمارش کامل سلول های خون",
+     "canonical": "CBC",
+     "position": 0
+    },
+    {
+     "form": "شمارش کامل سلول های خون",
+     "canonical": "CBC",
+     "position": 26
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 شمارش کامل سلول های خون داده شود",
+   "canonical": "دوز 20 CBC داده شود",
+   "hits": [
+    {
+     "form": "شمارش کامل سلول های خون",
+     "canonical": "CBC",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "تجزیه ادرار",
+   "canonical": "U/A",
+   "hits": [
+    {
+     "form": "تجزیه ادرار",
+     "canonical": "U/A",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "تجزیه ادرار دارد",
+   "canonical": "U/A دارد",
+   "hits": [
+    {
+     "form": "تجزیه ادرار",
+     "canonical": "U/A",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار تجزیه ادرار است",
+   "canonical": "بیمار U/A است",
+   "hits": [
+    {
+     "form": "تجزیه ادرار",
+     "canonical": "U/A",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "تجزیه ادرار و تجزیه ادرار",
+   "canonical": "U/A و U/A",
+   "hits": [
+    {
+     "form": "تجزیه ادرار",
+     "canonical": "U/A",
+     "position": 0
+    },
+    {
+     "form": "تجزیه ادرار",
+     "canonical": "U/A",
+     "position": 14
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 تجزیه ادرار داده شود",
+   "canonical": "دوز 20 U/A داده شود",
+   "hits": [
+    {
+     "form": "تجزیه ادرار",
+     "canonical": "U/A",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "عکس قفسه سینه",
+   "canonical": "CXR",
+   "hits": [
+    {
+     "form": "عکس قفسه سینه",
+     "canonical": "CXR",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "عکس قفسه سینه دارد",
+   "canonical": "CXR دارد",
+   "hits": [
+    {
+     "form": "عکس قفسه سینه",
+     "canonical": "CXR",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار عکس قفسه سینه است",
+   "canonical": "بیمار CXR است",
+   "hits": [
+    {
+     "form": "عکس قفسه سینه",
+     "canonical": "CXR",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "عکس قفسه سینه و عکس قفسه سینه",
+   "canonical": "CXR و CXR",
+   "hits": [
+    {
+     "form": "عکس قفسه سینه",
+     "canonical": "CXR",
+     "position": 0
+    },
+    {
+     "form": "عکس قفسه سینه",
+     "canonical": "CXR",
+     "position": 16
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 عکس قفسه سینه داده شود",
+   "canonical": "دوز 20 CXR داده شود",
+   "hits": [
+    {
+     "form": "عکس قفسه سینه",
+     "canonical": "CXR",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "در صورت نیاز",
+   "canonical": "PRN",
+   "hits": [
+    {
+     "form": "در صورت نیاز",
+     "canonical": "PRN",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "در صورت نیاز دارد",
+   "canonical": "PRN دارد",
+   "hits": [
+    {
+     "form": "در صورت نیاز",
+     "canonical": "PRN",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار در صورت نیاز است",
+   "canonical": "بیمار PRN است",
+   "hits": [
+    {
+     "form": "در صورت نیاز",
+     "canonical": "PRN",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "در صورت نیاز و در صورت نیاز",
+   "canonical": "PRN و PRN",
+   "hits": [
+    {
+     "form": "در صورت نیاز",
+     "canonical": "PRN",
+     "position": 0
+    },
+    {
+     "form": "در صورت نیاز",
+     "canonical": "PRN",
+     "position": 15
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 در صورت نیاز داده شود",
+   "canonical": "دوز 20 PRN داده شود",
+   "hits": [
+    {
+     "form": "در صورت نیاز",
+     "canonical": "PRN",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "هر دو ساعت",
+   "canonical": "q2h",
+   "hits": [
+    {
+     "form": "هر دو ساعت",
+     "canonical": "q2h",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "هر دو ساعت دارد",
+   "canonical": "q2h دارد",
+   "hits": [
+    {
+     "form": "هر دو ساعت",
+     "canonical": "q2h",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار هر دو ساعت است",
+   "canonical": "بیمار q2h است",
+   "hits": [
+    {
+     "form": "هر دو ساعت",
+     "canonical": "q2h",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "هر دو ساعت و هر دو ساعت",
+   "canonical": "q2h و q2h",
+   "hits": [
+    {
+     "form": "هر دو ساعت",
+     "canonical": "q2h",
+     "position": 0
+    },
+    {
+     "form": "هر دو ساعت",
+     "canonical": "q2h",
+     "position": 13
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 هر دو ساعت داده شود",
+   "canonical": "دوز 20 q2h داده شود",
+   "hits": [
+    {
+     "form": "هر دو ساعت",
+     "canonical": "q2h",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "سه بار در روز",
+   "canonical": "tds",
+   "hits": [
+    {
+     "form": "سه بار در روز",
+     "canonical": "tds",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "سه بار در روز دارد",
+   "canonical": "tds دارد",
+   "hits": [
+    {
+     "form": "سه بار در روز",
+     "canonical": "tds",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار سه بار در روز است",
+   "canonical": "بیمار tds است",
+   "hits": [
+    {
+     "form": "سه بار در روز",
+     "canonical": "tds",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "سه بار در روز و سه بار در روز",
+   "canonical": "tds و tds",
+   "hits": [
+    {
+     "form": "سه بار در روز",
+     "canonical": "tds",
+     "position": 0
+    },
+    {
+     "form": "سه بار در روز",
+     "canonical": "tds",
+     "position": 16
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 سه بار در روز داده شود",
+   "canonical": "دوز 20 tds داده شود",
+   "hits": [
+    {
+     "form": "سه بار در روز",
+     "canonical": "tds",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "بلاد پرشر",
+   "canonical": "blood pressure",
+   "hits": [
+    {
+     "form": "بلاد پرشر",
+     "canonical": "blood pressure",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بلاد پرشر دارد",
+   "canonical": "blood pressure دارد",
+   "hits": [
+    {
+     "form": "بلاد پرشر",
+     "canonical": "blood pressure",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار بلاد پرشر است",
+   "canonical": "بیمار blood pressure است",
+   "hits": [
+    {
+     "form": "بلاد پرشر",
+     "canonical": "blood pressure",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "بلاد پرشر و بلاد پرشر",
+   "canonical": "blood pressure و blood pressure",
+   "hits": [
+    {
+     "form": "بلاد پرشر",
+     "canonical": "blood pressure",
+     "position": 0
+    },
+    {
+     "form": "بلاد پرشر",
+     "canonical": "blood pressure",
+     "position": 12
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 بلاد پرشر داده شود",
+   "canonical": "دوز 20 blood pressure داده شود",
+   "hits": [
+    {
+     "form": "بلاد پرشر",
+     "canonical": "blood pressure",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "بلد پرشر",
+   "canonical": "blood pressure",
+   "hits": [
+    {
+     "form": "بلد پرشر",
+     "canonical": "blood pressure",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بلد پرشر دارد",
+   "canonical": "blood pressure دارد",
+   "hits": [
+    {
+     "form": "بلد پرشر",
+     "canonical": "blood pressure",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار بلد پرشر است",
+   "canonical": "بیمار blood pressure است",
+   "hits": [
+    {
+     "form": "بلد پرشر",
+     "canonical": "blood pressure",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "بلد پرشر و بلد پرشر",
+   "canonical": "blood pressure و blood pressure",
+   "hits": [
+    {
+     "form": "بلد پرشر",
+     "canonical": "blood pressure",
+     "position": 0
+    },
+    {
+     "form": "بلد پرشر",
+     "canonical": "blood pressure",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 بلد پرشر داده شود",
+   "canonical": "دوز 20 blood pressure داده شود",
+   "hits": [
+    {
+     "form": "بلد پرشر",
+     "canonical": "blood pressure",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "علائم حیاتی",
+   "canonical": "vital signs",
+   "hits": [
+    {
+     "form": "علائم حیاتی",
+     "canonical": "vital signs",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "علائم حیاتی دارد",
+   "canonical": "vital signs دارد",
+   "hits": [
+    {
+     "form": "علائم حیاتی",
+     "canonical": "vital signs",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار علائم حیاتی است",
+   "canonical": "بیمار vital signs است",
+   "hits": [
+    {
+     "form": "علائم حیاتی",
+     "canonical": "vital signs",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "علائم حیاتی و علائم حیاتی",
+   "canonical": "vital signs و vital signs",
+   "hits": [
+    {
+     "form": "علائم حیاتی",
+     "canonical": "vital signs",
+     "position": 0
+    },
+    {
+     "form": "علائم حیاتی",
+     "canonical": "vital signs",
+     "position": 14
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 علائم حیاتی داده شود",
+   "canonical": "دوز 20 vital signs داده شود",
+   "hits": [
+    {
+     "form": "علائم حیاتی",
+     "canonical": "vital signs",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "هارت ریت",
+   "canonical": "heart rate",
+   "hits": [
+    {
+     "form": "هارت ریت",
+     "canonical": "heart rate",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "هارت ریت دارد",
+   "canonical": "heart rate دارد",
+   "hits": [
+    {
+     "form": "هارت ریت",
+     "canonical": "heart rate",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار هارت ریت است",
+   "canonical": "بیمار heart rate است",
+   "hits": [
+    {
+     "form": "هارت ریت",
+     "canonical": "heart rate",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "هارت ریت و هارت ریت",
+   "canonical": "heart rate و heart rate",
+   "hits": [
+    {
+     "form": "هارت ریت",
+     "canonical": "heart rate",
+     "position": 0
+    },
+    {
+     "form": "هارت ریت",
+     "canonical": "heart rate",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 هارت ریت داده شود",
+   "canonical": "دوز 20 heart rate داده شود",
+   "hits": [
+    {
+     "form": "هارت ریت",
+     "canonical": "heart rate",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "اکسیژن ساتوریشن",
+   "canonical": "oxygen saturation",
+   "hits": [
+    {
+     "form": "اکسیژن ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "اکسیژن ساتوریشن دارد",
+   "canonical": "oxygen saturation دارد",
+   "hits": [
+    {
+     "form": "اکسیژن ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار اکسیژن ساتوریشن است",
+   "canonical": "بیمار oxygen saturation است",
+   "hits": [
+    {
+     "form": "اکسیژن ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "اکسیژن ساتوریشن و اکسیژن ساتوریشن",
+   "canonical": "oxygen saturation و oxygen saturation",
+   "hits": [
+    {
+     "form": "اکسیژن ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 0
+    },
+    {
+     "form": "اکسیژن ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 18
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 اکسیژن ساتوریشن داده شود",
+   "canonical": "دوز 20 oxygen saturation داده شود",
+   "hits": [
+    {
+     "form": "اکسیژن ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "ساتوریشن",
+   "canonical": "oxygen saturation",
+   "hits": [
+    {
+     "form": "ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "ساتوریشن دارد",
+   "canonical": "oxygen saturation دارد",
+   "hits": [
+    {
+     "form": "ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار ساتوریشن است",
+   "canonical": "بیمار oxygen saturation است",
+   "hits": [
+    {
+     "form": "ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "ساتوریشن و ساتوریشن",
+   "canonical": "oxygen saturation و oxygen saturation",
+   "hits": [
+    {
+     "form": "ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 0
+    },
+    {
+     "form": "ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 11
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 ساتوریشن داده شود",
+   "canonical": "دوز 20 oxygen saturation داده شود",
+   "hits": [
+    {
+     "form": "ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "منیزیم",
+   "canonical": "Mg",
+   "hits": [
+    {
+     "form": "منیزیم",
+     "canonical": "Mg",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "منیزیم دارد",
+   "canonical": "Mg دارد",
+   "hits": [
+    {
+     "form": "منیزیم",
+     "canonical": "Mg",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار منیزیم است",
+   "canonical": "بیمار Mg است",
+   "hits": [
+    {
+     "form": "منیزیم",
+     "canonical": "Mg",
+     "position": 6
+    }
+   ]
+  },
+  {
+   "raw": "منیزیم و منیزیم",
+   "canonical": "Mg و Mg",
+   "hits": [
+    {
+     "form": "منیزیم",
+     "canonical": "Mg",
+     "position": 0
+    },
+    {
+     "form": "منیزیم",
+     "canonical": "Mg",
+     "position": 9
+    }
+   ]
+  },
+  {
+   "raw": "دوز 20 منیزیم داده شود",
+   "canonical": "دوز 20 Mg داده شود",
+   "hits": [
+    {
+     "form": "منیزیم",
+     "canonical": "Mg",
+     "position": 7
+    }
+   ]
+  },
+  {
+   "raw": "CT",
+   "canonical": "CT",
+   "hits": []
+  },
+  {
+   "raw": "BP",
+   "canonical": "BP",
+   "hits": []
+  },
+  {
+   "raw": "HTN",
+   "canonical": "HTN",
+   "hits": []
+  },
+  {
+   "raw": "DM",
+   "canonical": "DM",
+   "hits": []
+  },
+  {
+   "raw": "IV",
+   "canonical": "IV",
+   "hits": []
+  },
+  {
+   "raw": "IM",
+   "canonical": "IM",
+   "hits": []
+  },
+  {
+   "raw": "SC",
+   "canonical": "SC",
+   "hits": []
+  },
+  {
+   "raw": "NPO",
+   "canonical": "NPO",
+   "hits": []
+  },
+  {
+   "raw": "CPR",
+   "canonical": "CPR",
+   "hits": []
+  },
+  {
+   "raw": "FBS",
+   "canonical": "FBS",
+   "hits": []
+  },
+  {
+   "raw": "CBC",
+   "canonical": "CBC",
+   "hits": []
+  },
+  {
+   "raw": "U/A",
+   "canonical": "U/A",
+   "hits": []
+  },
+  {
+   "raw": "CXR",
+   "canonical": "CXR",
+   "hits": []
+  },
+  {
+   "raw": "ECG",
+   "canonical": "ECG",
+   "hits": []
+  },
+  {
+   "raw": "ABG",
+   "canonical": "ABG",
+   "hits": []
+  },
+  {
+   "raw": "PRN",
+   "canonical": "PRN",
+   "hits": []
+  },
+  {
+   "raw": "q2h",
+   "canonical": "q2h",
+   "hits": []
+  },
+  {
+   "raw": "tds",
+   "canonical": "tds",
+   "hits": []
+  },
+  {
+   "raw": "CCU",
+   "canonical": "CCU",
+   "hits": []
+  },
+  {
+   "raw": "ICU",
+   "canonical": "ICU",
+   "hits": []
+  },
+  {
+   "raw": "CT scan",
+   "canonical": "CT scan",
+   "hits": []
+  },
+  {
+   "raw": "right lung",
+   "canonical": "right lung",
+   "hits": []
+  },
+  {
+   "raw": "lesion",
+   "canonical": "lesion",
+   "hits": []
+  },
+  {
+   "raw": "cyst",
+   "canonical": "cyst",
+   "hits": []
+  },
+  {
+   "raw": "cystic",
+   "canonical": "cystic",
+   "hits": []
+  },
+  {
+   "raw": "hemorrhagic",
+   "canonical": "hemorrhagic",
+   "hits": []
+  },
+  {
+   "raw": "hypertension",
+   "canonical": "hypertension",
+   "hits": []
+  },
+  {
+   "raw": "diabetes",
+   "canonical": "diabetes",
+   "hits": []
+  },
+  {
+   "raw": "MRI",
+   "canonical": "MRI",
+   "hits": []
+  },
+  {
+   "raw": "ultrasound",
+   "canonical": "ultrasound",
+   "hits": []
+  },
+  {
+   "raw": "mg",
+   "canonical": "mg",
+   "hits": []
+  },
+  {
+   "raw": "mL",
+   "canonical": "mL",
+   "hits": []
+  },
+  {
+   "raw": "L",
+   "canonical": "L",
+   "hits": []
+  },
+  {
+   "raw": "kg",
+   "canonical": "kg",
+   "hits": []
+  },
+  {
+   "raw": "%",
+   "canonical": "%",
+   "hits": []
+  },
+  {
+   "raw": "mmHg",
+   "canonical": "mmHg",
+   "hits": []
+  },
+  {
+   "raw": "blood pressure",
+   "canonical": "blood pressure",
+   "hits": []
+  },
+  {
+   "raw": "vital signs",
+   "canonical": "vital signs",
+   "hits": []
+  },
+  {
+   "raw": "heart rate",
+   "canonical": "heart rate",
+   "hits": []
+  },
+  {
+   "raw": "oxygen saturation",
+   "canonical": "oxygen saturation",
+   "hits": []
+  },
+  {
+   "raw": "Mg",
+   "canonical": "Mg",
+   "hits": []
+  },
+  {
+   "raw": "لغاتی مثل CCU و ICU",
+   "canonical": "لغاتی مثل CCU و ICU",
+   "hits": []
+  },
+  {
+   "raw": "در CT scan یک lesion در right lung مشاهده شد.",
+   "canonical": "در CT scan یک lesion در right lung مشاهده شد.",
+   "hits": []
+  },
+  {
+   "raw": "یک hemorrhagic cyst یا ضایعه cystic در تخمدان چپ دیده می‌شود.",
+   "canonical": "یک hemorrhagic cyst یا ضایعه cystic در تخمدان چپ دیده می شود.",
+   "hits": []
+  },
+  {
+   "raw": "دارو با دوز 20 میلی‌گرم به صورت IV داده شود.",
+   "canonical": "دارو با دوز 20 mg به صورت IV داده شود.",
+   "hits": [
+    {
+     "form": "میلی گرم",
+     "canonical": "mg",
+     "position": 15
+    }
+   ]
+  },
+  {
+   "raw": "علائم حیاتی بیمار را بگیرید و BP و pulse را ثبت کنید.",
+   "canonical": "vital signs بیمار را بگیرید و BP و pulse را ثبت کنید.",
+   "hits": [
+    {
+     "form": "علائم حیاتی",
+     "canonical": "vital signs",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "بیمار NPO است و باید IV line برقرار باشد.",
+   "canonical": "بیمار NPO است و باید IV line برقرار باشد.",
+   "hits": []
+  },
+  {
+   "raw": "بیمار سابقه HTN و DM دارد.",
+   "canonical": "بیمار سابقه HTN و DM دارد.",
+   "hits": []
+  },
+  {
+   "raw": "The patient has hypertension and diabetes mellitus.",
+   "canonical": "The patient has hypertension and diabetes mellitus.",
+   "hits": []
+  },
+  {
+   "raw": "بیمار در سی تی اسکن یک لیژن در رایت لانگ مشاهده شد",
+   "canonical": "بیمار در CT scan یک lesion در right lung مشاهده شد",
+   "hits": [
+    {
+     "form": "سی تی اسکن",
+     "canonical": "CT scan",
+     "position": 9
+    },
+    {
+     "form": "لیژن",
+     "canonical": "lesion",
+     "position": 23
+    },
+    {
+     "form": "رایت لانگ",
+     "canonical": "right lung",
+     "position": 31
+    }
+   ]
+  },
+  {
+   "raw": "فشار خون بالا دارد و فشار خون را اندازه بگیرید",
+   "canonical": "HTN دارد و BP را اندازه بگیرید",
+   "hits": [
+    {
+     "form": "فشار خون بالا",
+     "canonical": "HTN",
+     "position": 0
+    },
+    {
+     "form": "فشار خون",
+     "canonical": "BP",
+     "position": 21
+    }
+   ]
+  },
+  {
+   "raw": "mri head و ct abdomen و ct scan و ct",
+   "canonical": "MRI head و CT abdomen و CT scan و CT",
+   "hits": [
+    {
+     "form": "mri",
+     "canonical": "MRI",
+     "position": 0
+    },
+    {
+     "form": "ct",
+     "canonical": "CT",
+     "position": 11
+    },
+    {
+     "form": "ct scan",
+     "canonical": "CT scan",
+     "position": 24
+    },
+    {
+     "form": "ct",
+     "canonical": "CT",
+     "position": 34
+    }
+   ]
+  },
+  {
+   "raw": "BP 120/80 5 mg 2.5 mL 20 mg HbA1c O2 C3-C4 q2h",
+   "canonical": "BP 120/80 5 mg 2.5 mL 20 mg HbA1c O2 C3-C4 q2h",
+   "hits": []
+  },
+  {
+   "raw": "دوز ۲۰ میلی گرم آی وی هر دو ساعت",
+   "canonical": "دوز 20 mg IV q2h",
+   "hits": [
+    {
+     "form": "میلی گرم",
+     "canonical": "mg",
+     "position": 7
+    },
+    {
+     "form": "آی وی",
+     "canonical": "IV",
+     "position": 16
+    },
+    {
+     "form": "هر دو ساعت",
+     "canonical": "q2h",
+     "position": 22
+    }
+   ]
+  },
+  {
+   "raw": "vivid color ivory tower سیسییو میلی",
+   "canonical": "vivid color ivory tower سیسییو میلی",
+   "hits": []
+  },
+  {
+   "raw": "بیمار HTN دارد و iv line برقرار است",
+   "canonical": "بیمار HTN دارد و IV line برقرار است",
+   "hits": [
+    {
+     "form": "iv",
+     "canonical": "IV",
+     "position": 17
+    }
+   ]
+  },
+  {
+   "raw": "هایپرتنشن و هایپر تنشن و دیابت و دیابت ملیتوس",
+   "canonical": "hypertension و hypertension و diabetes و DM",
+   "hits": [
+    {
+     "form": "هایپرتنشن",
+     "canonical": "hypertension",
+     "position": 0
+    },
+    {
+     "form": "هایپر تنشن",
+     "canonical": "hypertension",
+     "position": 12
+    },
+    {
+     "form": "دیابت",
+     "canonical": "diabetes",
+     "position": 25
+    },
+    {
+     "form": "دیابت ملیتوس",
+     "canonical": "DM",
+     "position": 33
+    }
+   ]
+  },
+  {
+   "raw": "علائم حیاتی و هارت ریت و اکسیژن ساتوریشن و ساتوریشن",
+   "canonical": "vital signs و heart rate و oxygen saturation و oxygen saturation",
+   "hits": [
+    {
+     "form": "علائم حیاتی",
+     "canonical": "vital signs",
+     "position": 0
+    },
+    {
+     "form": "هارت ریت",
+     "canonical": "heart rate",
+     "position": 14
+    },
+    {
+     "form": "اکسیژن ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 25
+    },
+    {
+     "form": "ساتوریشن",
+     "canonical": "oxygen saturation",
+     "position": 43
+    }
+   ]
+  },
+  {
+   "raw": "بلاد پرشر و بلد پرشر و کشت خون",
+   "canonical": "blood pressure و blood pressure و کشت خون",
+   "hits": [
+    {
+     "form": "بلاد پرشر",
+     "canonical": "blood pressure",
+     "position": 0
+    },
+    {
+     "form": "بلد پرشر",
+     "canonical": "blood pressure",
+     "position": 12
+    }
+   ]
+  },
+  {
+   "raw": "سی سی یو، آی وی 20 میلی گرم، ct scan و iv line و هایپرتنشن",
+   "canonical": "CCU، IV 20 mg، CT scan و IV line و hypertension",
+   "hits": [
+    {
+     "form": "سی سی یو",
+     "canonical": "CCU",
+     "position": 0
+    },
+    {
+     "form": "آی وی",
+     "canonical": "IV",
+     "position": 10
+    },
+    {
+     "form": "میلی گرم",
+     "canonical": "mg",
+     "position": 19
+    },
+    {
+     "form": "ct scan",
+     "canonical": "CT scan",
+     "position": 29
+    },
+    {
+     "form": "iv",
+     "canonical": "IV",
+     "position": 39
+    },
+    {
+     "form": "هایپرتنشن",
+     "canonical": "hypertension",
+     "position": 49
+    }
+   ]
+  },
+  {
+   "raw": "بیمار در اتاق است نامشخص 120/80",
+   "canonical": "بیمار در اتاق است نامشخص 120/80",
+   "hits": []
+  },
+  {
+   "raw": "گرم کیلوگرم لیتر درصد میلی متر جیوه میلی لیتر",
+   "canonical": "گرم kg L % mmHg mL",
+   "hits": [
+    {
+     "form": "کیلوگرم",
+     "canonical": "kg",
+     "position": 4
+    },
+    {
+     "form": "لیتر",
+     "canonical": "L",
+     "position": 12
+    },
+    {
+     "form": "درصد",
+     "canonical": "%",
+     "position": 17
+    },
+    {
+     "form": "میلی متر جیوه",
+     "canonical": "mmHg",
+     "position": 22
+    },
+    {
+     "form": "میلی لیتر",
+     "canonical": "mL",
+     "position": 36
+    }
+   ]
+  },
+  {
+   "raw": "The patient has hypertension and diabetes mellitus",
+   "canonical": "The patient has hypertension and diabetes mellitus",
+   "hits": []
+  },
+  {
+   "raw": "iv drip و BP,120/80 و U/A و CXR",
+   "canonical": "IV drip و BP,120/80 و U/A و CXR",
+   "hits": [
+    {
+     "form": "iv",
+     "canonical": "IV",
+     "position": 0
+    }
+   ]
+  },
+  {
+   "raw": "",
+   "canonical": "",
+   "hits": []
+  },
+  {
+   "raw": " ",
+   "canonical": "",
+   "hits": []
+  },
+  {
+   "raw": "بیمار",
+   "canonical": "بیمار",
+   "hits": []
+  }
+ ]
+}

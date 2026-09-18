@@ -84,13 +84,6 @@ def load_benchmark(test_id: str | None) -> dict | None:
     raise RuntimeError(f"Unknown test ID: {test_id}")
 
 
-def load_vocab() -> list:
-    path = ROOT / "medical_knowledge" / "speechmatics_additional_vocab.json"
-    if not path.exists():
-        return []
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 async def audio_source(recorder, max_seconds: float, stop_event=None):
     """Yield microphone chunks in memory only - never stored on disk.
 
@@ -335,8 +328,12 @@ async def main() -> int:
         if (args.save_report or args.test_id) else None
     )
 
-    vocab = [] if args.no_vocab else load_vocab()
     medical = MedicalLayer(ROOT)
+    # Bounded Speechmatics vocabulary, derived once from the dictionary's
+    # speechmatics-eligible entries (medical_knowledge/medical_dictionary.json
+    # is the single source of truth; the generated
+    # speechmatics_additional_vocab.json artifact mirrors it for inspection).
+    vocab = [] if args.no_vocab else medical.additional_vocab
     benchmark = load_benchmark(args.test_id)
     overlay = create_overlay(args.no_overlay)
     injector = create_injector(args.inject)
