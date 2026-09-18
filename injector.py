@@ -69,7 +69,6 @@ from speechmatics_test.presentation import (  # noqa: E402  (kept next to use)
     RLE,
     RLM,
     contains_rtl,
-    detect_direction,
     strip_bidi_controls,
     wrap_for_direction,
 )

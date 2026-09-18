@@ -8,6 +8,7 @@ A production-oriented medical dictation app for Speechmatics Realtime with Persi
 2. **Automatic injection — hotkeys and the manual countdown are gone.** Like [deepgram-v6](https://github.com/AmiraliGhamkhar/deepgram-v6), every *finalized* segment is pasted at the cursor immediately during the session (`Ctrl+V` clipboard paste, always with BiDi marks). Just click the target field once and dictate.
 3. **Better injector** — mixed Persian/English payloads are wrapped in `RLM + RLE … PDF` and cleaned (whitespace collapse + ZWNJ repair) before pasting, so LTR-default EMR forms render RTL text correctly.
 4. **Better overlay** — logical-order text with explicit Unicode direction controls (`RLM + RLE … PDF`) instead of visual-order pre-shaping, smart *base direction* detection based on the Persian/English character ratio (not just the first strong character), larger font, and a safer fallback chain.
+5. **v4.1 — one consolidated medical dictionary.** The five split knowledge files were merged into a single validated source of truth, `medical_knowledge/medical_dictionary.json` (tiered, conflict-resolved at load with reported warnings, ZWNJ-aware normalization, one-time build). The matcher lives in `speechmatics_test/matcher.py` (`MedicalMatcher`, still exported as `MedicalFST` for API stability); the bounded Speechmatics `additional_vocab` is derived from the dictionary's `speechmatics: true` entries only. A pre-migration behavioral snapshot (`tests/fixtures/pre_migration_canonicalization.json`) proves the consolidated dictionary reproduces the old outputs exactly.
 
 ## Pipeline
 
@@ -55,17 +56,19 @@ It is **deterministic lexical canonicalization only**. It does not infer diagnos
 
 ## The Aho-Corasick engine
 
-`speechmatics_test/fst.py` (class name kept as `MedicalFST` for a stable API):
+`speechmatics_test/matcher.py` — class `MedicalMatcher`, exported as `MedicalFST` for a stable API (the historical name predates the Aho-Corasick engine and is kept on purpose):
 
 ```text
-rule forms  --(build once)-->  Aho-Corasick automaton (goto/fail/output)
-text        --(one pass)-->    raw matches -> token-boundary filter
-                              -> longest/tier/order resolution -> canonical text + hits
+medical_dictionary.json --(load+validate once)-->  rules (deduped, tier-resolved)
+rules  --(build once)-->  Aho-Corasick automaton (goto/fail/output)
+text   --(one pass)-->    raw matches -> token-boundary filter
+                         -> longest match per position -> canonical text + hits
 ```
 
-- **Native backend**: `pyahocorasick` (C extension, wheels for Windows/macOS/Linux).
+- **Native backend**: `pyahocorasick` (C extension, wheels for Windows/macOS/Linux), pinned in `requirements.txt`.
 - **Fallback backend**: a self-contained pure-Python automaton (`AhoAutomaton`) that produces byte-identical output — verified by parity tests and used automatically when the native package is missing.
-- Speed is independent of the rule count: ~5x faster than the naive scanner at 2,000 rules and the gap widens with more rules.
+- **Degradation path**: if the engine ever fails mid-session, `canonicalize` falls back to the verified naive reference scanner, so a finished transcript is never lost to an engine bug.
+- Speed is independent of the rule count: ~5x faster than the naive scanner at 2,000 rules and the gap widens with more rules. Matcher micro-benchmarks (build time, per-sentence latency, memory at ~100/500/1000/2000 terms): `scripts/run_matcher_benchmark.ps1` / `python benchmark/benchmark_matcher.py` (results from the consolidation refactor are committed under `benchmark/results_before.json` / `benchmark/results_after.json`).
 
 ## Injection (automatic — no hotkeys)
 
@@ -99,7 +102,7 @@ text        --(one pass)-->    raw matches -> token-boundary filter
 - `max_delay`: configurable seconds in the valid Speechmatics range **0.7–4.0** (default **2.0**, the docs-recommended trade-off). This supports controlled runs at `2.0`, `2.5`, `3.0`, `3.5`, and `4.0` with the existing `--max-delay` flag.
 - `model`: configurable (`standard` | `enhanced`, default `enhanced`), passed via the modern `model` parameter.
 - `max_delay_mode`: default `flexible` so spoken entities (numbers, doses) are formatted completely before the final is emitted.
-- `additional_vocab` is intentionally curated and bounded: high-value drugs, diseases, procedures, imaging, labs, anatomy, abbreviations, dosage units, compact entities (`HbA1c`, `O2`, `C3-C4`, `q2h`), and observed Persianized pronunciations. The larger knowledge files remain local Aho-Corasick rules. `sounds_like` accepts short pronunciation phrases such as `M R I` and `ام آر آی`.
+- `additional_vocab` is intentionally curated and bounded: high-value drugs, diseases, procedures, imaging, labs, anatomy, abbreviations, dosage units, compact entities (`HbA1c`, `O2`, `C3-C4`, `q2h`), and observed Persianized pronunciations. It is derived at startup from the dictionary's `speechmatics: true` entries only — never a dump of the full dictionary — and the rest of the dictionary stays local Aho-Corasick rules. `sounds_like` accepts short pronunciation phrases such as `M R I` and `ام آر آی`.
 
 Final messages also retain first-alternative word `content`, `confidence`, `language`, and timing. Saved reports add `speechmatics` (with `domain`/`domain_requested`), `word_results`, `confidence_summary`, `parse_warnings` (non-fatal transcript-metadata problems — the transcript itself is always kept), and `audio_overflow_events` (suspected dropped microphone samples); established report fields remain unchanged. Confidence/language evidence can annotate a validated lexical hit and only breaks an otherwise equal lexical tie—it never creates a medical correction on its own.
 
@@ -165,14 +168,31 @@ Useful flags:
 3. **Canonicalization test:** compare `final_transcript_raw` / `_normalized` / `_canonical` in the report, plus `medical_hits` (which rule fired where).
 4. **Benchmark:** the expected transcript must reflect what was actually spoken; do not compare a 60-second exploration against a one-sentence expectation.
 
-## Nursing terminology structure
+## Medical dictionary
 
-- `medical_knowledge/nursing_terms.json` — rows converted from the nursing spreadsheet.
-- `medical_knowledge/abbreviations.json` — BP, HTN, DM, IV, IM, SC, ICU, CCU, ECG, ABG, NPO, CPR, FBS, CBC, U/A, CXR, PRN, q2h, tds, …
-- `medical_knowledge/nursing_phrases.json` — phrase-level nursing expressions (vital signs, blood pressure, oxygen saturation, nothing by mouth, …).
-- `medical_knowledge/observed_asr_aliases.json` — observed forms from uploaded sessions (evidence for the dataset, not clinical ground truth).
-- `medical_knowledge/fst_terms.json` — the curated rule set (phrases, abbreviations, units, Persianized-English pronunciations, English ASR variants) with explicit deterministic priority tiers. Other knowledge files merge into their own tiers.
-- `medical_knowledge/speechmatics_additional_vocab.json` — compact vocabulary for the Speechmatics `additional_vocab` feature.
+`medical_knowledge/medical_dictionary.json` is the **single source of truth** for the medical layer. One entry per canonical term; every entry carries an explicit priority `tier` and is validated at startup (invalid entries fail loudly, never silently):
+
+```json
+{
+  "id": "htn",
+  "canonical": "HTN",
+  "type": "abbreviation",
+  "tier": "curated",
+  "forms": ["فشار خون بالا", "اچ تی ان", "ایچ تی ان"],
+  "speechmatics": true,
+  "sounds_like": ["H T N", "اچ تی ان"],
+  "source_file": "fst_terms.json"
+}
+```
+
+- **tier** (required) — the deterministic priority order for conflicting canonicals: `curated` > `abbreviation` > `observed_alias` > `phrase` > `validated_term` > `unit`. These map 1:1 to the legacy source files (see below).
+- **type** (required) — enumerated clinical category: `condition`, `drug`, `procedure`, `imaging`, `lab`, `anatomy`, `abbreviation`, `dosage_unit`, `route`, `vital_sign`, `phrase`, `term`.
+- **forms** — normalized input forms (ZWNJ variants fold to the same form; punctuation forms are skipped with a warning). May be empty only for vocab-only entries (`speechmatics: true`), which bias ASR but never match.
+- **speechmatics** — eligibility for the bounded `additional_vocab` (never automatic inclusion; the vocab stays a curated subset, not a dump of the dictionary).
+- **sounds_like** — pronunciation hints handed to Speechmatics for vocab entries only; they never become matcher rules.
+- **source_file** — optional migration traceability back to the legacy knowledge file.
+
+The dictionary was consolidated from five legacy knowledge files, each into its own tier: `fst_terms.json` → `curated` (its unit-level rules → `unit`), `abbreviations.json` → `abbreviation`, `observed_asr_aliases.json` → `observed_alias`, `nursing_phrases.json` → `phrase`, `nursing_terms.json` → `validated_term`. Those files were removed after the migration was verified (a 432-case behavioral snapshot in `tests/fixtures/pre_migration_canonicalization.json` proves the consolidated dictionary reproduces the old outputs exactly, including hit positions); each term's `source_file` records its historical origin. `medical_knowledge/speechmatics_additional_vocab.json` is a generated artifact mirroring the derived vocabulary for inspection — regenerate it with `scripts/export_additional_vocab.py` (`--check` verifies sync).
 
 ## Evaluation
 
@@ -190,6 +210,8 @@ Each saved report JSON contains WER, number accuracy, and similarity for the raw
 - `scripts/run.ps1` / `scripts/run.sh` — install + run (extra flags are passed through, e.g. `.\scripts\run.ps1 --language en`)
 - `scripts/run_fa.ps1` / `scripts/run_en.ps1` — quick language runs
 - `scripts/run_benchmark.ps1` — benchmark case
+- `scripts/run_matcher_benchmark.ps1` — matcher micro-benchmark (dictionary build/latency/memory at ~100–2000 terms)
+- `scripts/export_additional_vocab.py` — regenerate the Speechmatics `additional_vocab` artifact from the dictionary's `speechmatics: true` entries (`--check` verifies sync)
 - `scripts/run_no_vocab.ps1` — vocabulary-disabled run
 - `scripts/test_injector.ps1` — standalone injector smoke test
 

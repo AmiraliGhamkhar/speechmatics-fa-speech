@@ -16,7 +16,7 @@ import pytest
 
 import overlay as overlay_mod
 from injector import TextInjector
-from speechmatics_test.fst import casefold_preserving
+from speechmatics_test.matcher import casefold_preserving
 from speechmatics_test.medical_layer import MedicalLayer
 from speechmatics_test.presentation import (
     PDF,
