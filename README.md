@@ -53,6 +53,8 @@ It is **deterministic lexical canonicalization only**. It does not infer diagnos
 - Longest match wins; ties are broken by tier (curated rules > abbreviations > observed aliases > phrases > validated terms > units), then by stable rule order.
 - Every hit reports `form`, `canonical`, `tier`, `source`, and `position` for auditability.
 - If the automaton engine ever fails, the layer degrades to a verified reference scanner — the finished transcript is never lost to an engine bug.
+- A handful of clinical short forms collide with common English words (`OR`, `P`, `NOW`, `DIFF`, `AC`, `PC`, `HS`, `OD`); they only fire on stronger evidence — the matched text must be fully uppercase (the conventional charting style) — so an ordinary sentence like "the patient is stable now" is left unchanged, while "NOW" (or the unambiguous Persian/spelled-out aliases for the same concepts) still canonicalizes. Unambiguous abbreviations (`MRI`, `CT`, `ECG`, `HbA1c`, `SpO2`, ...) keep normal case-insensitive matching.
+- The cross-segment final-transcript accumulator (used by injection and the report) only holds text back when it is a genuine **strict** prefix of a longer rule (i.e. more tokens could still complete a longer match); a standalone complete phrase with no such longer sibling rule (e.g. the one-token abbreviation `IV`) is injected immediately instead of waiting for a continuation no rule defines.
 
 ## The Aho-Corasick engine
 
@@ -197,6 +199,8 @@ The dictionary was consolidated from five legacy knowledge files, each into its 
 ## Evaluation
 
 Each saved report JSON contains WER, number accuracy, and similarity for the raw / normalized / canonical stages. Tokenization is medical-aware: `20 mg`, `20mg`, `120/80`, `5.5`, `3,14`, `O2`, `q2h`, `C3-C4`, `U/A`, `HbA1c` all tokenize correctly. Persian/Arabic-Indic digits fold to ASCII during normalization so `۲۰ mg` scores as correct, while genuinely misrecognized values still count as errors.
+
+`number_accuracy` is recall-only against the reference (kept exactly as-is for report/API stability): it does not penalize a hypothesis that also contains an extra, fabricated number, so reference `"20 mg"` vs hypothesis `"20 mg 50 mg"` still scores a perfect `1.0` there. Each evaluation also reports additive `number_precision`, `number_recall` (an alias of `number_accuracy`), and `number_f1` fields that DO catch that case (`number_precision` drops to `0.5` for the example above).
 
 ## Tests
 

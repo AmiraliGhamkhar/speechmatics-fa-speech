@@ -256,6 +256,11 @@ class TextInjector:
         #: Focus guard (see ``arm_target``): when armed, pastes are refused
         #: unless this exact foreground window handle is still focused.
         self._armed_hwnd: Optional[int] = None
+        #: Set by ``_set_windows_clipboard`` the instant ``EmptyClipboard()``
+        #: succeeds, independent of that call's own return value - see
+        #: ``_paste_windows`` for why this (not the return value) must gate
+        #: clipboard restoration.
+        self._clipboard_touched: bool = False
 
     # ------------------------------------------------------- payload prep
 
@@ -634,9 +639,26 @@ class TextInjector:
         if self.restore_clipboard:
             previous = self._get_windows_clipboard()
 
+        # ``clipboard_changed`` tracks whether the clipboard's PREVIOUS
+        # content was actually destroyed. A successful ``_set_windows_
+        # clipboard`` call obviously counts, but ``EmptyClipboard()`` can
+        # ALSO succeed and then a LATER step in that same call (GlobalAlloc/
+        # GlobalLock/SetClipboardData) can fail, in which case
+        # ``_set_windows_clipboard`` returns False even though the previous
+        # clipboard content is already gone. Gating restoration on the
+        # return value alone (the previous behavior) skipped the ``finally``
+        # restore on exactly that partial-failure path, permanently losing
+        # the user's original clipboard content. The real
+        # ``_set_windows_clipboard`` sets ``self._clipboard_touched`` the
+        # instant ``EmptyClipboard()`` succeeds, independent of its own
+        # return value, so it is honored here in addition to the return
+        # value (kept for the tests/callers that stub the low-level call
+        # wholesale and only observe its return value).
+        self._clipboard_touched = False
         clipboard_changed = False
         try:
             if not self._set_windows_clipboard(text):
+                clipboard_changed = self._clipboard_touched
                 return False
             clipboard_changed = True
 
@@ -645,6 +667,7 @@ class TextInjector:
             if self._get_windows_clipboard() != text:
                 time.sleep(0.03)
                 if not self._set_windows_clipboard(text):
+                    clipboard_changed = clipboard_changed or self._clipboard_touched
                     return False
                 if self._get_windows_clipboard() != text:
                     # Report failure instead of typing here: the caller owns
@@ -663,7 +686,9 @@ class TextInjector:
 
             return ok
         finally:
-            # Restore on success AND on every failure/exception path. (When
+            # Restore on success AND on every failure/exception path,
+            # including the partial-failure path where EmptyClipboard()
+            # succeeded but a later step did not (see note above). (When
             # the clipboard could not be read up front we must not blindly
             # overwrite it with an empty restore.)
             if clipboard_changed and previous is not None and previous != text:
@@ -769,6 +794,11 @@ class TextInjector:
         try:
             if not user32.EmptyClipboard():
                 return False
+            # From this point on the previous clipboard content is gone
+            # regardless of whether the rest of this function succeeds -
+            # the caller's restoration logic must run even on a failure
+            # return from here on.
+            self._clipboard_touched = True
 
             h_mem = kernel32.GlobalAlloc(GMEM_MOVEABLE, size)
             if not h_mem:

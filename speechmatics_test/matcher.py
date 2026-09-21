@@ -104,6 +104,21 @@ _BOUNDARY_CHARACTERS = (
 _BOUNDARY_CHARS = frozenset(_BOUNDARY_CHARACTERS)
 _LOW_CONFIDENCE_THRESHOLD = 0.75
 
+#: Case-folded rule forms that collide with common, unrelated English words
+#: (a plain sentence saying "now"/"or" must not be rewritten). These short
+#: clinical shorthand aliases only fire on stronger evidence than ordinary
+#: case-insensitive matching: the ORIGINAL (unfolded) matched text must be
+#: fully uppercase (the conventional way these are actually charted, e.g.
+#: "AC"/"PC"/"HS"/"OD"/"DIFF"/"NOW"/"OR"/"P"), never a lowercase or
+#: mixed-case ordinary-English occurrence. Safe, unambiguous abbreviations
+#: (MRI, CT, ECG, CXR, HbA1c, SpO2, ...) are NOT in this set and keep the
+#: normal case-insensitive behavior - they do not collide with common words.
+#: Persian-script forms and fully-spelled English aliases for the SAME
+#: underlying terms (e.g. "قبل از غذا", "ante cibum", "before food") are a
+#: different ``match_form`` entirely and are therefore unaffected by this
+#: restriction; they were already unambiguous "stronger evidence" per se.
+_AMBIGUOUS_SHORT_FORMS = frozenset({"or", "p", "now", "diff", "ac", "pc", "hs", "od"})
+
 
 def _language_group(language: Any) -> str:
     """Reduce optional ASR language tags to the three useful match signals."""
@@ -432,6 +447,7 @@ class MedicalMatcher:
     _ac_python: Optional[AhoAutomaton] = field(default=None, init=False, repr=False)
     _by_first: dict = field(default_factory=dict, init=False, repr=False)
     _form_prefixes: set = field(default_factory=set, init=False, repr=False)
+    _strict_form_prefixes: set = field(default_factory=set, init=False, repr=False)
 
     # ---------------------------------------------------------------- load
 
@@ -453,67 +469,110 @@ class MedicalMatcher:
         are keyed by the case-folded form, and a form claimed by several
         terms with different canonicals resolves deterministically to the
         best ``(tier, stable term order)`` - every resolution is reported.
+
+        A form that equals its OWN term's canonical is still registered as
+        a (self -> self) rule here, even though both scan engines treat a
+        match that already equals its rule's canonical as a no-op and emit
+        no hit for it. Registering it anyway lets it WIN the tier conflict
+        against a different, weaker-tier term that happens to list this
+        exact string as one of ITS aliases - otherwise a term's own
+        canonical spelling could be silently reassigned to another term's
+        canonical (e.g. the abbreviation "CT" being rewritten to
+        "computed tomography" because a lower-tier validated_term entry
+        also lists "CT" as an alias).
         """
         # (tier, term_index) identifies the best claim per folded form.
         best: dict[str, tuple[tuple[int, int], MedicalRule]] = {}
         lost_canonicals: dict[str, set[str]] = {}
 
+        def _consider(form: str, tier: int, source: str, priority: tuple[int, int]) -> None:
+            folded = casefold_preserving(form)
+            rule = MedicalRule(
+                form=form, canonical=term.canonical,
+                tier=tier, source=source, folded=folded,
+            )
+            current = best.get(folded)
+            if current is None:
+                best[folded] = (priority, rule)
+                return
+            if current[1].canonical == rule.canonical:
+                # Same target: clean dedupe, no warning. But if the slot is
+                # currently held by the term's own self-mapping placeholder
+                # (form == canonical, registered only to arbitrate tier
+                # conflicts against OTHER terms), a real alias form for the
+                # same canonical must replace it - otherwise the alias is
+                # silently dropped and the placeholder (which never matches
+                # anything, by design) is compiled in its place.
+                if current[1].form == current[1].canonical and form != term.canonical:
+                    best[folded] = (priority, rule)
+                return  # same target: clean dedupe, no warning
+            lost = lost_canonicals.setdefault(folded, set())
+            if current[0] <= priority:
+                if rule.canonical not in lost:
+                    lost.add(rule.canonical)
+                    self.warnings.append(
+                        f"conflicting canonicals for form {form!r}: "
+                        f"keeping {current[1].canonical!r} "
+                        f"({TIER_ORDER[current[1].tier]}, "
+                        f"{current[1].source}) over {rule.canonical!r} "
+                        f"({TIER_ORDER[tier]}, {source})"
+                    )
+            else:
+                if current[1].canonical not in lost:
+                    lost.add(current[1].canonical)
+                    self.warnings.append(
+                        f"conflicting canonicals for form {form!r}: "
+                        f"keeping {rule.canonical!r} ({TIER_ORDER[tier]}, "
+                        f"{source}) over "
+                        f"{current[1].canonical!r} "
+                        f"({TIER_ORDER[current[1].tier]}, "
+                        f"{current[1].source})"
+                    )
+                best[folded] = (priority, rule)
+
         for term_index, term in enumerate(terms):
             priority = (TIER_RANK[term.tier], term_index)
             seen_forms: set[str] = set()
+
+            # The term's own canonical spelling always participates in
+            # arbitration first (bypassing the punctuation-form skip below,
+            # which exists for genuine ALIAS hygiene, not for a term's own
+            # canonical): this is what lets a term win the tier conflict
+            # against a different, weaker-tier term that happens to list
+            # this exact string as one of ITS aliases (see the docstring
+            # above). A canonical containing punctuation (e.g. "U/A") is
+            # never itself emitted as a matchable rule form change, but it
+            # still must claim the slot so a lower-tier alias cannot.
+            canonical_form = normalize_text(term.canonical)
+            if canonical_form:
+                seen_forms.add(canonical_form)
+                _consider(canonical_form, priority[0], term.source, priority)
+
             for raw_form in term.forms:
                 form = normalize_text(raw_form)
                 if not form or form in seen_forms:
                     continue
                 seen_forms.add(form)
-                if form == term.canonical:
-                    continue  # already-canonical form: no-op rule
                 if any(ch in _BOUNDARY_CHARS and ch != " " for ch in form):
                     self.warnings.append(
                         f"skipping rule form with punctuation: {form!r} "
                         f"(-> {term.canonical!r}, {term.source})"
                     )
                     continue
-                folded = casefold_preserving(form)
-                rule = MedicalRule(
-                    form=form, canonical=term.canonical,
-                    tier=priority[0], source=term.source,
-                    folded=folded,
-                )
-                current = best.get(folded)
-                if current is None:
-                    best[folded] = (priority, rule)
-                    continue
-                if current[1].canonical == rule.canonical:
-                    continue  # same target: clean dedupe, no warning
-                lost = lost_canonicals.setdefault(folded, set())
-                if current[0] <= priority:
-                    if rule.canonical not in lost:
-                        lost.add(rule.canonical)
-                        self.warnings.append(
-                            f"conflicting canonicals for form {form!r}: "
-                            f"keeping {current[1].canonical!r} "
-                            f"({TIER_ORDER[current[1].tier]}, "
-                            f"{current[1].source}) over {rule.canonical!r} "
-                            f"({term.tier}, {term.source})"
-                        )
-                else:
-                    if current[1].canonical not in lost:
-                        lost.add(current[1].canonical)
-                        self.warnings.append(
-                            f"conflicting canonicals for form {form!r}: "
-                            f"keeping {rule.canonical!r} ({term.tier}, "
-                            f"{term.source}) over "
-                            f"{current[1].canonical!r} "
-                            f"({TIER_ORDER[current[1].tier]}, "
-                            f"{current[1].source})"
-                        )
-                    best[folded] = (priority, rule)
+                _consider(form, priority[0], term.source, priority)
 
         # Stable rule order: tier, then term order - matching the legacy
-        # loader's deterministic seq assignment.
-        ordered = [best[folded][1] for folded in
-                   sorted(best, key=lambda f: best[f][0])]
+        # loader's deterministic seq assignment. Self-mapping rules (a
+        # term's own canonical, registered above only to arbitrate cross-
+        # term conflicts) are dropped here if they still win their own
+        # slot: they would never produce a hit anyway (the scan engines
+        # treat a match equal to its rule's canonical as a no-op), so
+        # keeping them out of the compiled rule set avoids doubling
+        # ``len(rules)`` for every ordinary term with no such conflict.
+        ordered = [
+            best[folded][1] for folded in sorted(best, key=lambda f: best[f][0])
+            if best[folded][1].form != best[folded][1].canonical
+        ]
         rules = [
             MedicalRule(form=r.form, canonical=r.canonical, tier=r.tier,
                         source=r.source, seq=seq, folded=r.folded)
@@ -530,12 +589,25 @@ class MedicalMatcher:
         # Token-prefix set of every rule form: lets the incremental
         # final-segment canonicalizer check "could this suffix still grow
         # into a longer rule" in O(tokens) instead of scanning all rules.
+        # ``_form_prefixes`` includes each rule's own full token sequence
+        # (kept for ``is_rule_token_prefix``'s documented "prefix OR full
+        # form" contract). ``_strict_form_prefixes`` only contains PROPER
+        # prefixes (strictly fewer tokens than some rule) - a tuple that is
+        # merely a complete, non-extendable rule by itself (e.g. the
+        # standalone one-token rule "iv", which is not a leading fragment
+        # of any longer rule) is deliberately excluded, so the cross-segment
+        # buffer in ``_safe_cut`` does not delay emitting it while waiting
+        # for a continuation that no rule defines.
         prefixes: set[tuple[str, ...]] = set()
+        strict_prefixes: set[tuple[str, ...]] = set()
         for rule in rules:
             form_tokens = rule.match_form.split()
             for take in range(1, len(form_tokens) + 1):
                 prefixes.add(tuple(form_tokens[:take]))
+            for take in range(1, len(form_tokens)):
+                strict_prefixes.add(tuple(form_tokens[:take]))
         self._form_prefixes = prefixes
+        self._strict_form_prefixes = strict_prefixes
         return rules
 
     # -------------------------------------------------------------- automaton
@@ -566,6 +638,20 @@ class MedicalMatcher:
             yield from self._ac_python.iter(text)
 
     # ----------------------------------------------------------- boundaries
+
+    @staticmethod
+    def _passes_ambiguous_short_form_guard(rule: "MedicalRule", matched: str) -> bool:
+        """Ambiguous short forms (see ``_AMBIGUOUS_SHORT_FORMS``) require the
+        ORIGINAL matched text to be fully uppercase before they fire; a
+        lowercase or mixed-case occurrence is left untouched because it is
+        far more likely to be the ordinary English word ("now", "or", ...)
+        than clinical shorthand. Every other rule is unaffected (returns
+        True unconditionally) - this is a targeted safety narrowing, not a
+        general case-sensitivity change.
+        """
+        if rule.match_form not in _AMBIGUOUS_SHORT_FORMS:
+            return True
+        return matched.isupper()
 
     @staticmethod
     def _is_start_boundary(text: str, i: int) -> bool:
@@ -715,6 +801,11 @@ class MedicalMatcher:
             # canonical casing, but an already canonical token is not a hit.
             if text[start:end_excl] == rule.canonical:
                 continue
+            # Ambiguous short forms (OR/P/NOW/DIFF/AC/PC/HS/OD) collide with
+            # common English words and require stronger evidence: the
+            # ORIGINAL matched text must be fully uppercase.
+            if not self._passes_ambiguous_short_form_guard(rule, text[start:end_excl]):
+                continue
             current = best_at.get(start)
             if current is None or end_excl > current[0]:
                 best_at[start] = (end_excl, idx)
@@ -765,7 +856,8 @@ class MedicalMatcher:
                     end = i + len(rule.match_form)
                     if haystack.startswith(rule.match_form, i) and self._is_end_boundary(
                         text, end
-                    ) and text[i:end] != rule.canonical:
+                    ) and text[i:end] != rule.canonical \
+                            and self._passes_ambiguous_short_form_guard(rule, text[i:end]):
                         evidence = self._span_evidence(rule, i, end, word_spans)
                         if best is None or self._candidate_key(rule, evidence) < \
                                 self._candidate_key(*best):
@@ -799,17 +891,36 @@ class MedicalMatcher:
     def is_rule_token_prefix(self, tokens: list[str]) -> bool:
         """True when ``tokens`` start some rule form (prefix or full form).
 
-        Used by the incremental final-segment canonicalizer: a buffered text
-        suffix that matches the leading tokens of a rule form could still
-        grow into a longer (longest-match) rule once future ASR text
-        arrives, so emission must stop before it. Comparison mirrors the
-        matcher exactly: normalized tokens, case-folded per
-        ``casefold_preserving``.
+        Comparison mirrors the matcher exactly: normalized tokens,
+        case-folded per ``casefold_preserving``. Kept for API stability and
+        direct rule-form membership checks; the cross-segment buffer itself
+        uses ``is_strict_rule_token_prefix`` (see there for why the
+        distinction matters).
         """
         if not tokens:
             return False
         return tuple(casefold_preserving(token) for token in tokens) \
             in self._form_prefixes
+
+    def is_strict_rule_token_prefix(self, tokens: list[str]) -> bool:
+        """True when ``tokens`` are a PROPER prefix of some longer rule form.
+
+        Unlike ``is_rule_token_prefix``, a tuple that only matches a rule's
+        own complete, full-length form (and is not also a leading fragment
+        of some OTHER, longer rule) returns False here. This is the correct
+        check for cross-segment buffering: holding text back is only
+        justified when a future ASR token could still extend it into a
+        longer (longest-match-wins) rule. A standalone complete phrase such
+        as the one-token rule "iv" is not a strict prefix of anything (no
+        rule starts with "iv " followed by more tokens), so it must be
+        emitted immediately instead of waiting for a continuation that no
+        rule defines - the bug this method fixes delayed exactly such
+        complete, non-extendable phrases by one segment for no reason.
+        """
+        if not tokens:
+            return False
+        return tuple(casefold_preserving(token) for token in tokens) \
+            in self._strict_form_prefixes
 
     def canonicalize(
         self, text: str, word_results: Optional[list[dict[str, Any]]] = None
