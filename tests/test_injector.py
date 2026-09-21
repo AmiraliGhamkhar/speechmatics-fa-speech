@@ -338,6 +338,36 @@ def test_paste_windows_does_not_restore_when_setting_fails(monkeypatch):
     assert state["sets"] == ["سلام"]
 
 
+def test_paste_windows_restores_clipboard_after_partial_set_failure(monkeypatch):
+    """Regression: ``EmptyClipboard()`` can succeed and then a LATER step
+    inside ``_set_windows_clipboard`` (GlobalAlloc/GlobalLock/
+    SetClipboardData) can fail. That function then returns False, but the
+    previous clipboard content is ALREADY destroyed - restoration must
+    still happen instead of being skipped because the setter "failed".
+    """
+    inj = TextInjector(restore_clipboard=True, paste_settle_seconds=0)
+    state = {"sets": [], "current": "user data"}
+
+    def fake_partial_failure_set(text):
+        # Simulate the real _set_windows_clipboard: EmptyClipboard()
+        # succeeds (destroying the previous content, hence marking
+        # _clipboard_touched) but a later step fails, so it returns False
+        # without ever making `text` the new clipboard content.
+        state["sets"].append(text)
+        inj._clipboard_touched = True
+        state["current"] = None  # EmptyClipboard() succeeded: now empty
+        return False
+
+    monkeypatch.setattr(inj, "_get_windows_clipboard", lambda: state["current"])
+    monkeypatch.setattr(inj, "_focus_guard_ok", lambda: True)
+    monkeypatch.setattr(inj, "_set_windows_clipboard", fake_partial_failure_set)
+
+    assert inj._paste_windows("سلام") is False
+    # restoration must still have been attempted despite the setter
+    # returning False on its first (and only) call
+    assert state["sets"] == ["سلام", "user data"]
+
+
 def test_paste_fallback_restores_clipboard_when_hotkey_fails(monkeypatch):
     import sys
     calls = {"copies": [], "hotkeys": 0}

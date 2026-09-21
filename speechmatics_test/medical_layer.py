@@ -55,6 +55,15 @@ class MedicalLayer:
         """Whether ``tokens`` start some rule form (see MedicalMatcher)."""
         return self.fst.is_rule_token_prefix(tokens)
 
+    def is_strict_rule_token_prefix(self, tokens: list[str]) -> bool:
+        """Whether ``tokens`` are a PROPER prefix of a longer rule form.
+
+        See ``MedicalMatcher.is_strict_rule_token_prefix``: unlike
+        ``is_rule_token_prefix``, a tuple that only equals a complete,
+        non-extendable rule's own full form returns False here.
+        """
+        return self.fst.is_strict_rule_token_prefix(tokens)
+
     def canonicalize(
         self,
         normalized_text: str,

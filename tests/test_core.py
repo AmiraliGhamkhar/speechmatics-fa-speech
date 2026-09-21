@@ -76,6 +76,58 @@ def test_number_accuracy_multiset():
     assert x["number_accuracy"] == 0.5
 
 
+def test_number_accuracy_never_penalizes_fabricated_extra_numbers():
+    """number_accuracy (recall-only) keeps its exact legacy definition and
+    value for API stability: an extra, fabricated hypothesis number scores
+    a perfect 1.0 here because every reference number is still present.
+    """
+    x = evaluate("20 mg", "20 mg 50 mg")
+    assert x["number_accuracy"] == 1.0
+
+
+def test_number_precision_recall_f1_flag_extra_hypothesis_numbers():
+    """The additive number_precision/number_recall/number_f1 fields DO
+    catch the imperfection that number_accuracy alone cannot: reference
+    "20 mg" vs hypothesis "20 mg 50 mg" must not be reported as perfect.
+    """
+    from speechmatics_test.evaluation import (
+        number_f1,
+        number_precision,
+        number_recall,
+    )
+
+    x = evaluate("20 mg", "20 mg 50 mg")
+    assert x["number_precision"] == 0.5
+    assert x["number_recall"] == 1.0
+    assert round(x["number_f1"], 4) == round(2 * 0.5 * 1.0 / (0.5 + 1.0), 4)
+    assert x["number_f1"] < 1.0
+
+    # direct function access matches the report fields
+    assert number_precision("20 mg", "20 mg 50 mg") == 0.5
+    assert number_recall("20 mg", "20 mg 50 mg") == 1.0
+    assert round(number_f1("20 mg", "20 mg 50 mg"), 4) == x["number_f1"]
+
+    # perfect match still scores perfectly on every metric
+    perfect = evaluate("20 mg", "20 mg")
+    assert perfect["number_precision"] == 1.0
+    assert perfect["number_recall"] == 1.0
+    assert perfect["number_f1"] == 1.0
+
+    # no numbers anywhere: every numeric metric is None (nothing to score)
+    none_case = evaluate("no numbers here", "still none")
+    assert none_case["number_accuracy"] is None
+    assert none_case["number_precision"] is None
+    assert none_case["number_recall"] is None
+    assert none_case["number_f1"] is None
+
+    # hypothesis invents numbers where the reference has none: precision
+    # correctly reports a total miss instead of "nothing to compare".
+    invented = evaluate("no numbers here", "20 mg appeared")
+    assert invented["number_accuracy"] is None  # reference has no numbers
+    assert invented["number_precision"] == 0.0
+    assert invented["number_f1"] == 0.0
+
+
 def test_evaluate_stages():
     result = evaluate_stages("expected text", {
         "raw": "raw text",

@@ -193,6 +193,58 @@ def test_english_lowercase_variants(fst):
     assert canon(fst, "ct") == "CT"
 
 
+# ------------------------------------------------ ambiguous short-form safety
+
+def test_ambiguous_short_forms_require_uppercase_evidence(fst):
+    """OR/P/NOW/DIFF/AC/PC/HS/OD collide with common English words - only a
+    fully uppercase occurrence (the conventional charting style) is treated
+    as clinical shorthand; lowercase/mixed case is left as ordinary English.
+    """
+    # ordinary sentences must NOT be rewritten
+    assert canon(fst, "The patient is stable now") == "The patient is stable now"
+    assert canon(fst, "he works in or elsewhere") == "he works in or elsewhere"
+    assert canon(fst, "this or that") == "this or that"
+    assert canon(fst, "the patient has a diff opinion") == \
+        "the patient has a diff opinion"
+    assert canon(fst, "od the medicine") == "od the medicine"
+    assert canon(fst, "pc medication") == "pc medication"
+    assert canon(fst, "hs code review") == "hs code review"
+    assert canon(fst, "ac before food") != "before meals before meals"
+
+    # fully uppercase clinical shorthand still fires
+    assert canon(fst, "The patient is stable NOW") == \
+        "The patient is stable immediately"
+    assert canon(fst, "DIFF blood test") == \
+        "white blood cell differential blood test"
+    assert canon(fst, "OD the medicine") == "once a day the medicine"
+    assert canon(fst, "PC medication") == "after meals medication"
+    assert canon(fst, "HS code review") == "at bedtime code review"
+
+
+def test_ambiguous_short_forms_persian_and_spelled_aliases_unaffected(fst):
+    """Unambiguous aliases for the SAME concepts (Persian script, or fully
+    spelled English) are a different match form entirely and are not
+    subject to the uppercase-only restriction.
+    """
+    assert canon(fst, "بیمار او آر رفت") == "بیمار OR رفت"
+    assert canon(fst, "before food snack") == "before meals snack"
+    assert canon(fst, "give medication before meals") == \
+        "give medication before meals"
+
+
+def test_safe_case_insensitive_abbreviations_remain_case_insensitive(fst):
+    """Unambiguous abbreviations (no common-word collision) keep ordinary
+    case-insensitive matching - only the specific ambiguous short forms are
+    restricted.
+    """
+    assert canon(fst, "mri head") == "MRI head"
+    assert canon(fst, "MRI head") == "MRI head"
+    assert canon(fst, "ct scan") == "CT scan"
+    assert canon(fst, "CT scan") == "CT scan"
+    assert canon(fst, "ecg") == "ECG"
+    assert canon(fst, "ECG") == "ECG"
+
+
 # ------------------------------------------------------------ numbers / units
 
 def test_numbers_and_units(fst):
@@ -573,6 +625,27 @@ def test_is_rule_token_prefix_detects_full_and_partial_forms(fst):
     assert fst.is_rule_token_prefix([]) is False
     # matching ignores case (English forms)
     assert fst.is_rule_token_prefix(["ct"]) is True
+
+
+def test_is_strict_rule_token_prefix_excludes_standalone_complete_rules(fst):
+    # "iv" is a complete one-token rule with no longer sibling rule
+    # starting "iv ...": is_rule_token_prefix is trivially True (it matches
+    # its own full form) but is_strict_rule_token_prefix must be False,
+    # since nothing could ever extend it into a longer match.
+    assert fst.is_rule_token_prefix(["iv"]) is True
+    assert fst.is_strict_rule_token_prefix(["iv"]) is False
+
+    # a genuine leading fragment of a longer rule remains strict-prefix
+    # True in both senses (e.g. "فشار خون" can still extend to
+    # "فشار خون بالا").
+    assert fst.is_rule_token_prefix(["فشار", "خون"]) is True
+    assert fst.is_strict_rule_token_prefix(["فشار", "خون"]) is True
+
+    # the full, longest form itself has nothing longer to extend into.
+    assert fst.is_rule_token_prefix(["فشار", "خون", "بالا"]) is True
+    assert fst.is_strict_rule_token_prefix(["فشار", "خون", "بالا"]) is False
+
+    assert fst.is_strict_rule_token_prefix([]) is False
 
 
 # ----------------------------------------------- privacy of engine warning

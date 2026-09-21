@@ -187,15 +187,36 @@ class FinalStreamCanonicalizer:
         rule form's leading tokens match a suffix of the buffered text
         (that phrase could still complete across the boundary), so the
         emission stops right before the earliest such suffix.
+
+        The whole-buffer case (``i == 0``) is special-cased with the STRICT
+        prefix check (``is_strict_rule_token_prefix``): when the ENTIRE
+        buffer already equals a complete, non-extendable rule by itself
+        (e.g. the standalone abbreviation "iv" with no longer sibling rule
+        "iv ..."), it has nothing left to grow into and must not be held
+        back forever waiting for a continuation no rule defines - that
+        buffer must be emitted rather than returning 0. For ``i > 0`` the
+        plain (non-strict) check is kept: a mid-buffer suffix that merely
+        equals some OTHER complete rule (e.g. the second token of a
+        two-token compound like "رایت لانگ") can still be genuinely
+        ambiguous with a sibling rule sharing that same tail token (e.g.
+        "لانگ ساوندز"), so the whole compound must stay held together until
+        the ambiguity resolves; only the never-completes-into-anything
+        whole-buffer edge case is safe to special-case here.
         """
         tokens = self._buffer.split()
         if self._medical is None or not tokens:
             return len(self._buffer)
         for i in range(len(tokens)):
-            if self._medical.is_rule_token_prefix(tokens[i:]):
-                if i == 0:
-                    return 0
-                return sum(len(t) + 1 for t in tokens[:i]) - 1
+            suffix = tokens[i:]
+            if not self._medical.is_rule_token_prefix(suffix):
+                continue
+            if i == 0 and not self._medical.is_strict_rule_token_prefix(suffix):
+                # Entire remaining buffer is only a complete, non-extendable
+                # rule on its own - not a genuine risk, keep scanning.
+                continue
+            if i == 0:
+                return 0
+            return sum(len(t) + 1 for t in tokens[:i]) - 1
         return len(self._buffer)
 
     def _emit(self, cut: int) -> str | None:
@@ -328,12 +349,21 @@ async def main() -> int:
         if (args.save_report or args.test_id) else None
     )
 
-    medical = MedicalLayer(ROOT)
+    # --no-medical-layer must be fully independent of --no-vocab: it disables
+    # the local Aho-Corasick canonicalization layer, so the dictionary is not
+    # even loaded (no matcher build, no warnings, no additional_vocab). Do
+    # NOT construct MedicalLayer(ROOT) unconditionally here - that would load
+    # and compile the whole dictionary even when the flag says not to.
+    medical = None if args.no_medical_layer else MedicalLayer(ROOT)
     # Bounded Speechmatics vocabulary, derived once from the dictionary's
     # speechmatics-eligible entries (medical_knowledge/medical_dictionary.json
     # is the single source of truth; the generated
     # speechmatics_additional_vocab.json artifact mirrors it for inspection).
-    vocab = [] if args.no_vocab else medical.additional_vocab
+    # --no-vocab and --no-medical-layer are independently effective: vocab is
+    # also empty when the medical layer itself is off (nothing to derive it
+    # from), but --no-vocab alone leaves the local matcher/canonicalization
+    # fully active.
+    vocab = [] if (args.no_vocab or medical is None) else medical.additional_vocab
     benchmark = load_benchmark(args.test_id)
     overlay = create_overlay(args.no_overlay)
     injector = create_injector(args.inject)
@@ -357,7 +387,7 @@ async def main() -> int:
     print(f"Model           : {args.model}")
     print(f"Max delay       : {args.max_delay:.1f}s ({args.max_delay_mode})")
     print(f"Medical vocab   : {'ON' if vocab else 'OFF'}")
-    print(f"Matcher engine  : {medical.engine if not args.no_medical_layer else 'OFF'}")
+    print(f"Matcher engine  : {medical.engine if medical is not None else 'OFF'}")
     print(f"Device index    : {args.device_index if args.device_index is not None else 'default'}")
     print("Audio storage   : NONE (in-memory streaming only)")
     print(f"Report          : {json_path.name if json_path else 'not saved (use --save-report)'}")
@@ -395,9 +425,7 @@ async def main() -> int:
     # docstring). Injection runs on a FIFO worker thread because paste_text
     # blocks (clipboard retries + settle delay) and must never stall the
     # synchronous SDK receive callback.
-    accumulator = FinalStreamCanonicalizer(
-        None if args.no_medical_layer else medical
-    )
+    accumulator = FinalStreamCanonicalizer(medical)
     worker = (
         InjectionWorker(injector, on_result=on_injection_result)
         if injector else None
@@ -585,8 +613,8 @@ async def main() -> int:
             "language": args.language,
             "test_id": args.test_id,
             "medical_vocab_enabled": bool(vocab),
-            "medical_layer_enabled": not args.no_medical_layer,
-            "matcher_engine": medical.engine if not args.no_medical_layer else None,
+            "medical_layer_enabled": medical is not None,
+            "matcher_engine": medical.engine if medical is not None else None,
             # Keep the established top-level settings and add one compact,
             # self-contained Speechmatics block for benchmark comparisons.
             "model": args.model,
@@ -617,7 +645,7 @@ async def main() -> int:
             "final_transcript_normalized": normalized,
             "final_transcript_canonical": canonical,
             "medical_hits": medical_hits,
-            "medical_warnings": medical.warnings,
+            "medical_warnings": medical.warnings if medical is not None else [],
             "cleanliness": {
                 "raw": raw_clean,
                 "normalized": normalized_clean,

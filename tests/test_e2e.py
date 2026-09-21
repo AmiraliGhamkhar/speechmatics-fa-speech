@@ -195,6 +195,67 @@ def test_no_vocab_and_medical_flags_remain_independent(tmp_path, monkeypatch):
             p.unlink(missing_ok=True)
 
 
+def test_no_medical_layer_never_constructs_the_dictionary_matcher(
+    tmp_path, monkeypatch
+):
+    """--no-medical-layer must skip MedicalLayer(ROOT) entirely (Bug: it used
+    to be built unconditionally before checking the flag, loading and
+    compiling the whole dictionary even when told not to)."""
+    import speechmatics_test.medical_layer as medical_layer_module
+
+    calls = []
+    real_init = medical_layer_module.MedicalLayer.__init__
+
+    def spying_init(self, root):
+        calls.append(root)
+        return real_init(self, root)
+
+    monkeypatch.setattr(medical_layer_module.MedicalLayer, "__init__", spying_init)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--no-inject",
+        "--no-medical-layer",
+    ])
+    install_fake_sdk(monkeypatch, {"script": [("final", "سی تی اسکن")]})
+
+    assert asyncio.run(app_module.main()) == 0
+    assert calls == []  # MedicalLayer(ROOT) was never constructed
+
+
+def test_no_vocab_alone_keeps_the_medical_layer_active(tmp_path, monkeypatch):
+    """--no-vocab must only drop the ASR biasing vocab; the local matcher
+    stays fully active and still canonicalizes."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--no-inject",
+        "--no-vocab", "--save-report",
+    ])
+    registry = install_fake_sdk(monkeypatch, {
+        "script": [("final", "سی تی اسکن")],
+    })
+
+    assert asyncio.run(app_module.main()) == 0
+    reports = sorted((app_module.ROOT / "results").glob("session_*.json"))
+    assert reports
+    try:
+        report = json.loads(reports[-1].read_text(encoding="utf-8"))
+        assert "additional_vocab" not in registry["configs"][0]
+        assert report["medical_vocab_enabled"] is False
+        assert report["medical_layer_enabled"] is True
+        assert report["matcher_engine"]
+        # The local matcher rewrote the Persian phrase to its canonical form.
+        assert report["final_transcript_canonical"] == "CT scan"
+    finally:
+        for p in reports:
+            p.unlink(missing_ok=True)
+
+
 def test_auto_injection_fires_per_final_segment(tmp_path, monkeypatch):
     """No hotkeys/countdown: every finalized segment is pasted immediately."""
     pasted = []

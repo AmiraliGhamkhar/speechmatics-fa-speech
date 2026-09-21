@@ -203,6 +203,40 @@ def test_accumulator_flush_emits_the_remaining_tail():
     assert acc.canonical_text == "BP"
 
 
+def test_accumulator_emits_standalone_complete_rule_without_delay():
+    """A complete, non-extendable one-token rule (no longer sibling rule
+    starts with the same token) must be injected immediately instead of
+    being buffered forever waiting for a continuation no rule defines.
+    """
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    # "iv" is a complete rule on its own; no rule form begins "iv ...", so
+    # nothing could ever extend it into a longer match.
+    assert acc.add(normalize_text("iv"), []) == "IV"
+    assert acc.canonical_text == "IV"
+    # A trailing flush (end of session) has nothing left buffered.
+    assert acc.flush() is None
+
+
+def test_accumulator_still_holds_genuinely_ambiguous_compound_tail():
+    """Guard against over-correcting the standalone-rule fix: a compound
+    whose last token is itself the leading token of an unrelated, longer
+    sibling rule (here "لانگ" also starts "لانگ ساوندز" = lung sounds) must
+    still be held across the segment boundary, because it is genuinely at
+    risk of extending into that other rule.
+    """
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    first = acc.add(normalize_text("بیمار در سی تی اسکن"), [])
+    second = acc.add(normalize_text("لیژن در رایت لانگ"), [])
+    tail = acc.flush()
+    assert acc.canonical_text == "بیمار در CT scan lesion در right lung"
+    joined = " ".join(e.strip() for e in (first, second, tail) if e).strip()
+    assert joined == acc.canonical_text
+
+
 def test_accumulator_emitted_pieces_never_duplicate_text():
     acc = make_accumulator()
     from speechmatics_test.text import normalize_text
