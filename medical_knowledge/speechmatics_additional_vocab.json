@@ -1,490 +1,919 @@
 [
   {
-    "content": "CCU",
-    "sounds_like": [
-      "C C U",
-      "سی سی یو"
-    ]
-  },
-  {
-    "content": "ICU",
-    "sounds_like": [
-      "I C U",
-      "آی سی یو"
-    ]
-  },
-  {
-    "content": "CT scan",
-    "sounds_like": [
-      "C T scan",
-      "سی تی اسکن"
-    ]
-  },
-  {
-    "content": "CT",
-    "sounds_like": [
-      "C T",
-      "سی تی"
-    ]
-  },
-  {
     "content": "BP",
     "sounds_like": [
-      "B P",
-      "بی پی"
+      "بیپی",
+      "بی‌پی",
+      "فشارخون"
     ]
   },
   {
-    "content": "HTN",
+    "content": "HR",
     "sounds_like": [
-      "H T N",
-      "اچ تی ان"
+      "اچآر",
+      "ایچآر",
+      "هارتریت",
+      "ضربانقلب"
     ]
   },
   {
-    "content": "DM",
+    "content": "RR",
     "sounds_like": [
-      "D M",
-      "دی ام"
+      "آرآر",
+      "آر‌آر",
+      "ریسپیریتوریریت",
+      "تعدادتنفس"
     ]
   },
   {
-    "content": "IV",
+    "content": "SpO2",
     "sounds_like": [
-      "I V",
-      "آی وی"
+      "اسپیاودو",
+      "ساتوریشن",
+      "اکسیژنساتوریشن",
+      "اشباعاکسیژن"
     ]
   },
   {
-    "content": "IM",
+    "content": "Temp",
     "sounds_like": [
-      "I M",
-      "آی ام"
+      "تمپ",
+      "دما",
+      "دمایبدن",
+      "حرارتبدن"
     ]
   },
   {
-    "content": "SC",
+    "content": "GCS",
     "sounds_like": [
-      "S C",
-      "اس سی"
-    ]
-  },
-  {
-    "content": "NPO",
-    "sounds_like": [
-      "N P O",
-      "ان پی او"
-    ]
-  },
-  {
-    "content": "CPR",
-    "sounds_like": [
-      "C P R",
-      "سی پی آر"
-    ]
-  },
-  {
-    "content": "FBS",
-    "sounds_like": [
-      "F B S",
-      "اف بی اس"
-    ]
-  },
-  {
-    "content": "CBC",
-    "sounds_like": [
-      "C B C",
-      "سی بی سی"
-    ]
-  },
-  {
-    "content": "U/A",
-    "sounds_like": [
-      "U A",
-      "یو ای"
-    ]
-  },
-  {
-    "content": "CXR",
-    "sounds_like": [
-      "C X R",
-      "سی ایکس آر"
+      "جیسیاس",
+      "جی‌سی‌اس",
+      "گلاسکو",
+      "اسکیلگلاسکو"
     ]
   },
   {
     "content": "ECG",
     "sounds_like": [
-      "E C G",
-      "ای سی جی"
+      "ایسیجی",
+      "ای‌سی‌جی",
+      "الکتروکاردیوگرام",
+      "ECG"
     ]
   },
   {
-    "content": "ABG",
+    "content": "EKG",
     "sounds_like": [
-      "A B G",
-      "ای بی جی"
+      "ایکیجی",
+      "ای‌کی‌جی",
+      "نوارقلب",
+      "EKG"
     ]
   },
   {
-    "content": "PRN",
+    "content": "CXR",
     "sounds_like": [
-      "P R N",
-      "پی آر ان"
+      "سیایکسآر",
+      "سی‌اکس‌آر",
+      "عکسقفسهسینه",
+      "گرافیقفسهسینه"
     ]
   },
   {
-    "content": "q2h",
+    "content": "CT",
     "sounds_like": [
-      "q two h",
-      "کیو تو اچ"
-    ]
-  },
-  {
-    "content": "tds",
-    "sounds_like": [
-      "T D S",
-      "تی دی اس"
-    ]
-  },
-  {
-    "content": "right lung",
-    "sounds_like": [
-      "رایت لانگ"
-    ]
-  },
-  {
-    "content": "lesion",
-    "sounds_like": [
-      "لیژن"
-    ]
-  },
-  {
-    "content": "cyst",
-    "sounds_like": [
-      "کیست"
-    ]
-  },
-  {
-    "content": "cystic",
-    "sounds_like": [
-      "کیستیک"
-    ]
-  },
-  {
-    "content": "hemorrhagic",
-    "sounds_like": [
-      "هموراژیک"
-    ]
-  },
-  {
-    "content": "hypertension",
-    "sounds_like": [
-      "hyper tension",
-      "هایپرتنشن"
-    ]
-  },
-  {
-    "content": "diabetes",
-    "sounds_like": [
-      "دیابت"
+      "سیتی",
+      "سی‌تی",
+      "سیتیاسکن",
+      "سی‌تیاسکن"
     ]
   },
   {
     "content": "MRI",
     "sounds_like": [
-      "M R I",
-      "ام آر آی"
+      "امآرآی",
+      "ام‌آرآی",
+      "MRIاسکن",
+      "MRI"
     ]
   },
   {
-    "content": "ultrasound",
+    "content": "US",
     "sounds_like": [
-      "ultra sound",
+      "یواس",
+      "یو‌اس",
       "اولتراسوند",
       "الترسوند"
     ]
   },
   {
-    "content": "blood pressure",
+    "content": "ICU",
     "sounds_like": [
-      "فشار خون"
+      "آیسییو",
+      "آی‌سی‌یو",
+      "بخشمراقبتهایویژه",
+      "بخشمراقبت‌هایویژه"
+    ]
+  },
+  {
+    "content": "CCU",
+    "sounds_like": [
+      "سیسییو",
+      "سی‌سی‌یو",
+      "بخشمراقبتهایویژهقلب",
+      "مراقبتویژهقلب"
+    ]
+  },
+  {
+    "content": "NICU",
+    "sounds_like": [
+      "انآیسییو",
+      "ان‌آی‌سی‌یو",
+      "بخشمراقبتویژهنوزادان",
+      "مراقبتویژهنوزادان"
+    ]
+  },
+  {
+    "content": "PICU",
+    "sounds_like": [
+      "پیآیسییو",
+      "پی‌آی‌سی‌یو",
+      "بخشمراقبتویژهکودکان",
+      "مراقبتویژهکودکان"
+    ]
+  },
+  {
+    "content": "SICU",
+    "sounds_like": [
+      "اسآیسییو",
+      "اس‌آی‌سی‌یو",
+      "آیسییوجراحی",
+      "مراقبتویژهجراحی"
+    ]
+  },
+  {
+    "content": "MICU",
+    "sounds_like": [
+      "امآیسییو",
+      "ام‌آی‌سی‌یو",
+      "آیسییوداخلی",
+      "مراقبتویژهداخلی"
+    ]
+  },
+  {
+    "content": "HDU",
+    "sounds_like": [
+      "اچدییو",
+      "اچ‌دی‌یو",
+      "بخشمراقبتباوابستگیبالا",
+      "HDU"
+    ]
+  },
+  {
+    "content": "ED",
+    "sounds_like": [
+      "ایدی",
+      "دپارتماناورژانس",
+      "اورژنس",
+      "ED"
+    ]
+  },
+  {
+    "content": "ER",
+    "sounds_like": [
+      "ایآر",
+      "اورژانس",
+      "اتاقاورژانس",
+      "ER"
+    ]
+  },
+  {
+    "content": "OR",
+    "sounds_like": [
+      "اوآر",
+      "اتاقعمل",
+      "اتاقجراحی",
+      "OR"
+    ]
+  },
+  {
+    "content": "OPD",
+    "sounds_like": [
+      "اوپیدی",
+      "او‌پی‌دی",
+      "درمانگاهسرپایی",
+      "کلینیکسرپایی"
+    ]
+  },
+  {
+    "content": "PACU",
+    "sounds_like": [
+      "پکیو",
+      "پیایسییو",
+      "ریکاوری",
+      "اتاقریکاوری"
+    ]
+  },
+  {
+    "content": "CBC",
+    "sounds_like": [
+      "سیبیسی",
+      "سی‌بی‌سی",
+      "شمارشکاملخون",
+      "شمارشسلولهایخون"
+    ]
+  },
+  {
+    "content": "CMP",
+    "sounds_like": [
+      "سیامپی",
+      "سی‌ام‌پی",
+      "پنلمتابولیککامل",
+      "CMP"
+    ]
+  },
+  {
+    "content": "BMP",
+    "sounds_like": [
+      "بیامپی",
+      "بی‌ام‌پی",
+      "پنلمتابولیکپایه",
+      "BMP"
+    ]
+  },
+  {
+    "content": "LFT",
+    "sounds_like": [
+      "الافتی",
+      "ال‌اف‌تی",
+      "تستهایعملکردکبد",
+      "آزمایشهایکبدی"
+    ]
+  },
+  {
+    "content": "RFT",
+    "sounds_like": [
+      "آرافتی",
+      "آر‌اف‌تی",
+      "تستهایعملکردکلیه",
+      "آزمایشهایکلیه"
+    ]
+  },
+  {
+    "content": "ABG",
+    "sounds_like": [
+      "ایبیجی",
+      "ای‌بی‌جی",
+      "گازخونشریانی",
+      "ABG"
+    ]
+  },
+  {
+    "content": "VBG",
+    "sounds_like": [
+      "ویبیجی",
+      "وی‌بی‌جی",
+      "گازخونوریدی",
+      "VBG"
+    ]
+  },
+  {
+    "content": "U/A",
+    "sounds_like": [
+      "یوای",
+      "یو‌ای",
+      "آنالیزادرار",
+      "تجزیهادرار"
+    ]
+  },
+  {
+    "content": "FBS",
+    "sounds_like": [
+      "افبیاس",
+      "اف‌بی‌اس",
+      "قندخونناشتا",
+      "FBS"
     ]
   },
   {
     "content": "HbA1c",
     "sounds_like": [
-      "H B A one C",
-      "اچ بی ای وان سی"
+      "اچبیایوانسی",
+      "اچ‌بی‌ای‌وان‌سی",
+      "هموگلوبینایوانسی",
+      "آیکسی"
     ]
   },
   {
-    "content": "O2",
+    "content": "PT",
     "sounds_like": [
-      "O two",
-      "او دو"
+      "پیتی",
+      "پی‌تی",
+      "زمانپروترومبین",
+      "PT"
     ]
   },
   {
-    "content": "C3-C4",
+    "content": "INR",
     "sounds_like": [
-      "C three C four",
-      "C three to C four",
-      "سی سه سی چهار"
-    ]
-  },
-  "Cardiac Care Unit",
-  "Intensive Care Unit",
-  {
-    "content": "acetaminophen",
-    "sounds_like": [
-      "acetaminofen",
-      "استامینوفن"
+      "آیانآر",
+      "آی‌ان‌آر",
+      "نسبتنرمالشدهبینالمللی",
+      "INR"
     ]
   },
   {
-    "content": "metformin",
+    "content": "aPTT",
     "sounds_like": [
-      "met for min",
-      "متفورمین"
+      "ایپیتیتی",
+      "ای‌پی‌تی‌تی",
+      "زمانترومبوپلاستیننسبیفعال",
+      "aPTT"
     ]
   },
   {
-    "content": "insulin",
+    "content": "ESR",
     "sounds_like": [
-      "insuline",
-      "انسولین"
+      "ایاسآر",
+      "ای‌اس‌آر",
+      "سرعترسوبگلبولقرمز",
+      "رسوبخون"
     ]
   },
   {
-    "content": "amoxicillin",
+    "content": "CRP",
     "sounds_like": [
-      "amoxycillin",
-      "آموکسی سیلین"
+      "سیآرپی",
+      "سی‌آر‌پی",
+      "پروتئینواکنشگرسی",
+      "CRP"
     ]
   },
   {
-    "content": "ceftriaxone",
+    "content": "BUN",
     "sounds_like": [
-      "cef tri axone",
-      "سفتریاکسون"
+      "بییوان",
+      "بی‌یو‌ان",
+      "اورهخون",
+      "نیتروژناورهخون"
     ]
   },
   {
-    "content": "vancomycin",
+    "content": "Cr",
     "sounds_like": [
-      "van co mycin",
-      "وانکومایسین"
+      "سیآر",
+      "سی‌آر",
+      "کراتینین",
+      "کراتینینخون"
     ]
   },
   {
-    "content": "heparin",
+    "content": "eGFR",
     "sounds_like": [
-      "hep a rin",
-      "هپارین"
+      "ایجیافآر",
+      "ای‌جی‌اف‌آر",
+      "جیافآر",
+      "نرخفیلتراسیونگلومرولی"
     ]
   },
   {
-    "content": "warfarin",
+    "content": "AST",
     "sounds_like": [
-      "war far in",
-      "وارفارین"
+      "ایاستی",
+      "ای‌اس‌تی",
+      "اسجیاوتی",
+      "AST"
     ]
   },
   {
-    "content": "furosemide",
+    "content": "ALT",
     "sounds_like": [
-      "furo semide",
-      "فوروزماید"
+      "ایالتی",
+      "ای‌ال‌تی",
+      "اسجیپیتی",
+      "جیپیتی"
     ]
   },
   {
-    "content": "ondansetron",
+    "content": "ALP",
     "sounds_like": [
-      "on dan setron",
-      "اندانسترون"
+      "ایالپی",
+      "ای‌ال‌پی",
+      "آلکالینفسفاتاز",
+      "ALP"
     ]
   },
   {
-    "content": "Magnesium",
+    "content": "GGT",
     "sounds_like": [
-      "منیزیم"
+      "جیجیتی",
+      "جی‌جی‌تی",
+      "گاماجیتی",
+      "گاماگلوتامیلترانسفراز"
     ]
   },
   {
-    "content": "diabetes mellitus",
+    "content": "LDH",
     "sounds_like": [
-      "دیابت ملیتوس"
+      "الدیاچ",
+      "ال‌دی‌اچ",
+      "لاکتاتدهیدروژناز",
+      "LDH"
     ]
   },
   {
-    "content": "pneumonia",
+    "content": "TSH",
     "sounds_like": [
-      "new monia",
-      "پنومونی"
+      "تیاساچ",
+      "تی‌اس‌اچ",
+      "هورمونمحرکتیروئید",
+      "TSH"
     ]
   },
   {
-    "content": "sepsis",
+    "content": "FT4",
     "sounds_like": [
-      "sep sis",
-      "سپسیس"
+      "افتیفور",
+      "اف‌تی‌فور",
+      "افتیچهار",
+      "تیچهارآزاد"
     ]
   },
   {
-    "content": "myocardial infarction",
+    "content": "T3",
     "sounds_like": [
-      "myocardial infarct",
-      "انفارکتوس میوکارد"
+      "تیتری",
+      "ترییدوتیرونین",
+      "T3"
     ]
   },
   {
-    "content": "heart failure",
+    "content": "PSA",
     "sounds_like": [
-      "cardiac failure",
-      "نارسایی قلبی"
+      "پیاسای",
+      "پی‌اس‌ای",
+      "آنتیژناختصاصیپروستات",
+      "PSA"
     ]
   },
   {
-    "content": "asthma",
+    "content": "PCR",
     "sounds_like": [
-      "azma",
-      "آسم"
+      "پیسیآر",
+      "پی‌سی‌آر",
+      "پیسیآرتست",
+      "پیسیآرآزمایش"
+    ]
+  },
+  {
+    "content": "POC",
+    "sounds_like": [
+      "پیاوسی",
+      "پی‌او‌سی",
+      "کنارتخت",
+      "پوینتآوکر"
+    ]
+  },
+  {
+    "content": "PRN",
+    "sounds_like": [
+      "پیآران",
+      "پی‌آر‌ان",
+      "درصورتنیاز",
+      "PRN"
+    ]
+  },
+  {
+    "content": "endotracheal intubation",
+    "sounds_like": [
+      "اینتوبیشن",
+      "لولهگذاریتراشه",
+      "اینتوبهکردن",
+      "انتوباسیون"
+    ]
+  },
+  {
+    "content": "cardiopulmonary resuscitation",
+    "sounds_like": [
+      "احیایقلبیریوی",
+      "سیپیآر",
+      "احیا",
+      "cardiopulmonaryresuscitation"
+    ]
+  },
+  {
+    "content": "percutaneous coronary intervention",
+    "sounds_like": [
+      "مداخلهعروقکرونرازراهپوست",
+      "پیسیآی",
+      "استنتگذاریقلب",
+      "percutaneouscoronaryintervention"
+    ]
+  },
+  {
+    "content": "coronary artery bypass grafting",
+    "sounds_like": [
+      "جراحیبایپسعروقکرونر",
+      "عملبایپسقلب",
+      "coronaryarterybypassgrafting"
+    ]
+  },
+  {
+    "content": "hemodialysis",
+    "sounds_like": [
+      "همودیالیز",
+      "دیالیزخونی",
+      "hemodialysis"
+    ]
+  },
+  {
+    "content": "blood transfusion",
+    "sounds_like": [
+      "انتقالخون",
+      "تزریقخون",
+      "خوندادن",
+      "bloodtransfusion"
+    ]
+  },
+  {
+    "content": "CT pulmonary angiography",
+    "sounds_like": [
+      "سیتیآنژیوریه",
+      "سیتیپیای",
+      "CTpulmonaryangiography"
+    ]
+  },
+  {
+    "content": "MRCP",
+    "sounds_like": [
+      "امآرسیپی",
+      "امآرسیپیمجاریصفراوی",
+      "MRCP"
     ]
   },
   {
     "content": "echocardiogram",
     "sounds_like": [
-      "echo cardiogram",
-      "اکوکاردیوگرام"
+      "اکوکاردیوگرام",
+      "اکوقلب",
+      "اکوکاردیوگرافی",
+      "echocardiogram"
     ]
   },
   {
-    "content": "X-ray",
+    "content": "PET-CT",
     "sounds_like": [
-      "x ray",
-      "اشعه ایکس"
+      "پتسیتی",
+      "پتاسکنسیتی",
+      "PET-CT"
     ]
   },
   {
-    "content": "intubation",
+    "content": "acute kidney injury",
     "sounds_like": [
-      "in tube ation",
-      "اینتوبیشن"
+      "آسیبحادکلیه",
+      "نارساییحادکلیه",
+      "acutekidneyinjury"
     ]
   },
   {
-    "content": "catheterization",
+    "content": "chronic kidney disease",
     "sounds_like": [
-      "catheterisation",
-      "کاتتریزاسیون"
+      "بیماریمزمنکلیه",
+      "نارساییمزمنکلیه",
+      "chronickidneydisease"
     ]
   },
   {
-    "content": "biopsy",
+    "content": "atrial fibrillation",
     "sounds_like": [
-      "bye op see",
-      "بیوپسی"
+      "فیبریلاسیوندهلیزی",
+      "ایاف",
+      "فیبدهلیزی",
+      "atrialfibrillation"
     ]
   },
   {
-    "content": "dialysis",
+    "content": "deep vein thrombosis",
     "sounds_like": [
-      "dy al sis",
-      "دیالیز"
+      "ترومبوزوریدعمقی",
+      "دیویتی",
+      "deepveinthrombosis"
     ]
   },
   {
-    "content": "hemoglobin",
+    "content": "pulmonary embolism",
     "sounds_like": [
-      "hemo globin",
-      "هموگلوبین"
+      "آمبولیریه",
+      "پیای",
+      "pulmonaryembolism"
     ]
   },
   {
-    "content": "creatinine",
+    "content": "stroke",
     "sounds_like": [
-      "creat inine",
-      "کراتینین"
+      "سکتهمغزی",
+      "سیویای",
+      "استروک",
+      "stroke"
     ]
   },
   {
-    "content": "troponin",
+    "content": "acute respiratory distress syndrome",
     "sounds_like": [
-      "tro po nin",
-      "تروپونین"
+      "سندرومدیسترسحادتنفسی",
+      "ایآردیاس",
+      "acuterespiratorydistresssyndrome"
     ]
   },
   {
-    "content": "glucose",
+    "content": "right upper lobe",
     "sounds_like": [
-      "gloo cose",
-      "گلوکز"
+      "لوبفوقانیراست",
+      "rightupperlobe"
     ]
   },
   {
-    "content": "sodium",
+    "content": "left upper lobe",
     "sounds_like": [
-      "so dium",
-      "سدیم"
+      "لوبفوقانیچپ",
+      "leftupperlobe"
     ]
   },
   {
-    "content": "potassium",
+    "content": "right lower lobe",
     "sounds_like": [
-      "po tassium",
-      "پتاسیم"
+      "لوبتحتانیراست",
+      "rightlowerlobe"
     ]
   },
   {
-    "content": "blood culture",
+    "content": "left lower lobe",
     "sounds_like": [
-      "blood cultures",
-      "کشت خون"
+      "لوبتحتانیچپ",
+      "leftlowerlobe"
     ]
   },
   {
-    "content": "left lung",
+    "content": "C3-C4",
     "sounds_like": [
-      "لفت لانگ"
+      "سیسهسیچهار",
+      "C3-C4"
     ]
   },
   {
-    "content": "coronary artery",
+    "content": "ceftriaxone",
     "sounds_like": [
-      "کرونری آرتری"
+      "سفتریاکسون",
+      "روسفین",
+      "ceftriaxone"
     ]
   },
   {
-    "content": "liver",
+    "content": "vancomycin",
     "sounds_like": [
-      "لیور"
+      "وانکومایسین",
+      "وانکو",
+      "vancomycin"
     ]
   },
   {
-    "content": "kidney",
+    "content": "meropenem",
     "sounds_like": [
-      "کیدنی"
+      "مروپنم",
+      "meropenem"
     ]
   },
   {
-    "content": "mg",
+    "content": "ondansetron",
     "sounds_like": [
-      "milligram",
-      "میلی گرم"
+      "اندانسترون",
+      "زوفران",
+      "ondansetron"
     ]
   },
   {
-    "content": "mL",
+    "content": "fentanyl",
     "sounds_like": [
-      "milliliter",
-      "میلی لیتر"
+      "فنتانیل",
+      "fentanyl"
     ]
   },
   {
-    "content": "mmHg",
+    "content": "propofol",
     "sounds_like": [
-      "millimeters of mercury",
-      "میلی متر جیوه"
+      "پروپوفول",
+      "پروفوفول",
+      "propofol"
+    ]
+  },
+  {
+    "content": "Cardiac Care Unit",
+    "sounds_like": [
+      "سیسییو",
+      "سی‌سی‌یو",
+      "CardiacCareUnit",
+      "CCU"
+    ]
+  },
+  {
+    "content": "electrocardiogram",
+    "sounds_like": [
+      "الکتروکاردیوگرام",
+      "ایسیجی",
+      "نوارقلب",
+      "electrocardiogram"
+    ]
+  },
+  {
+    "content": "magnetic resonance imaging",
+    "sounds_like": [
+      "امآرآی",
+      "ام‌آرآی",
+      "magneticresonanceimaging",
+      "MRI"
+    ]
+  },
+  {
+    "content": "computed tomography",
+    "sounds_like": [
+      "سیتیاسکن",
+      "سیتی",
+      "سی‌تیاسکن",
+      "computedtomography"
+    ]
+  },
+  {
+    "content": "ultrasonography",
+    "sounds_like": [
+      "اولتراسوند",
+      "الترسوند",
+      "سونوگرافی",
+      "ultrasonography"
+    ]
+  },
+  {
+    "content": "comprehensive metabolic panel",
+    "sounds_like": [
+      "پنلمتابولیککامل",
+      "سیامپی",
+      "comprehensivemetabolicpanel",
+      "CMP"
+    ]
+  },
+  {
+    "content": "arterial blood gas",
+    "sounds_like": [
+      "گازخونشریانی",
+      "ایبیجی",
+      "arterialbloodgas",
+      "ABG"
+    ]
+  },
+  {
+    "content": "blood pressure",
+    "sounds_like": [
+      "فشارخون",
+      "بیپی",
+      "bloodpressure",
+      "BP"
+    ]
+  },
+  {
+    "content": "oxygen saturation",
+    "sounds_like": [
+      "اشباعاکسیژن",
+      "ساتوریشن",
+      "oxygensaturation",
+      "SpO2"
+    ]
+  },
+  {
+    "content": "heart rate",
+    "sounds_like": [
+      "ضربانقلب",
+      "هارتریت",
+      "heartrate",
+      "HR"
+    ]
+  },
+  {
+    "content": "respiratory rate",
+    "sounds_like": [
+      "تعدادتنفس",
+      "ریسپیریتوریریت",
+      "respiratoryrate",
+      "RR"
+    ]
+  },
+  {
+    "content": "CT scan",
+    "sounds_like": [
+      "سیتیاسکن",
+      "سی‌تیاسکن",
+      "CTscan"
+    ]
+  },
+  {
+    "content": "q2h",
+    "sounds_like": [
+      "کیوتواچ",
+      "کیودواچ",
+      "هردوساعت",
+      "qtwoh"
+    ]
+  },
+  {
+    "content": "tds",
+    "sounds_like": [
+      "تیدیاس",
+      "سهباردرروز",
+      "TDS",
+      "tds"
+    ]
+  },
+  {
+    "content": "diabetes",
+    "sounds_like": [
+      "دیابت",
+      "دیابتقندی",
+      "diabetes"
+    ]
+  },
+  {
+    "content": "ultrasound",
+    "sounds_like": [
+      "الترسوند",
+      "اولتراسوند",
+      "سونوگرافی",
+      "ultrasound"
+    ]
+  },
+  {
+    "content": "Mg",
+    "sounds_like": [
+      "منیزیم",
+      "Mg"
+    ]
+  },
+  {
+    "content": "O2",
+    "sounds_like": [
+      "اودو",
+      "اکسیژندو",
+      "Otwo",
+      "O2"
+    ]
+  },
+  {
+    "content": "HTN",
+    "sounds_like": [
+      "اچتیان",
+      "ایچتیان",
+      "HTN"
+    ]
+  },
+  {
+    "content": "DM",
+    "sounds_like": [
+      "دیام",
+      "DM"
+    ]
+  },
+  {
+    "content": "IV",
+    "sounds_like": [
+      "آیوی",
+      "IV"
+    ]
+  },
+  {
+    "content": "IM",
+    "sounds_like": [
+      "آیام",
+      "IM"
+    ]
+  },
+  {
+    "content": "SC",
+    "sounds_like": [
+      "اسسی",
+      "SC"
+    ]
+  },
+  {
+    "content": "CPR",
+    "sounds_like": [
+      "سیپیآر",
+      "CPR"
+    ]
+  },
+  {
+    "content": "diabetes mellitus",
+    "sounds_like": [
+      "دیابتملیتوس",
+      "دیابتقندی",
+      "diabetesmellitus"
     ]
   }
 ]
