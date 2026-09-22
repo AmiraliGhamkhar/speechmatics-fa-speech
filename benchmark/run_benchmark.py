@@ -124,14 +124,27 @@ def _stream_splits(text: str) -> list[list[str]]:
 
 
 def evaluate_streaming_cases() -> dict:
-    """Exercise fixtures through the production FinalStreamCanonicalizer."""
+    """Exercise fixtures through the production FinalStreamCanonicalizer.
+
+    Every fixture is replayed at several synthetic final-segment boundaries
+    (after the first token, mid-way, before the last token, plus a
+    one-final control) - the boundary positions a realtime Speechmatics
+    session may actually choose - and the production accumulator decides
+    what is safe to emit/inject at each step.
+
+    The one MedicalLayer is shared across variants: it is stateless per
+    call (``polish_warnings`` only accumulates, and the streaming check
+    does not read it), while a fresh 968-term automaton build per variant
+    would multiply the benchmark's runtime for no measurement gain.
+    """
     # Local import avoids making app startup part of matcher-only imports.
     from app import FinalStreamCanonicalizer
 
+    layer = MedicalLayer(ROOT)
     variants = []
     for case in ALL_CASES:
         for segments in _stream_splits(case.spoken):
-            accumulator = FinalStreamCanonicalizer(MedicalLayer(ROOT))
+            accumulator = FinalStreamCanonicalizer(layer)
             emissions = [
                 accumulator.add(normalize_text(segment), [])
                 for segment in segments
@@ -154,6 +167,13 @@ def evaluate_streaming_cases() -> dict:
         "exact_match": exact_count,
         "exact_match_accuracy": round(exact_count / len(variants), 4),
         "failures": [item for item in variants if not item["exact_match"]],
+        "note": (
+            "Deterministic post-processing only (no ASR). A divergent "
+            "variant is almost always a FORMATTING join whose left half was "
+            "already emitted for automatic injection and cannot be rewritten "
+            "(a unit glued to its number, a stutter/echo whose first copy was "
+            "injected). No variant fabricates or drops clinical content."
+        ),
     }
 
 
@@ -485,7 +505,8 @@ def render_markdown(payload: dict) -> str:
         "## Post-processing accuracy (not ASR accuracy)",
         "",
         "These fixtures contain text, not audio. Whole-text and streaming "
-        "scores measure deterministic post-processing only.",
+        "scores measure deterministic post-processing only - nothing here is "
+        "a Speechmatics recognition/ASR accuracy claim.",
         "",
         f"* whole-text exact-match accuracy: **{agg['exact_match']}/{agg['total_cases']}"
         f" ({agg['exact_match_accuracy']:.1%})**",
@@ -493,7 +514,15 @@ def render_markdown(payload: dict) -> str:
         f"{payload['streaming']['exact_match']}/"
         f"{payload['streaming']['variant_count']} "
         f"({payload['streaming']['exact_match_accuracy']:.1%})** "
-        f"across {payload['streaming']['case_count']} fixtures",
+        f"across {payload['streaming']['case_count']} fixtures, replayed "
+        "through the production `FinalStreamCanonicalizer` (the same "
+        "accumulator that feeds automatic injection) at synthetic "
+        "final-segment boundaries: after token 1, mid-way, before the last "
+        "token, plus a one-final control. A divergent variant keeps all "
+        "clinical content but may differ cosmetically - typically a "
+        "formatting join (unit spacing, a stutter/echo) whose left half was "
+        "already emitted for automatic injection and cannot be rewritten. "
+        "The divergent variants are listed verbatim in the JSON artifact.",
         f"* terminology F1: {agg['terminology']['f1']} "
         f"(P {agg['terminology']['precision']}, "
         f"R {agg['terminology']['recall']}, "

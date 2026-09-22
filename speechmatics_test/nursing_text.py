@@ -162,6 +162,99 @@ _NUMERIC_CONTEXT_BEFORE = frozenset({
 
 _PERSIAN_WORD_RE = re.compile(r"[\u0600-\u06ff\u200c]+")
 
+#: Persian verb prefixes that bind to a FOLLOWING stem with a ZWNJ
+#: (``می‌کند``). A streaming buffer ending on one is mid-word.
+_ZWNJ_PREFIX_WORDS = frozenset({"می", "نمی"})
+
+#: Vital-sign labels (case-folded, punctuation-stripped, 1-3 tokens) that a
+#: charted value may directly follow. When a streaming buffer ends with one
+#: of these, holding it for the next final lets the ``LABEL: value``
+#: punctuation and unit spacing still apply to the EMITTED text; emitting
+#: the label alone first would freeze e.g. ``BP 140/85`` without its colon,
+#: because already-injected text cannot be rewritten afterwards. The set is
+#: deliberately small: the charted labels from ``_VITAL_LABELS`` /
+#: ``_SPELLED_VITAL_LABELS`` plus the Persian spoken forms the dictionary
+#: maps onto them. A prose mention followed by no value is at most delayed
+#: to the next final (or the end-of-session flush) - never rewritten.
+_VITAL_LABEL_TAILS: frozenset = frozenset({
+    # Persian spoken forms (see medical_dictionary.json vital-sign terms)
+    ("فشار", "خون"), ("ضربان", "قلب"), ("اشباع", "اکسیژن"),
+    ("تعداد", "تنفس"), ("نمره", "درد"), ("قند", "خون"),
+    ("حرارت", "بدن"), ("دمای", "بدن"),
+    ("دما",), ("دمای",), ("نمره",), ("تمپ",),
+    ("بی", "پی"), ("اچ", "آر"), ("ایچ", "آر"), ("آر", "آر"),
+    ("بی", "جی"), ("اف", "بی", "اس"), ("اس", "پی", "او", "دو"),
+    # English charted/spelled labels (case-folded)
+    ("blood", "pressure"), ("heart", "rate"), ("pulse", "rate"),
+    ("respiratory", "rate"), ("oxygen", "saturation"),
+    ("blood", "glucose"), ("blood", "sugar"), ("pain", "score"),
+    ("o2", "sat"),
+    ("temp",), ("bp",), ("hr",), ("pr",), ("rr",), ("spo2",),
+    ("bg",), ("bs",), ("fbs",),
+})
+_VITAL_LABEL_MAX_TOKENS = max(len(label) for label in _VITAL_LABEL_TAILS)
+
+
+def _vital_label_tail_start(words: list[str]) -> Optional[int]:
+    """Start index of a vital-sign label at the END of ``words`` (or None).
+
+    Only a buffer-final label is returned: a label in mid-text is ordinary
+    prose and must not affect streaming emission at all.
+    """
+    folded = [word.casefold() for word in words]
+    for size in range(min(_VITAL_LABEL_MAX_TOKENS, len(folded)), 0, -1):
+        if tuple(folded[-size:]) in _VITAL_LABEL_TAILS:
+            return len(folded) - size
+    return None
+
+
+#: A charted value written with digits: ``97``, ``36.7``, ``140/85``.
+_CHART_VALUE_RE = re.compile(r"\d+(?:[./]\d+)*$")
+
+#: Unit/measure words that may sit inside a pending chart pair
+#: (``97 درصد``, ``36.7 درجه``, ``140 میلی متر``) before the final form is
+#: known. Punctuation-only tokens (``""`` after stripping) are separators
+#: the charting formatter itself accepts, so they are transparent here.
+_CHART_UNIT_TOKENS = frozenset({
+    "درصد", "درجه", "میلی", "متر", "جیوه", "سانتی", "گراد", "واحد", "قطره",
+    "%", "mmhg", "mm", "cm", "ml", "mg", "kg", "g", "l", "bpm", "meq",
+    "mcg", "cc", "°c", "°f", "fr",
+})
+_CHART_CONNECTORS = frozenset({"و", "روی", "بر", "به", "تا", "over"})
+
+
+def _is_chart_tail_token(word: str) -> bool:
+    """True for a token that can appear inside an unresolved chart pair."""
+    return bool(_CHART_VALUE_RE.fullmatch(word)) \
+        or word in _CHART_UNIT_TOKENS or word in _CHART_CONNECTORS
+
+
+def _chart_pair_tail_start(words: list[str], max_tokens: int) -> Optional[int]:
+    """Start of a trailing ``<vital label> <value-ish tail>`` (or None).
+
+    ``oxygen saturation 97``, ``blood pressure 140 over``, ``Temp . 36.7.``:
+    the label is followed only by chart-shaped tokens (values, connectors,
+    unit words, bare punctuation), so the value is either incomplete or its
+    unit has not arrived yet. Holding the whole pair keeps the
+    ``LABEL: value`` punctuation and unit spacing applicable to the EMITTED
+    text. The scan is bounded by ``max_tokens`` and any non-chart token
+    immediately disqualifies the candidate, so ordinary prose
+    (``heart rate was 88``) never triggers it.
+    """
+    if len(words) < 2:
+        return None
+    folded = [word.casefold() for word in words]
+    lo = max(0, len(words) - max_tokens)
+    for start in range(lo, len(words)):
+        for size in range(min(_VITAL_LABEL_MAX_TOKENS, len(words) - start - 1),
+                          0, -1):
+            if tuple(folded[start:start + size]) not in _VITAL_LABEL_TAILS:
+                continue
+            tail = folded[start + size:]
+            if all(not token or _is_chart_tail_token(token) for token in tail):
+                return start
+    return None
+
 
 def pending_nursing_suffix_start(text: str, max_tokens: int = 8) -> Optional[int]:
     """Return the token index of a short suffix that may need another final.
@@ -170,25 +263,65 @@ def pending_nursing_suffix_start(text: str, max_tokens: int = 8) -> Optional[int
     parser.  It uses the parser's own vocabulary and keeps at most
     ``max_tokens`` for number, clock, and ratio expressions.  ``None`` means
     nursing normalization cannot benefit from retaining a suffix.
+
+    Held-back shapes, all bounded and deterministic:
+
+    * spelled cardinal/clock/ratio tails (``سی و``, ``صد و چهل روی``,
+      ``ساعت ده``) - a spoken number can always continue with ``و ...``;
+    * digit tails WITH an explicit connector (``10 و``, ``140 روی``,
+      ``140 over``) - bare digits alone are emitted immediately, only the
+      connector proves an incomplete clock/ratio expression;
+    * a small clock-shaped trailing digit (``<= 23``) as before;
+    * a vital-sign label at the buffer end (its value may be the next
+      final, and the ``LABEL: value`` punctuation only applies when both
+      are emitted together);
+    * a chart pair ``<vital label> <value-ish tail>`` (digits, connectors,
+      unit words only) - the value or its unit may still be in flight;
+    * a trailing ``می``/``نمی`` verb prefix or ``ساعت`` clock lead-in.
     """
     tokens = text.split()
     if not tokens:
         return None
+    stripped = [token.strip(".,،؛:؟!?") for token in tokens]
+
+    if stripped[-1] in _ZWNJ_PREFIX_WORDS or stripped[-1] == "ساعت":
+        # ``می``/``نمی`` bind their ZWNJ to the NEXT token, and ``ساعت`` is
+        # the clock lead-in whose hour may be the next final.
+        return len(tokens) - 1
+
+    label_start = _vital_label_tail_start(stripped)
+    if label_start is not None:
+        return label_start
+
+    chart_start = _chart_pair_tail_start(stripped, max_tokens)
+    if chart_start is not None:
+        return chart_start
+
     numeric = set(_NUMBER_WORDS) | set(_SCALES)
-    connectors = {"و", "روی", "بر", "به", "تا"}
+    connectors = {"و", "روی", "بر", "به", "تا", "over"}
     contexts = set(_NUMERIC_CONTEXT_BEFORE) | {"ساعت"}
     start_limit = max(0, len(tokens) - max_tokens)
     for index in range(start_limit, len(tokens)):
-        suffix = tokens[index:]
-        words = [word.strip(".,،؛:؟!?") for word in suffix]
-        if not any(word in numeric for word in words):
+        words = stripped[index:]
+        spelled = any(word in numeric for word in words)
+        digits = any(word.isdigit() for word in words)
+        if not spelled and not digits:
             continue
-        if all(word in numeric or word in connectors or word in contexts or
-               word in {"دقیقه", "ثانیه"} for word in words):
-            # A spoken cardinal can always continue with ``و ...`` in the next
-            # final, including a single hour (``ده`` + ``و نیم``).
-            return index
-    last = tokens[-1].strip(".,،؛:؟!?")
+        if not spelled and not any(word in connectors for word in words):
+            # Bare digits carry no continuation signal; only an explicit
+            # connector (``و``/``روی``/``over`` ...) marks the tail as an
+            # unfinished clock or ratio expression.
+            continue
+        if all(word in numeric or word.isdigit() or word in connectors
+               or word in contexts or word in {"دقیقه", "ثانیه"}
+               for word in words):
+            # A spoken cardinal can always continue with ``و ...`` in the
+            # next final, including a single hour (``ده`` + ``و نیم``). A
+            # vital-sign label directly BEFORE the pending number is held
+            # with it (see ``_VITAL_LABEL_TAILS``).
+            label = _vital_label_tail_start(stripped[:index])
+            return label if label is not None else index
+    last = stripped[-1]
     if last.isdigit() and 0 <= int(last) <= 23:
         return len(tokens) - 1
     return None

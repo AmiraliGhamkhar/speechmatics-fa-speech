@@ -2,8 +2,9 @@
 
 Compares a reference (expected) transcript against hypotheses using
 medical-aware tokenization. ``evaluate_stages`` runs the same metrics for
-each pipeline stage so RAW ASR vs NORMALIZED vs FST CANONICAL can be
-compared side by side.
+each pipeline stage so RAW ASR vs NORMALIZED vs CANONICAL (medical
+canonicalization plus nursing-text normalization) can be compared side by
+side.
 """
 
 from __future__ import annotations

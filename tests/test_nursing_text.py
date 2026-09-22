@@ -427,3 +427,63 @@ def test_ratio_normalization_preserves_both_values():
 def test_ratio_normalization_is_idempotent():
     once = polish("صد و چهل روی هشتاد و پنج")
     assert polish(once) == once
+
+
+# ------------------------------------ pending nursing suffix (streaming)
+
+from speechmatics_test.nursing_text import pending_nursing_suffix_start  # noqa: E402
+
+
+@pytest.mark.parametrize("text,expected_start", [
+    # spelled cardinals/clocks/ratios can always continue with "و ..."
+    ("سی و", 0),
+    ("ساعت ده", 0),
+    ("صد و چهل روی", 0),
+    ("بیمار صد و چهل روی", 1),
+    # digit tails hold only with an explicit connector
+    ("10 و", 0),
+    ("10 و 30", 0),
+    ("ساعت 10 و", 0),
+    ("فشار خون 140 روی", 0),
+    ("blood pressure 140 over", 0),
+    # vital-sign label at the buffer end: the value may be next
+    ("فشار خون", 0),
+    ("blood pressure", 0),
+    ("the Temp", 1),
+    # chart pair: label + chart-only tokens (value/unit may be in flight)
+    ("oxygen saturation 97", 0),
+    ("oxygen saturation 97 درصد", 0),
+    ("اشباع اکسیژن 97 درصد", 0),
+    ("نمره درد 4", 0),
+    ("Temp . 36.7.", 0),
+    ("vital signs شامل BP: 140/85 mmHg و HR: 88", 7),
+    # verb prefix / clock lead-in
+    ("بیمار درد را ذکر می", 4),
+    ("پایش می", 1),
+    ("ساعت", 0),
+    # small clock-shaped trailing digit
+    ("ساعت 10", 1),
+])
+def test_pending_nursing_suffix_holds(text, expected_start):
+    tokens = text.split()
+    start = pending_nursing_suffix_start(text)
+    assert start == expected_start
+    held = text[sum(len(t) + 1 for t in tokens[:start]) - 1 if start else 0:]
+    assert text.endswith(held)
+
+
+@pytest.mark.parametrize("text", [
+    "",                          # nothing to hold
+    "بیمار",                     # plain prose
+    "بیمار 35 ساله",             # complete number + counter: emit now
+    "heart rate was 88",         # prose mention: "was" is not a chart token
+    "the blood pressure was reviewed",
+    "دمای بیمار طبیعی است",
+    "97",                        # bare digit, no connector
+    "140/85",                    # complete chart value alone
+    "35",                        # > 23 and no connector: immediate
+    "پانسمان روی زخم",           # روی between non-numbers is a preposition
+    "بیمار گفت دما طبیعی بود",   # label not at the very end
+])
+def test_pending_nursing_suffix_does_not_hold(text):
+    assert pending_nursing_suffix_start(text) is None

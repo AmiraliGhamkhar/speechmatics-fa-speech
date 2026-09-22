@@ -153,3 +153,55 @@ def test_export_additional_vocab_shim_still_works():
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "CHECK: OK" in result.stdout
+
+
+# --------------------------------- case-insensitive canonical duplicates
+
+def test_audit_detects_only_the_intentional_case_duplicate():
+    """The real dictionary keeps exactly the intentional ``Mg`` (magnesium)
+    / ``mg`` (milligram) pair whose case is clinically load-bearing; nothing
+    else may differ from another canonical by capitalization only."""
+    from scripts.swiftmedics_tools import audit_dictionary
+
+    report = audit_dictionary()
+    assert report["casefold_duplicate_canonicals"] == [["Mg", "mg"]]
+    assert report["unexpected_casefold_duplicates"] == []
+
+
+def test_audit_blocks_a_synthetic_case_only_duplicate(tmp_path):
+    """A new case-only canonical duplicate ("BP" vs "bp") is a data bug:
+    the matcher is case-insensitive, so their forms silently compete - the
+    audit must make it blocking, not decorative."""
+    import json as json_module
+
+    from scripts.swiftmedics_tools import audit_dictionary, cmd_audit_dictionary
+
+    dictionary = {
+        "version": 1,
+        "metadata": {"entry_count": 2},
+        "terms": [
+            {"id": "t1", "canonical": "BP", "type": "abbreviation",
+             "tier": "abbreviation", "forms": ["فشار خون"]},
+            {"id": "t2", "canonical": "bp", "type": "abbreviation",
+             "tier": "abbreviation", "forms": ["بی پی"]},
+        ],
+    }
+    path = tmp_path / "medical_dictionary.json"
+    path.write_text(json_module.dumps(dictionary, ensure_ascii=False),
+                    encoding="utf-8")
+
+    report = audit_dictionary(path)
+    assert report["unexpected_casefold_duplicates"] == [["BP", "bp"]]
+
+    # thread it through the CLI: the subcommand must fail on the unexpected
+    # group (a stub argparse namespace is enough for the human-readable path)
+    import argparse
+    import scripts.swiftmedics_tools as tools
+
+    original = tools.audit_dictionary
+    tools.audit_dictionary = lambda path=tools.DICTIONARY_PATH: report
+    try:
+        code = cmd_audit_dictionary(argparse.Namespace(json=False))
+    finally:
+        tools.audit_dictionary = original
+    assert code == 1

@@ -132,10 +132,10 @@ def test_evaluate_stages():
     result = evaluate_stages("expected text", {
         "raw": "raw text",
         "normalized": "normalized text",
-        "fst_canonical": "expected text",
+        "canonical": "expected text",
     })
-    assert set(result) == {"raw", "normalized", "fst_canonical"}
-    assert result["fst_canonical"]["wer"] == 0.0
+    assert set(result) == {"raw", "normalized", "canonical"}
+    assert result["canonical"]["wer"] == 0.0
     assert "wer" in result["raw"] and "number_accuracy" in result["raw"]
 
 

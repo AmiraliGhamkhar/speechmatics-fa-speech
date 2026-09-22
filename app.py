@@ -172,24 +172,33 @@ class FinalStreamCanonicalizer:
         """Add one normalized final segment; return the text to inject now."""
         if not normalized_text:
             return None
-        if self._buffer:
-            joined = self._buffer + " " + normalized_text
-            prepared = self._medical.prepolish(joined) if self._medical else joined
-            if prepared != joined:
-                # A duplicate straddled the final boundary.  Keep one compact
-                # piece so the medical matcher sees the intended phrase.
-                self._buffer = prepared
-                self._pieces = [{"text": prepared, "words": []}]
+        joined = self._buffer + " " + normalized_text if self._buffer else normalized_text
+        prepared = self._medical.prepolish(joined) if self._medical else joined
+        if prepared != joined:
+            # A duplicated word collapsed (inside this segment, or straddling
+            # the final boundary). Keep one compact piece so the medical
+            # matcher sees the intended phrase. The stutter check must also
+            # run on the FIRST segment: an in-segment stutter like
+            # "نمره نمره" used to reach _safe_cut uncollapsed, and the cut
+            # could split inside the duplicate ("نمره" emitted, "نمره درد"
+            # re-matched from the tail - a term composed of two emissions).
+            cross_segment = bool(self._buffer)
+            self._buffer = prepared
+            self._pieces = [{"text": prepared, "words": []}]
+            if cross_segment:
                 # The joined text has already resolved the boundary stutter;
                 # emit it atomically so a suffix-prefix ambiguity cannot split
                 # the newly restored medical phrase apart.
                 return self._emit(len(self._buffer))
-            else:
-                self._buffer = joined
-                self._pieces.append({"text": normalized_text, "words": list(words)})
+            # Same-segment stutter: the collapsed text can itself be a
+            # pending prefix ("نمره نمره" -> "نمره", extendable to "نمره درد"
+            # by the next final), so it goes through the normal safe cut.
+            return self._emit(self._safe_cut())
+        if self._buffer:
+            self._buffer = joined
         else:
             self._buffer = normalized_text
-            self._pieces.append({"text": normalized_text, "words": list(words)})
+        self._pieces.append({"text": normalized_text, "words": list(words)})
         return self._emit(self._safe_cut())
 
     def flush(self) -> str | None:
@@ -220,6 +229,10 @@ class FinalStreamCanonicalizer:
         "لانگ ساوندز"), so the whole compound must stay held together until
         the ambiguity resolves; only the never-completes-into-anything
         whole-buffer edge case is safe to special-case here.
+
+        Ordering: the nursing pending tail is evaluated before the medical
+        rule scan, so that even an early-return complete rule still honors
+        a pending number/clock/ratio, vital-label or ZWNJ-prefix tail.
         """
         tokens = self._buffer.split()
         if self._medical is None or not tokens:
@@ -231,6 +244,16 @@ class FinalStreamCanonicalizer:
             return sum(len(token) + 1 for token in tokens[:index]) - 1
 
         safe_cut = len(self._buffer)
+        # The nursing pending-tail check runs FIRST: a trailing unresolved
+        # number/clock/ratio/vital-label/ZWNJ-prefix construct can hold back
+        # even a complete, non-extendable medical rule (e.g. "بی پی" is the
+        # complete BP rule but also a vital label whose value may arrive in
+        # the next final; emitting it immediately would freeze "BP 140/85"
+        # without its colon because injected text cannot be rewritten).
+        nursing_start = self._medical.pending_nursing_suffix_start(self._buffer)
+        if nursing_start is not None:
+            safe_cut = min(safe_cut, cut_before(nursing_start))
+
         for i in range(len(tokens)):
             suffix = tokens[i:]
             if not self._medical.is_rule_token_prefix(suffix):
@@ -238,14 +261,11 @@ class FinalStreamCanonicalizer:
             if i == 0 and not self._medical.is_strict_rule_token_prefix(suffix):
                 # The whole buffer is a complete, non-extendable rule.  A
                 # shorter suffix beginning an unrelated rule cannot alter
-                # that already-complete longest match.
-                return len(self._buffer)
+                # that already-complete longest match; only a pending
+                # nursing tail (above) may still hold part of it back.
+                return safe_cut
             safe_cut = min(safe_cut, cut_before(i))
             break
-
-        nursing_start = self._medical.pending_nursing_suffix_start(self._buffer)
-        if nursing_start is not None:
-            safe_cut = min(safe_cut, cut_before(nursing_start))
 
         return safe_cut
 
@@ -332,6 +352,18 @@ class InjectionWorker:
             ok = self._injector.paste_text(item + " ", add_rtl_mark=True)
             record = {"text": item, "success": bool(ok)}
             self.records.append(record)
+            if not ok:
+                # A failed paste must never be silent: say so at once (the
+                # session summary and the report's injection.segments keep
+                # the durable record). Emitting canonical text is NOT proof
+                # of delivery, and a lost segment must stay visible rather
+                # than corrupting the FIFO stream with a phantom success.
+                print(
+                    "\n[injector] AUTO-INJECTION FAILED: the finalized "
+                    f"segment {item[:60]!r} was NOT delivered to the target "
+                    "window. Re-arm the target (click the field) if focus "
+                    "changed."
+                )
             self._on_result(record)
 
     def shutdown(self) -> None:
@@ -616,7 +648,8 @@ async def main() -> int:
     raw = (result.final_text or "").strip() if result is not None else ""
     # Stage 2: generic text normalization.
     normalized = normalize_text(raw)
-    # Stage 3: deterministic medical Aho-Corasick canonicalization.
+    # Stage 3: canonical = medical Aho-Corasick canonicalization PLUS the
+    # deterministic nursing-text normalization (numbers/times/units/format).
     #
     # The canonical stage comes from the SAME accumulated state that fed the
     # injection worker, so the report always matches the pasted text — even
@@ -635,7 +668,7 @@ async def main() -> int:
         evaluate_stages(benchmark["expected"], {
             "raw": raw,
             "normalized": normalized,
-            "fst_canonical": canonical,
+            "canonical": canonical,
         })
         if benchmark else None
     )
@@ -715,6 +748,14 @@ async def main() -> int:
         n_ok = sum(1 for s in injected_segments if s["success"])
         print()
         print(f"[injector] auto-injected {n_ok}/{len(injected_segments)} finalized segments.")
+        if n_ok < len(injected_segments):
+            failed = [s["text"] for s in injected_segments if not s["success"]]
+            print(
+                f"[injector] WARNING: {len(failed)} finalized segment(s) were "
+                "NOT injected (see the injection records in the report):"
+            )
+            for text in failed:
+                print(f"  - {text}")
 
     print()
     print("=" * 72)
@@ -729,7 +770,7 @@ async def main() -> int:
 
     if evaluation_result:
         print()
-        print("EVALUATION (raw / normalized / fst_canonical):")
+        print("EVALUATION (raw / normalized / canonical):")
         print(json.dumps(evaluation_result, ensure_ascii=False, indent=2))
 
     print()

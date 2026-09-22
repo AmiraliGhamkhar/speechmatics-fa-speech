@@ -535,3 +535,190 @@ def test_microphone_failure_cleans_up_and_exits_with_error(
     assert signal.getsignal(signal.SIGINT) is before
     assert fake_overlay.closed is True
     assert "[microphone error]" in capsys.readouterr().out
+
+
+def test_auto_injection_fifo_three_segments_no_hotkey(tmp_path, monkeypatch):
+    """Normal flow, no hotkey: three finalized segments must be pasted
+    automatically, in exactly the emission (FIFO) order, without any
+    keypress, Enter/Space, Ctrl+V by the user, or manual trigger."""
+    pasted = []
+
+    class FakeInjector:
+        calls = []
+
+        def arm_target(self):
+            FakeInjector.calls.append("arm")
+            return True
+
+        def reset_partial(self):
+            pass
+
+        def paste_text(self, text, add_rtl_mark=False):
+            pasted.append(text)
+            return True
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(
+        app_module, "create_injector", lambda enabled: FakeInjector())
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay",
+    ])
+    install_fake_sdk(monkeypatch, {
+        "script": [
+            ("final", "وضعیت بیمار پایدار است"),
+            ("final", "درد قفسه سینه بررسی شد"),
+            ("final", "بیمار ترخیص خواهد شد"),
+        ],
+    })
+
+    assert asyncio.run(app_module.main()) == 0
+    # canonicalized, each with the trailing separator, strictly in order
+    assert pasted == [
+        "وضعیت بیمار پایدار است ",
+        "chest pain بررسی شد ",
+        "بیمار hospital discharge خواهد شد ",
+    ]
+    # armed exactly once, before any transcription work
+    assert FakeInjector.calls == ["arm"]
+
+
+def test_buffered_first_final_is_auto_injected_once_completed(
+    tmp_path, monkeypatch
+):
+    """The canonicalizer may hold a first final that can still extend
+    ("فشار خون" awaits "بالا"). That buffering must NOT turn the app into
+    preview-only: when the second final completes the phrase the completed
+    text is automatically injected - still with no hotkey at any stage."""
+    pasted = []
+
+    class FakeInjector:
+        def arm_target(self):
+            return True
+
+        def reset_partial(self):
+            pass
+
+        def paste_text(self, text, add_rtl_mark=False):
+            pasted.append(text)
+            return True
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(
+        app_module, "create_injector", lambda enabled: FakeInjector())
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay",
+    ])
+    install_fake_sdk(monkeypatch, {
+        "script": [
+            ("final", "سی و"),       # buffered: the number may continue
+            ("final", "پنج ساله"),   # completes -> 35 -> auto-injected now
+        ],
+    })
+
+    assert asyncio.run(app_module.main()) == 0
+    assert pasted == ["35 ساله "]
+
+
+def test_realtime_failure_exits_nonzero_and_preserves_partial_report(
+    tmp_path, monkeypatch
+):
+    """A realtime session failure must produce a non-zero exit status while
+    still preserving the transcript/report captured before the failure."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--no-inject",
+        "--save-report",
+    ])
+    install_fake_sdk(monkeypatch, {
+        "script": [
+            ("final", "بیمار در سی سی یو است"),
+            ("final", "فشار خون بالا دارد"),
+        ],
+        "fail_stop": RuntimeError("websocket closed unexpectedly"),
+    })
+
+    assert asyncio.run(app_module.main()) == 1
+
+    reports = sorted((app_module.ROOT / "results").glob("session_*.json"))
+    assert reports, "the partial report must still be written on failure"
+    try:
+        report = json.loads(reports[-1].read_text(encoding="utf-8"))
+        assert report["session_error"] is not None
+        # the finals captured before the failure are fully processed
+        assert "CCU" in report["final_transcript_canonical"]
+        assert "HTN" in report["final_transcript_canonical"]
+        assert report["final_transcript_raw"] == \
+            "بیمار در سی سی یو است فشار خون بالا دارد"
+    finally:
+        for p in reports:
+            p.unlink(missing_ok=True)
+
+
+def test_injection_failure_is_surfaced_and_not_silent(tmp_path, monkeypatch,
+                                                      capsys):
+    """An injection failure must be reported (console + report), must not be
+    counted as delivered, and must not corrupt the FIFO stream after it."""
+    pasted = []
+
+    class FlakyInjector:
+        def arm_target(self):
+            return True
+
+        def reset_partial(self):
+            pass
+
+        def paste_text(self, text, add_rtl_mark=False):
+            pasted.append(text)
+            return "دارد" not in text  # fail the second segment
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(
+        app_module, "create_injector", lambda enabled: FlakyInjector())
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--save-report",
+    ])
+    install_fake_sdk(monkeypatch, {
+        "script": [
+            ("final", "بیمار در سی سی یو است"),
+            ("final", "فشار خون بالا دارد"),
+            ("final", "وضعیت پایدار است"),
+        ],
+    })
+
+    # injection failure is not a session failure; exit status stays 0, but
+    # the failure is loud and durable.
+    assert asyncio.run(app_module.main()) == 0
+    out = capsys.readouterr().out
+    assert "AUTO-INJECTION FAILED" in out
+    assert "WARNING" in out
+    # all three pastes were attempted in FIFO order, none dropped
+    assert pasted == [
+        "بیمار در CCU است ",
+        "HTN دارد ",
+        "وضعیت پایدار است ",
+    ]
+
+    reports = sorted((app_module.ROOT / "results").glob("session_*.json"))
+    assert reports
+    try:
+        report = json.loads(reports[-1].read_text(encoding="utf-8"))
+        assert report["injection"]["segments"] == [
+            {"text": "بیمار در CCU است", "success": True},
+            {"text": "HTN دارد", "success": False},
+            {"text": "وضعیت پایدار است", "success": True},
+        ]
+    finally:
+        for p in reports:
+            p.unlink(missing_ok=True)
