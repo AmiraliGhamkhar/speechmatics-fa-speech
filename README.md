@@ -35,8 +35,10 @@ Then dictate:
 Click the target text field once and start talking. Each finalized sentence is
 pasted at the cursor. Press `Ctrl+C` in the console to stop.
 
-> **Requires Python 3.11+.** `install.ps1` creates `.venv` and installs
-> `requirements.txt`. If PowerShell blocks the script, the
+> **Requires Python 3.11+.** The project is validated with Python 3.11 and
+> `speechmatics-rt==1.1.1`. `install.ps1` prefers an existing project
+> interpreter, then Python 3.11, then another compatible Python, creates
+> `.venv`, and installs `requirements.txt`. If PowerShell blocks the script, the
 > `Set-ExecutionPolicy` line above unblocks it for that window only.
 
 ---
@@ -50,6 +52,9 @@ Microphone → Speechmatics → partial ─────────────�
                              ↓
               generic normalization
                              ↓
+              bounded streaming accumulator
+              (final-boundary pending tails)
+                             ↓
               medical canonicalization   (Aho-Corasick)
                              ↓
               nursing text normalization (numbers, times, units, format)
@@ -57,7 +62,10 @@ Microphone → Speechmatics → partial ─────────────�
               canonical text ─→ Overlay / paste into app / JSON report
 ```
 
-Partials are display-only. Only finalized segments are post-processed.
+Partials are display-only. Only finalized segments are post-processed. The
+accumulator retains only a small unresolved suffix, allowing medical phrases,
+spoken numbers, clock times, ratios, and protected stutter handling to remain
+correct when Speechmatics places a final-segment boundary inside them.
 
 **Example.** Spoken:
 
@@ -178,7 +186,7 @@ report JSON. Disable the whole stage with `--no-text-polish`.
 ## Vocabulary
 
 `medical_knowledge\medical_dictionary.json` is the single source of truth
-(**971 terms**). Entries marked `"speechmatics": true` are exported to
+(**968 terms**). Entries marked `"speechmatics": true` are exported to
 `speechmatics_additional_vocab.json` (**136 entries**) and sent to the ASR as
 biasing hints, with spoken Persian forms attached as `sounds_like`.
 
@@ -199,13 +207,16 @@ After editing the dictionary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-**476 tests, all passing.**
+**484 tests, all passing.**
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\swiftmedics_tools.py benchmark
 ```
 
-107 nursing fixtures, offline, no API key. Writes
+107 nursing fixtures, offline, no API key. These measure deterministic
+**post-processing**, not Speechmatics recognition accuracy: there is no audio
+or ASR request in this benchmark. The output separately reports whole-text
+fixtures and deterministic synthetic final-segment boundary variants. It writes
 `benchmark\results_current.json` and regenerates `benchmark\README.md` from
 the measured run — no number in it is hardcoded.
 
@@ -292,7 +303,7 @@ speechmatics_test/
     realtime.py  presentation.py  evaluation.py  text.py
 
 medical_knowledge/
-    medical_dictionary.json               971 terms (source of truth)
+    medical_dictionary.json               968 terms (source of truth)
     speechmatics_additional_vocab.json    136 generated vocab entries
 
 scripts/
@@ -307,7 +318,7 @@ benchmark/
     README.md                     generated from the measured run
     results_baseline.json  results_current.json  results_comparison.json
 
-tests/                            476 tests
+tests/                            484 tests
 ```
 
 ---

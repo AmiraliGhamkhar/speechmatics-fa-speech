@@ -4,7 +4,7 @@
     "name": "SwiftMedics Nursing/Orthopedic Merged Persian-English Medical Dictionary",
     "schema_compatible_with": "speechmatics-fa-speech medical_dictionary.json / matcher.py v1",
     "generated_on": "2026-09-22",
-    "entry_count": 971,
+    "entry_count": 968,
     "design": "deterministic lexical canonicalization; Persian spoken aliases included for fa Speechmatics matching; merged from nursing_core, abbreviations, support, orthopedic additions; deduplicated by id",
     "sources": [
       "nursing_core_extraction_ordered.json",
@@ -1380,19 +1380,6 @@
         "کربن دی اکسید",
         "CO2",
         "دی اکسید کربن"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
-      "id": "magnesium",
-      "canonical": "magnesium",
-      "type": "lab",
-      "tier": "validated_term",
-      "forms": [
-        "منیزیم خون",
-        "magnesium"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -4949,7 +4936,12 @@
       "forms": [
         "عکس قفسه سینه",
         "CXR",
-        "گرافی قفسه سینه"
+        "گرافی قفسه سینه",
+        "chest x-ray",
+        "chest radiograph",
+        "رادیوگرافی قفسه سینه",
+        "chest xray",
+        "عکس ریه"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -7343,7 +7335,11 @@
       "tier": "phrase",
       "forms": [
         "بخش مراقبت ویژه",
-        "intensive care unit"
+        "intensive care unit",
+        "ICU",
+        "مراقبت ویژه",
+        "آی‌سی‌یو",
+        "بخش مراقبت‌های ویژه"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -8777,7 +8773,10 @@
       "canonical": "Magnesium",
       "type": "lab",
       "tier": "validated_term",
-      "forms": [],
+      "forms": [
+        "منیزیم خون",
+        "magnesium"
+      ],
       "speechmatics": true,
       "sounds_like": [],
       "source_file": "nursing_terms.json"
@@ -10525,24 +10524,6 @@
       "source_file": "nursing_terms.json"
     },
     {
-      "id": "vital_signs_0078",
-      "canonical": "chest x-ray",
-      "type": "vital_sign",
-      "tier": "validated_term",
-      "forms": [
-        "chest x-ray",
-        "CXR",
-        "chest radiograph",
-        "رادیوگرافی قفسه سینه",
-        "عکس قفسه سینه",
-        "chest xray",
-        "عکس ریه"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
       "id": "diet_0085",
       "canonical": "liquids only",
       "type": "phrase",
@@ -11033,22 +11014,6 @@
         "TKO",
         "to keep open",
         "باز نگه داشتن ورید"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
-      "id": "department_0120",
-      "canonical": "intensive care unit",
-      "type": "term",
-      "tier": "validated_term",
-      "forms": [
-        "intensive care unit",
-        "ICU",
-        "مراقبت ویژه",
-        "آی‌سی‌یو",
-        "بخش مراقبت‌های ویژه"
       ],
       "speechmatics": false,
       "sounds_like": [],

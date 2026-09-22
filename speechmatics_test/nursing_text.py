@@ -62,6 +62,7 @@ __all__ = [
     "normalize_punctuation",
     "format_vital_signs",
     "to_persian_digits",
+    "pending_nursing_suffix_start",
     "ZWNJ",
 ]
 
@@ -160,6 +161,37 @@ _NUMERIC_CONTEXT_BEFORE = frozenset({
 })
 
 _PERSIAN_WORD_RE = re.compile(r"[\u0600-\u06ff\u200c]+")
+
+
+def pending_nursing_suffix_start(text: str, max_tokens: int = 8) -> Optional[int]:
+    """Return the token index of a short suffix that may need another final.
+
+    This is deliberately a conservative streaming hint, not a second number
+    parser.  It uses the parser's own vocabulary and keeps at most
+    ``max_tokens`` for number, clock, and ratio expressions.  ``None`` means
+    nursing normalization cannot benefit from retaining a suffix.
+    """
+    tokens = text.split()
+    if not tokens:
+        return None
+    numeric = set(_NUMBER_WORDS) | set(_SCALES)
+    connectors = {"و", "روی", "بر", "به", "تا"}
+    contexts = set(_NUMERIC_CONTEXT_BEFORE) | {"ساعت"}
+    start_limit = max(0, len(tokens) - max_tokens)
+    for index in range(start_limit, len(tokens)):
+        suffix = tokens[index:]
+        words = [word.strip(".,،؛:؟!?") for word in suffix]
+        if not any(word in numeric for word in words):
+            continue
+        if all(word in numeric or word in connectors or word in contexts or
+               word in {"دقیقه", "ثانیه"} for word in words):
+            # A spoken cardinal can always continue with ``و ...`` in the next
+            # final, including a single hour (``ده`` + ``و نیم``).
+            return index
+    last = tokens[-1].strip(".,،؛:؟!?")
+    if last.isdigit() and 0 <= int(last) <= 23:
+        return len(tokens) - 1
+    return None
 
 
 def _tokenize_keep_space(text: str) -> list[str]:
@@ -459,6 +491,8 @@ def _normalize_spoken_times(
             if value is not None and 0 <= value <= 59 and value >= 10:
                 minute = value
                 matched_end = hour_end + 1
+                if clean_sep(matched_end) and tok(matched_end + 1) == _MINUTE_WORD:
+                    matched_end += 1
 
         if minute is None or matched_end is None:
             i += 1

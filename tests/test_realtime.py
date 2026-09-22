@@ -488,6 +488,8 @@ def test_resolve_domain_matrix():
     # Persian is not documented for Enhanced Medical
     assert resolve_domain("fa", "auto") is None
     assert resolve_domain("fa-IR", "auto") is None
+    assert resolve_domain("en", "auto", "standard") is None
+    assert resolve_domain("en", "auto", "enhanced") == "medical"
     # explicit settings win
     assert resolve_domain("fa", "medical") == "medical"
     assert resolve_domain("en", "none") is None

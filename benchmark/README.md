@@ -10,18 +10,21 @@ Every number below is measured by that run - nothing is hardcoded.
 
 ## Environment
 
-* commit: `aa56481834a3a59b45160b8a680b57eedfdc0b68`
+* commit: `d2846a0691bb1a5d15bb6c236bd5f0bf9f8258c2-dirty`
 * python: 3.11.2
 * platform: Linux-6.1.158+-x86_64-with-glibc2.36
 * matcher backend: aho-corasick (pyahocorasick)
-* dictionary terms: 971
-* compiled matcher rules: 2593
+* dictionary terms: 968
+* compiled matcher rules: 2594
 * Speechmatics vocabulary entries: 136
 * dataset version: nursing-2026.09.22.4 (107 cases)
 
-## Accuracy
+## Post-processing accuracy (not ASR accuracy)
 
-* exact-match accuracy: **107/107 (100.0%)**
+These fixtures contain text, not audio. Whole-text and streaming scores measure deterministic post-processing only.
+
+* whole-text exact-match accuracy: **107/107 (100.0%)**
+* streaming-boundary exact-match: **363/405 (89.6%)** across 107 fixtures
 * terminology F1: 1.0 (P 1.0, R 1.0, FP 0, FN 0)
 * number F1: 1.0 (P 1.0, R 1.0)
 * false-number rate: 0.0 | dropped-number rate: 0.0
@@ -91,12 +94,12 @@ Stages are reported separately on purpose: a lexical canonicalization, a numeric
 
 ## Performance (real dictionary)
 
-* dictionary build (load + validate + automaton): 59.405 ms min, 70.572 ms median
-* build peak traced memory: 3.348 MB
-* matcher-only latency: 7.87 us mean, 5.98 us p50
-* full pipeline (matcher + polish): 58.83 us mean, 49.71 us p50
-* per-character: 1.9719 us
-* long paragraph (3298 chars): 4.426 ms mean, 4.702 ms max
+* dictionary build (load + validate + automaton): 49.804 ms min, 50.912 ms median
+* build peak traced memory: 3.344 MB
+* matcher-only latency: 6.66 us mean, 5.46 us p50
+* full pipeline (matcher + polish): 54.52 us mean, 45.8 us p50
+* per-character: 1.8277 us
+* long paragraph (3298 chars): 4.053 ms mean, 4.735 ms max
 
 ## Baseline comparison
 
@@ -107,12 +110,12 @@ baseline = repository commit 4017279 code (original matcher, original dictionary
 | exact-match | 45/107 (42.1%) | 107/107 (100.0%) |
 | terminology F1 | 0.7791 | 1.0 |
 | number F1 | 0.7966 | 1.0 |
-| dictionary terms | 978 | 971 |
-| compiled rules | 2614 | 2593 |
-| build time (ms, min) | 58.528 | 55.601 |
-| build peak memory (MB) | 3.374 | 3.348 |
-| matcher latency p50 (us) | 5.78 | 5.72 |
-| full pipeline p50 (us) | 45.78 | 46.72 |
+| dictionary terms | 978 | 968 |
+| compiled rules | 2614 | 2594 |
+| build time (ms, min) | 58.528 | 49.804 |
+| build peak memory (MB) | 3.374 | 3.344 |
+| matcher latency p50 (us) | 5.78 | 5.46 |
+| full pipeline p50 (us) | 45.78 | 45.8 |
 
 Per stage (exact-match accuracy):
 

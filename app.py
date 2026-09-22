@@ -173,10 +173,23 @@ class FinalStreamCanonicalizer:
         if not normalized_text:
             return None
         if self._buffer:
-            self._buffer += " " + normalized_text
+            joined = self._buffer + " " + normalized_text
+            prepared = self._medical.prepolish(joined) if self._medical else joined
+            if prepared != joined:
+                # A duplicate straddled the final boundary.  Keep one compact
+                # piece so the medical matcher sees the intended phrase.
+                self._buffer = prepared
+                self._pieces = [{"text": prepared, "words": []}]
+                # The joined text has already resolved the boundary stutter;
+                # emit it atomically so a suffix-prefix ambiguity cannot split
+                # the newly restored medical phrase apart.
+                return self._emit(len(self._buffer))
+            else:
+                self._buffer = joined
+                self._pieces.append({"text": normalized_text, "words": list(words)})
         else:
             self._buffer = normalized_text
-        self._pieces.append({"text": normalized_text, "words": list(words)})
+            self._pieces.append({"text": normalized_text, "words": list(words)})
         return self._emit(self._safe_cut())
 
     def flush(self) -> str | None:
@@ -211,18 +224,30 @@ class FinalStreamCanonicalizer:
         tokens = self._buffer.split()
         if self._medical is None or not tokens:
             return len(self._buffer)
+
+        def cut_before(index: int) -> int:
+            if index == 0:
+                return 0
+            return sum(len(token) + 1 for token in tokens[:index]) - 1
+
+        safe_cut = len(self._buffer)
         for i in range(len(tokens)):
             suffix = tokens[i:]
             if not self._medical.is_rule_token_prefix(suffix):
                 continue
             if i == 0 and not self._medical.is_strict_rule_token_prefix(suffix):
-                # Entire remaining buffer is only a complete, non-extendable
-                # rule on its own - not a genuine risk, keep scanning.
-                continue
-            if i == 0:
-                return 0
-            return sum(len(t) + 1 for t in tokens[:i]) - 1
-        return len(self._buffer)
+                # The whole buffer is a complete, non-extendable rule.  A
+                # shorter suffix beginning an unrelated rule cannot alter
+                # that already-complete longest match.
+                return len(self._buffer)
+            safe_cut = min(safe_cut, cut_before(i))
+            break
+
+        nursing_start = self._medical.pending_nursing_suffix_start(self._buffer)
+        if nursing_start is not None:
+            safe_cut = min(safe_cut, cut_before(nursing_start))
+
+        return safe_cut
 
     def _emit(self, cut: int) -> str | None:
         emitted_text = self._buffer[:cut].strip()
@@ -379,9 +404,10 @@ async def main() -> int:
     # The actually-sent Speechmatics domain (see resolve_domain: the medical
     # domain is only documented for a fixed language set, which does NOT
     # include Persian).
-    effective_domain = resolve_domain(args.language, args.domain)
+    effective_domain = resolve_domain(args.language, args.domain, args.model)
 
     result = None
+    session_failed = False
     injected_segments: list[dict] = []
 
     print("=" * 72)
@@ -440,7 +466,6 @@ async def main() -> int:
         InjectionWorker(injector, on_result=on_injection_result)
         if injector else None
     )
-    worker_armed = False
 
     def on_final(text: str):
         # Finalized segment. The pipeline is fixed and single-pass:
@@ -454,7 +479,6 @@ async def main() -> int:
         # RLM/RLE/PDF. The overlay and the injector each add their own
         # presentation controls on top of it; neither rewrites the medical
         # content.
-        nonlocal worker_armed
         clean = normalize_text(text)
         if not clean:
             return
@@ -472,17 +496,10 @@ async def main() -> int:
             overlay.set_final(accumulator.canonical_text)
 
         if worker and emitted:
-            if not worker_armed:
-                worker_armed = True
-                if not args.no_focus_guard:
-                    # Arm whatever field the user clicked for dictation; later
-                    # pastes are aborted while any other window is focused.
-                    injector.arm_target()
             worker.submit(emitted)
 
     def finish_injection() -> list[dict]:
         """Flush the canonical tail, drain the worker, return its records."""
-        nonlocal worker_armed
         # Flush regardless of injection: the report's canonical stage is
         # built from these emissions, with or without a worker.
         tail = accumulator.flush()
@@ -492,10 +509,6 @@ async def main() -> int:
                 overlay.set_final(accumulator.canonical_text)
         if worker is None:
             return []
-        if not worker_armed:
-            worker_armed = True
-            if not args.no_focus_guard:
-                injector.arm_target()
         if tail:
             worker.submit(tail)
         worker.shutdown()
@@ -556,8 +569,15 @@ async def main() -> int:
                 domain=args.domain,
             )
             audio = audio_source(recorder, args.max_seconds, stop_event)
+            # Capture the intended field before the realtime session starts.
+            # Waiting for the first emitted final is unsafe because that final
+            # may itself be buffered while focus changes.
+            if injector is not None and not args.no_focus_guard:
+                injector.arm_target()
             try:
                 result = await stt.run(audio, on_partial, on_final)
+                if result.error:
+                    session_failed = True
             except KeyboardInterrupt:
                 # Defensive: keep whatever the session already captured.
                 print("\n[session] Ctrl+C received - stopping.")
@@ -565,8 +585,11 @@ async def main() -> int:
             except Exception as exc:
                 # A network/SDK failure must not discard an already dictated
                 # transcript; report the error and continue to the report.
+                session_failed = True
                 print(f"\n[session error] {type(exc).__name__}: {exc}")
                 result = stt.result
+                if not result.error:
+                    result.error = f"{type(exc).__name__}: {exc}"
             finally:
                 await audio.aclose()
                 # Flush the buffered canonical tail even when the session
@@ -649,7 +672,13 @@ async def main() -> int:
             "confidence_summary": confidence_summary(word_results),
             "medical_canonicalization": {
                 "hit_count": len(medical_hits),
-                "changed": canonical != normalized,
+                # Nursing-only number/time formatting is not a medical
+                # canonicalization.  Hits describe the lexical stage itself.
+                "changed": any(
+                    normalize_text(str(hit.get("form", ""))).casefold() !=
+                    normalize_text(str(hit.get("canonical", ""))).casefold()
+                    for hit in medical_hits
+                ),
             },
             "final_transcript_raw": raw,
             "final_transcript_normalized": normalized,
@@ -709,7 +738,7 @@ async def main() -> int:
     else:
         print("No report saved (use --save-report or --test-id to save).")
 
-    return 0
+    return 1 if session_failed else 0
 
 
 if __name__ == "__main__":

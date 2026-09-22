@@ -87,6 +87,20 @@ def test_unit_entries_kept_the_unit_tier():
         assert by_canonical[unit]["type"] == "dosage_unit"
 
 
+def test_no_case_only_duplicate_canonicals_except_case_sensitive_units():
+    data = json.loads((KNOWLEDGE / "medical_dictionary.json").read_text(encoding="utf-8"))
+    groups = {}
+    for term in data["terms"]:
+        groups.setdefault(term["canonical"].casefold(), set()).add(term["canonical"])
+    # Mg (magnesium) and mg (milligram) are clinically distinct and must not
+    # be merged merely because casefolding collides.
+    collisions = {
+        key: sorted(values) for key, values in groups.items()
+        if len(values) > 1 and values != {"Mg", "mg"}
+    }
+    assert collisions == {}
+
+
 def test_legacy_source_files_are_recorded_for_traceability():
     data = load_repo_dictionary()
     sources = {t.get("source_file") for t in data["terms"]}

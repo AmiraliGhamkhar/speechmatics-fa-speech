@@ -58,8 +58,14 @@ MEDICAL_DOMAIN_LANGUAGES = frozenset(
 )
 
 
-def resolve_domain(language: Any, domain: Any) -> Optional[str]:
-    """Return the domain to send for ``language`` (``None`` = omit it)."""
+def resolve_domain(
+    language: Any, domain: Any, model: Any = DEFAULT_MODEL
+) -> Optional[str]:
+    """Return the domain to send (``None`` = omit it).
+
+    Automatic medical-domain selection is an Enhanced-model capability;
+    explicit settings continue to win for private/enterprise deployments.
+    """
     setting = str(domain or DEFAULT_DOMAIN).strip().lower()
     if setting not in VALID_DOMAINS:
         raise ValueError(
@@ -69,6 +75,8 @@ def resolve_domain(language: Any, domain: Any) -> Optional[str]:
         return None
     if setting == "medical":
         return "medical"
+    if str(model or DEFAULT_MODEL).strip().lower() != "enhanced":
+        return None
     base = str(language or "").strip().lower().split("-")[0]
     return "medical" if base in MEDICAL_DOMAIN_LANGUAGES else None
 
@@ -231,7 +239,7 @@ class SpeechmaticsRealtime:
         #: The domain actually sent for this language (``None`` = omitted).
         #: ``domain="medical"`` is only sent where Speechmatics documents the
         #: Enhanced Medical model for the language (or when forced).
-        self.effective_domain = resolve_domain(language, self.domain)
+        self.effective_domain = resolve_domain(language, self.domain, self.model)
         self.result = SessionResult(language=language)
 
     # ------------------------------------------------------------------ util
