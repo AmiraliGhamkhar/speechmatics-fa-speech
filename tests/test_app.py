@@ -289,7 +289,15 @@ def test_accumulator_keeps_cross_final_nursing_constructs(segments, expected):
     emissions = [acc.add(normalize_text(segment), []) for segment in segments]
     emissions.append(acc.flush())
     assert " ".join(item for item in emissions if item) == expected
-    assert make_accumulator().add(normalize_text(" ".join(segments)), []) is None
+
+    # The same text in ONE segment must canonicalize identically. (It is not
+    # required to be WITHHELD: when nothing is left dangling the accumulator
+    # is free to emit immediately, and holding a complete construct back
+    # would only add latency in live dictation.)
+    whole = make_accumulator()
+    whole.add(normalize_text(" ".join(segments)), [])
+    whole.flush()
+    assert whole.canonical_text == expected
 
 
 def test_accumulator_collapses_cross_final_stutter_before_matching():

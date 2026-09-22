@@ -174,14 +174,24 @@ def test_references_carry_no_bidi_controls():
 
 
 def test_terminology_metrics_count_expected_extra_missing_and_duplicates():
+    """Duplicates must count as duplicates, not collapse into a set.
+
+    The expected multiset is read from the case's REFERENCE transcript (the
+    authority on how many times a term should appear), not from a
+    caller-supplied list, so a produced 'HTN' cannot satisfy two expected
+    occurrences.
+    """
     from benchmark.dataset import Case
-    case = Case("metric", "", "", "medical_canonicalization", "metrics",
-                ("HTN", "HTN"))
+    case = Case("metric", "", "HTN HTN", "medical_canonicalization",
+                "metrics", ("HTN", "HTN"))
+
+    # produced has one HTN (one short) plus an unexpected COPD
     metrics = _term_metrics(
-        case, "HTN COPD", ["HTN", "COPD"], ["HTN", "HTN"]
-    )
+        case, "HTN COPD", [{"canonical": "HTN"}, {"canonical": "COPD"}])
     assert (metrics["tp"], metrics["fp"], metrics["fn"]) == (1, 1, 1)
-    exact = _term_metrics(case, "HTN HTN", ["HTN", "HTN"], ["HTN", "HTN"])
+
+    exact = _term_metrics(
+        case, "HTN HTN", [{"canonical": "HTN"}, {"canonical": "HTN"}])
     assert (exact["tp"], exact["fp"], exact["fn"]) == (2, 0, 0)
 
 

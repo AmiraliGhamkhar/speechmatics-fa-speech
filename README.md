@@ -207,7 +207,7 @@ After editing the dictionary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-**532 tests, all passing.**
+**540 tests, all passing.**
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\swiftmedics_tools.py benchmark
@@ -329,7 +329,7 @@ benchmark/
     README.md                     generated from the measured run
     results_baseline.json  results_current.json  results_comparison.json
 
-tests/                            532 tests
+tests/                            540 tests
 ```
 
 ---
