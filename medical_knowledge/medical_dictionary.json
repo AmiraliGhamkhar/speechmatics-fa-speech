@@ -1,26 +1,18 @@
 {
   "version": 1,
   "metadata": {
-    "name": "SwiftMedics Research-Expanded Persian/English Medical Dictionary",
+    "name": "SwiftMedics Nursing/Orthopedic Merged Persian-English Medical Dictionary",
     "schema_compatible_with": "speechmatics-fa-speech medical_dictionary.json / matcher.py v1",
-    "generated_on": "2026-09-21",
-    "entry_count": 942,
-    "unique_form_count": 3118,
-    "form_collision_groups": 244,
-    "design": "deterministic lexical canonicalization; no semantic inference",
-    "research_basis": [
-      "SNOMED CT clinical concepts and procedures",
-      "LOINC laboratory and clinical observations",
-      "MedlinePlus laboratory tests and diagnostic procedures",
-      "NCBI Open RN Nursing Skills for nursing workflow/procedure vocabulary",
-      "CDC standard precautions and infection-control terminology",
-      "Joint Commission abbreviation-safety guidance"
+    "generated_on": "2026-09-22",
+    "entry_count": 990,
+    "design": "deterministic lexical canonicalization; Persian spoken aliases included for fa Speechmatics matching; merged from nursing_core, abbreviations, support, orthopedic additions; deduplicated by id",
+    "sources": [
+      "nursing_core_extraction_ordered.json",
+      "nursing_abbreviations_ordered.json",
+      "nursing_support_terms_ordered.json",
+      "nursing_orthopedic_dictionary_additions.json"
     ],
-    "note": "spoken aliases are intentionally broader than standard spelling; medication names are high-value lexical entries, not dosing or prescribing rules.",
-    "legacy_compatible": true,
-    "legacy_entries_restored": 20,
-    "speechmatics_term_count": 107,
-    "last_quality_pass": "2026-09-21: full dictionary audit; corrected Persian/English spoken-form coverage; removed Latin-script entries from fa Speechmatics sounds_like; normalized punctuation and spacing; deduplicated aliases; added curated Persian spoken variants; preserved legacy IDs/canonicals and schema"
+    "note": "Deduplicated by id; forms and sounds_like unioned; order preserved from core extraction primarily.; added AM/PM and hour terms; fixed 32 invalid types"
   },
   "terms": [
     {
@@ -40,7 +32,7 @@
         "بیپی",
         "فشارخون"
       ],
-      "source_file": "abbreviations.json"
+      "source_file": "nursing_terms.json"
     },
     {
       "id": "hr",
@@ -81,7 +73,7 @@
         "تعدادتنفس",
         "نرختنفس"
       ],
-      "source_file": "abbreviations.json"
+      "source_file": "nursing_terms.json"
     },
     {
       "id": "spo2",
@@ -89,7 +81,10 @@
       "type": "abbreviation",
       "tier": "abbreviation",
       "forms": [
-        "اس پی او دو"
+        "اس پی او دو",
+        "اشباع اکسیژن",
+        "اکسیژن ساتوریشن",
+        "ساتوریشن"
       ],
       "speechmatics": true,
       "sounds_like": [
@@ -98,7 +93,7 @@
         "اکسیژنساتوریشن",
         "اشباعاکسیژن"
       ],
-      "source_file": "abbreviations.json"
+      "source_file": "nursing_terms.json"
     },
     {
       "id": "temp",
@@ -109,16 +104,18 @@
         "تمپ",
         "دما",
         "دمای بدن",
-        "حرارت بدن"
+        "حرارت بدن",
+        "تی"
       ],
       "speechmatics": true,
       "sounds_like": [
         "تمپ",
         "دما",
         "دمایبدن",
-        "حرارتبدن"
+        "حرارتبدن",
+        "تی"
       ],
-      "source_file": "abbreviations.json"
+      "source_file": "nursing_terms.json"
     },
     {
       "id": "gcs",
@@ -494,9 +491,10 @@
       "sounds_like": [
         "سیبیسی",
         "شمارشکاملخون",
-        "شمارشسلولهایخون"
+        "شمارشسلولهایخون",
+        "شمارشکاملسلولهایخون"
       ],
-      "source_file": "abbreviations.json"
+      "source_file": "nursing_terms.json"
     },
     {
       "id": "cmp",
@@ -693,23 +691,6 @@
       "sounds_like": [
         "آیانآر",
         "نسبتنرمالشدهبینالمللی"
-      ],
-      "source_file": "abbreviations.json"
-    },
-    {
-      "id": "aptt",
-      "canonical": "aPTT",
-      "type": "abbreviation",
-      "tier": "abbreviation",
-      "forms": [
-        "ای پی تی تی",
-        "ای‌پی‌تی‌تی",
-        "زمان ترومبوپلاستین نسبی فعال"
-      ],
-      "speechmatics": true,
-      "sounds_like": [
-        "ایپیتیتی",
-        "زمانترومبوپلاستیننسبیفعال"
       ],
       "source_file": "abbreviations.json"
     },
@@ -2804,21 +2785,6 @@
         "گزارش پرستاری",
         "نوت پرستاری",
         "یادداشت پرستاری"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_phrases.json"
-    },
-    {
-      "id": "doctor-order",
-      "canonical": "doctor order",
-      "type": "phrase",
-      "tier": "phrase",
-      "forms": [
-        "دستور پزشک",
-        "اُردر پزشک",
-        "اوردر پزشک",
-        "دستور دکتر"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -5695,10 +5661,16 @@
       "tier": "validated_term",
       "forms": [
         "تهوع",
-        "حالت تهوع"
+        "حالت تهوع",
+        "نائوزا",
+        "ناژا"
       ],
-      "speechmatics": false,
-      "sounds_like": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "تهوع",
+        "نائوزا",
+        "ناژا"
+      ],
       "source_file": "nursing_terms.json"
     },
     {
@@ -5711,8 +5683,11 @@
         "بالا آوردن",
         "وامیتینگ"
       ],
-      "speechmatics": false,
-      "sounds_like": [],
+      "speechmatics": true,
+      "sounds_like": [
+        "استفراغ",
+        "وامیتینگ"
+      ],
       "source_file": "nursing_terms.json"
     },
     {
@@ -6801,19 +6776,6 @@
       "source_file": "nursing_terms.json"
     },
     {
-      "id": "pain",
-      "canonical": "pain",
-      "type": "condition",
-      "tier": "validated_term",
-      "forms": [
-        "درد",
-        "پین"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
       "id": "feverish",
       "canonical": "febrile",
       "type": "condition",
@@ -7719,19 +7681,6 @@
       "source_file": "nursing_phrases.json"
     },
     {
-      "id": "nurse",
-      "canonical": "nurse",
-      "type": "term",
-      "tier": "phrase",
-      "forms": [
-        "پرستار",
-        "نرس"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_phrases.json"
-    },
-    {
       "id": "head-nurse",
       "canonical": "charge nurse",
       "type": "term",
@@ -7740,19 +7689,6 @@
         "سرپرستار",
         "پرستار مسئول شیفت",
         "پرستار ارشد"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_phrases.json"
-    },
-    {
-      "id": "nursing-student",
-      "canonical": "student nurse",
-      "type": "term",
-      "tier": "phrase",
-      "forms": [
-        "دانشجوی پرستاری",
-        "استیودنت پرستاری"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -8481,194 +8417,6 @@
       "source_file": "nursing_terms.json"
     },
     {
-      "id": "mg",
-      "canonical": "mg",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "میلی گرم",
-        "میلی‌گرم"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "mcg",
-      "canonical": "mcg",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "میکروگرم",
-        "میکرو گرم"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "g",
-      "canonical": "g",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [],
-      "speechmatics": true,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "kg",
-      "canonical": "kg",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "کیلوگرم",
-        "کیلو گرم"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "ml",
-      "canonical": "mL",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "میلی لیتر",
-        "میلی‌لیتر",
-        "سی سی"
-      ],
-      "speechmatics": true,
-      "sounds_like": [
-        "میلی لیتر"
-      ],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "l",
-      "canonical": "L",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "لیتر"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "dl",
-      "canonical": "dL",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "دسی لیتر",
-        "دسی‌لیتر"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "unit",
-      "canonical": "unit",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "واحد",
-        "یونیت",
-        "unit",
-        "IU",
-        "units",
-        "international unit",
-        "واحد بین‌المللی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [
-        "U",
-        "u"
-      ],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "percent",
-      "canonical": "%",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "درصد"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "mmhg",
-      "canonical": "mmHg",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "میلی متر جیوه",
-        "میلی‌متر جیوه"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "cm",
-      "canonical": "cm",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "سانتی متر",
-        "سانتی‌متر"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "mm",
-      "canonical": "mm",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "میلی متر",
-        "میلی‌متر"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "bpm",
-      "canonical": "bpm",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "ضربان در دقیقه",
-        "بی پی ام"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "celsius",
-      "canonical": "°C",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "درجه سانتی گراد",
-        "سلسیوس"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
       "id": "lesion",
       "canonical": "lesion",
       "type": "condition",
@@ -8891,29 +8639,6 @@
       "source_file": "nursing_terms.json"
     },
     {
-      "id": "blood-pressure",
-      "canonical": "blood pressure",
-      "type": "vital_sign",
-      "tier": "observed_alias",
-      "forms": [
-        "فشار خون",
-        "BP",
-        "بی پی",
-        "blood pressure",
-        "B/P",
-        "B.P.",
-        "فشارخون",
-        "بلد پرشر",
-        "بلاد پرشر"
-      ],
-      "speechmatics": true,
-      "sounds_like": [
-        "فشارخون",
-        "بیپی"
-      ],
-      "source_file": "observed_asr_aliases.json"
-    },
-    {
       "id": "oxygen-saturation",
       "canonical": "oxygen saturation",
       "type": "vital_sign",
@@ -8976,22 +8701,6 @@
       "source_file": "nursing_terms.json"
     },
     {
-      "id": "ct-scan",
-      "canonical": "CT scan",
-      "type": "imaging",
-      "tier": "curated",
-      "forms": [
-        "سی تی اسکن",
-        "سی‌تی اسکن",
-        "ct scan"
-      ],
-      "speechmatics": true,
-      "sounds_like": [
-        "سیتیاسکن"
-      ],
-      "source_file": "fst_terms.json"
-    },
-    {
       "id": "q2h",
       "canonical": "q2h",
       "type": "abbreviation",
@@ -9022,45 +8731,6 @@
       "sounds_like": [
         "تیدیاس",
         "سهباردرروز"
-      ],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "diabetes",
-      "canonical": "diabetes",
-      "type": "condition",
-      "tier": "curated",
-      "forms": [
-        "دیابت",
-        "دیابت قندی"
-      ],
-      "speechmatics": true,
-      "sounds_like": [
-        "دیابت",
-        "دیابتقندی"
-      ],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "ultrasound",
-      "canonical": "ultrasound",
-      "type": "imaging",
-      "tier": "curated",
-      "forms": [
-        "الترسوند",
-        "اولتراسوند",
-        "سونوگرافی",
-        "ultrasound",
-        "US",
-        "U/S",
-        "sonography",
-        "sono"
-      ],
-      "speechmatics": true,
-      "sounds_like": [
-        "الترسوند",
-        "اولتراسوند",
-        "سونوگرافی"
       ],
       "source_file": "fst_terms.json"
     },
@@ -9129,16 +8799,21 @@
     {
       "id": "o2",
       "canonical": "O2",
-      "type": "vital_sign",
-      "tier": "validated_term",
+      "type": "abbreviation",
+      "tier": "abbreviation",
       "forms": [
         "او دو",
-        "اکسیژن دو"
+        "اکسیژن دو",
+        "اکسیژن",
+        "اکسیژن تراپی"
       ],
       "speechmatics": true,
       "sounds_like": [
         "اودو",
-        "اکسیژندو"
+        "اکسیژندو",
+        "ادو",
+        "اکسیژن",
+        "اکسیژن‌تراپی"
       ],
       "source_file": "nursing_terms.json"
     },
@@ -10056,20 +9731,6 @@
       "source_file": "nursing_terms.json"
     },
     {
-      "id": "antibiotic-susceptibility",
-      "canonical": "antibiotic susceptibility",
-      "type": "lab",
-      "tier": "validated_term",
-      "forms": [
-        "حساسیت آنتی بیوتیکی",
-        "آنتی بیوگرام",
-        "حساسیت دارویی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
       "id": "urine-microscopy",
       "canonical": "urine microscopy",
       "type": "lab",
@@ -10461,32 +10122,6 @@
       "source_file": "fst_terms.json"
     },
     {
-      "id": "diabetes-mellitus",
-      "canonical": "diabetes mellitus",
-      "type": "condition",
-      "tier": "curated",
-      "forms": [
-        "دیابت شیرین",
-        "diabetes mellitus",
-        "DM",
-        "DM1",
-        "DM2",
-        "T1DM",
-        "T2DM",
-        "diabetes",
-        "دیابت",
-        "دیابت قندی",
-        "مرض قند"
-      ],
-      "speechmatics": false,
-      "sounds_like": [
-        "دیابتملیتوس",
-        "دیابتقندی",
-        "دیابتشیرین"
-      ],
-      "source_file": "fst_terms.json"
-    },
-    {
       "id": "time_frequency_0001",
       "canonical": "every day",
       "type": "phrase",
@@ -10856,736 +10491,6 @@
       "speechmatics": false,
       "sounds_like": [],
       "source_file": "nursing_terms.json"
-    },
-    {
-      "id": "units_0024",
-      "canonical": "tablet",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "tablet",
-        "tab",
-        "Tab",
-        "TAB",
-        "tabs",
-        "pill",
-        "قرص",
-        "حبه"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0025",
-      "canonical": "capsule",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "capsule",
-        "cap",
-        "Cap",
-        "CAP",
-        "caps",
-        "کپسول"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0026",
-      "canonical": "suppository",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "suppository",
-        "supp",
-        "Supp",
-        "شیاف"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0027",
-      "canonical": "ointment",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "ointment",
-        "ung",
-        "ung.",
-        "oint",
-        "پماد",
-        "مرهم"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0028",
-      "canonical": "cream",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "cream",
-        "crm",
-        "کرم"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0029",
-      "canonical": "solution",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "solution",
-        "sol",
-        "soln",
-        "محلول"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0030",
-      "canonical": "suspension",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "suspension",
-        "susp",
-        "سوسپانسیون",
-        "تعلیق"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0031",
-      "canonical": "syrup",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "syrup",
-        "syr",
-        "شربت"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0032",
-      "canonical": "drop",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "drop",
-        "gtt",
-        "gtt.",
-        "gtts",
-        "drops",
-        "قطره",
-        "قطره‌ها"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0033",
-      "canonical": "one half",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "one half",
-        "ss",
-        "½",
-        "semis",
-        "نصف",
-        "نیمه",
-        "نیم"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0034",
-      "canonical": "milligram",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "milligram",
-        "mg",
-        "mg.",
-        "milligrams",
-        "میلی گرم",
-        "میلی‌گرم"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0035",
-      "canonical": "microgram",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "microgram",
-        "mcg",
-        "µg",
-        "ug",
-        "میکروگرم",
-        "میکرو گرم"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0036",
-      "canonical": "gram",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "gram",
-        "gm",
-        "grams"
-      ],
-      "speechmatics": false,
-      "sounds_like": [
-        "g"
-      ],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0037",
-      "canonical": "kilogram",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "kilogram",
-        "kg",
-        "کیلوگرم",
-        "کیلو"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0038",
-      "canonical": "grain",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "grain",
-        "gr",
-        "گرین",
-        "دانه"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0039",
-      "canonical": "milliliter",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "milliliter",
-        "ml",
-        "mL",
-        "millilitre",
-        "میلی لیتر",
-        "میلی‌لیتر",
-        "سی سی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0040",
-      "canonical": "liter",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "liter",
-        "litre",
-        "لیتر"
-      ],
-      "speechmatics": false,
-      "sounds_like": [
-        "L",
-        "l"
-      ],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0041",
-      "canonical": "cubic centimeter",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "cubic centimeter",
-        "cc",
-        "cm3",
-        "سانتی متر مکعب",
-        "سی‌سی",
-        "سانتی‌متر مکعب"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0042",
-      "canonical": "milliequivalent",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "milliequivalent",
-        "mEq",
-        "meq",
-        "میلی اکی والان",
-        "میلی‌اکی‌والان"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0044",
-      "canonical": "teaspoon",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "teaspoon",
-        "tsp",
-        "قاشق چایخوری",
-        "قاشق چای‌خوری"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0045",
-      "canonical": "tablespoon",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "tablespoon",
-        "tbsp",
-        "قاشق غذاخوری",
-        "۱۵ میلی‌لیتر"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0046",
-      "canonical": "ampoule",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "ampoule",
-        "amp",
-        "ampule",
-        "آمپول"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0047",
-      "canonical": "vial",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "vial",
-        "ویال"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "units_0048",
-      "canonical": "patch",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "patch",
-        "transdermal patch",
-        "پچ",
-        "برچسب پوستی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0049",
-      "canonical": "by mouth / oral",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "by mouth / oral",
-        "PO",
-        "p.o.",
-        "po",
-        "per os",
-        "oral",
-        "by mouth",
-        "orally",
-        "خوراکی",
-        "دهانی",
-        "از راه دهان"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0050",
-      "canonical": "intravenous",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "آی وی",
-        "وریدی",
-        "داخل وریدی",
-        "intravenous",
-        "IV",
-        "i.v.",
-        "iv",
-        "intravenously",
-        "تزریق وریدی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0051",
-      "canonical": "intramuscular",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "آی ام",
-        "درون عضلانی",
-        "عضلانی",
-        "intramuscular",
-        "IM",
-        "i.m.",
-        "im",
-        "intramuscularly",
-        "داخل عضلانی",
-        "تزریق عضلانی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0052",
-      "canonical": "subcutaneous",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "اس سی",
-        "زیر جلدی",
-        "ساب کیوتان",
-        "subcutaneous",
-        "SC",
-        "SQ",
-        "subq",
-        "subcu",
-        "subcutaneously",
-        "زیرجلدی",
-        "زیر پوستی",
-        "تزریق زیرجلدی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0053",
-      "canonical": "intradermal",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "intradermal",
-        "ID",
-        "داخل جلدی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0054",
-      "canonical": "sublingual",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "sublingual",
-        "SL",
-        "subling",
-        "زیرزبانی",
-        "زیر زبان"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0055",
-      "canonical": "rectal",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "rectal",
-        "PR",
-        "rect",
-        "rectally",
-        "per rectum",
-        "رکتال",
-        "از راه مقعد",
-        "شیاف مقعدی",
-        "از راه رکتوم"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0056",
-      "canonical": "vaginal",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "vaginal",
-        "PV",
-        "vag",
-        "vaginally",
-        "per vaginam",
-        "واژینال",
-        "از راه واژن"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0057",
-      "canonical": "inhalation",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "inhalation",
-        "INH",
-        "inh",
-        "neb",
-        "nebulizer",
-        "inhaled",
-        "استنشاقی",
-        "نبولایزر",
-        "اسپری"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0058",
-      "canonical": "topical",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "topical",
-        "TOP",
-        "top",
-        "موضعی",
-        "روی پوست"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0059",
-      "canonical": "transdermal",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "transdermal",
-        "TD",
-        "transderm",
-        "تراپوستی",
-        "از راه پوست"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0060",
-      "canonical": "intrathecal",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "intrathecal",
-        "IT",
-        "داخل نخاعی",
-        "اینتراتکال"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0061",
-      "canonical": "intra-arterial",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "intra-arterial",
-        "IA",
-        "داخل شریانی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0062",
-      "canonical": "nasogastric",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "nasogastric",
-        "NG",
-        "NGT",
-        "nasogastric tube",
-        "لوله بینی معدی",
-        "NG tube",
-        "لوله بینی-معدی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0063",
-      "canonical": "orogastric",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "orogastric",
-        "OG",
-        "OGT",
-        "لوله دهانی معدی",
-        "لوله دهانی-معدی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0064",
-      "canonical": "endotracheal",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "endotracheal",
-        "ET",
-        "ETT",
-        "endotracheal tube",
-        "لوله تراشه",
-        "اینتوبه",
-        "لوله داخل تراشه"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0065",
-      "canonical": "buccal",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "buccal",
-        "باکال",
-        "کنار گونه"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0066",
-      "canonical": "ophthalmic",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "ophthalmic",
-        "ophth",
-        "eye drops",
-        "چشمی",
-        "قطره چشمی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0067",
-      "canonical": "otic",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "otic",
-        "ear drops",
-        "گوشی",
-        "قطره گوش"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
-      "id": "route_0068",
-      "canonical": "nasal",
-      "type": "route",
-      "tier": "curated",
-      "forms": [
-        "nasal",
-        "intranasal",
-        "بینی",
-        "اسپری بینی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
     },
     {
       "id": "vital_signs_0070",
@@ -11983,38 +10888,6 @@
         "D.O.B.",
         "تاریخ تولد",
         "تولد"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
-      "id": "misc_0105",
-      "canonical": "years old",
-      "type": "term",
-      "tier": "validated_term",
-      "forms": [
-        "years old",
-        "YO",
-        "y/o",
-        "y.o.",
-        "ساله",
-        "سال"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
-      "id": "misc_0106",
-      "canonical": "within normal limits",
-      "type": "term",
-      "tier": "validated_term",
-      "forms": [
-        "within normal limits",
-        "WNL",
-        "نرمال",
-        "در محدوده طبیعی"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -13048,22 +11921,6 @@
       "source_file": "nursing_terms.json"
     },
     {
-      "id": "history_0193",
-      "canonical": "diagnosis",
-      "type": "phrase",
-      "tier": "validated_term",
-      "forms": [
-        "diagnosis",
-        "Dx",
-        "DX",
-        "تشخیص",
-        "دیآگنوز"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
       "id": "history_0194",
       "canonical": "history",
       "type": "phrase",
@@ -13355,22 +12212,6 @@
         "OGTT",
         "oral glucose tolerance test",
         "تست تحمل گلوکز"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
-      "id": "lab_0216",
-      "canonical": "blood urea nitrogen",
-      "type": "lab",
-      "tier": "validated_term",
-      "forms": [
-        "blood urea nitrogen",
-        "BUN",
-        "urea",
-        "اوره",
-        "نیتروژن اوره خون"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -14051,6 +12892,313 @@
       "source_file": "nursing_terms.json"
     },
     {
+      "id": "aptt",
+      "canonical": "aPTT",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [
+        "aPTT",
+        "ای پی تی تی",
+        "PTT",
+        "partial thromboplastin time",
+        "زمان ترومبوپلاستین نسبی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "ایپیتی‌تی",
+        "پی‌تی‌تی",
+        "زمانترومبوپلاستین"
+      ],
+      "source_file": "nursing_orthopedic_terms.json"
+    },
+    {
+      "id": "bedside_rails",
+      "canonical": "bedside rails",
+      "type": "phrase",
+      "tier": "validated_term",
+      "forms": [
+        "bedside rails",
+        "bed side",
+        "گارد تخت",
+        "بالا بودن بدساید",
+        "بالا بودن Bed Side"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "بدساید",
+        "گاردتخت"
+      ],
+      "source_file": "nursing_orthopedic_terms.json"
+    },
+    {
+      "id": "bg",
+      "canonical": "BG",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [
+        "BG",
+        "بی جی",
+        "blood glucose",
+        "قند خون"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "بی‌جی",
+        "قندخون"
+      ],
+      "source_file": "nursing_orthopedic_terms.json"
+    },
+    {
+      "id": "compression_stockings",
+      "canonical": "compression stockings",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "compression stockings",
+        "جوراب واریس",
+        "جوراب فشاری",
+        "جوراب‌های فشاری",
+        "کمپرشن استاکینگ"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "جورابواریس",
+        "جورابفشاری",
+        "جورابهايفشاری",
+        "کمپرشن‌استاکینگ"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "drainage",
+      "canonical": "drainage",
+      "type": "phrase",
+      "tier": "validated_term",
+      "forms": [
+        "drainage",
+        "درناژ",
+        "ترشح"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "درناژ",
+        "ترشح"
+      ],
+      "source_file": "nursing_orthopedic_terms.json"
+    },
+    {
+      "id": "infusion",
+      "canonical": "infusion",
+      "type": "phrase",
+      "tier": "validated_term",
+      "forms": [
+        "infusion",
+        "انفوزیون",
+        "سرم در جریان"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "انفوزیون",
+        "سرم درجریان"
+      ],
+      "source_file": "nursing_orthopedic_terms.json"
+    },
+    {
+      "id": "isbar",
+      "canonical": "ISBAR",
+      "type": "phrase",
+      "tier": "validated_term",
+      "forms": [
+        "ISBAR",
+        "آی اس بار",
+        "تحویل بیمار به روش ISBAR",
+        "آی اس بی ای آر",
+        "آی‌اس‌بی‌ای‌آر",
+        "ایس بار"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "آی‌اس‌بار",
+        "تحویلبیمار",
+        "آی‌اس‌بی‌ای‌آر",
+        "ایسبار"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "neurovascular_assessment",
+      "canonical": "neurovascular assessment",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "neurovascular assessment",
+        "ارزیابی نوروواسکولار",
+        "ارزیابی عصبی عروقی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "ارزیابینوروواسکولار"
+      ],
+      "source_file": "nursing_orthopedic_terms.json"
+    },
+    {
+      "id": "neurovascular_status",
+      "canonical": "neurovascular status",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "neurovascular status",
+        "وضعیت نوروواسکولار",
+        "وضعیت عصبی عروقی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "وضعیتنوروواسکولار"
+      ],
+      "source_file": "nursing_orthopedic_terms.json"
+    },
+    {
+      "id": "nurse_call",
+      "canonical": "nurse call",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "nurse call",
+        "نرس کال",
+        "زنگ پرستار",
+        "دکمه فراخوان پرستار",
+        "نرس‌کال",
+        "دکمه نرس کال",
+        "سیستم نرس کال"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "نرس‌کال",
+        "زنگپرستار",
+        "نرسکال",
+        "دکمه‌نرسکال",
+        "سیستنرسکال"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "nwb",
+      "canonical": "non-weight bearing",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "non-weight bearing",
+        "NWB",
+        "بدون وزن‌گذاری",
+        "عدم وزن‌گذاری"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "عدموزنگذاری"
+      ],
+      "source_file": "nursing_orthopedic_terms.json"
+    },
+    {
+      "id": "oob",
+      "canonical": "OOB",
+      "type": "abbreviation",
+      "tier": "abbreviation",
+      "forms": [
+        "OOB",
+        "او او بی",
+        "out of bed",
+        "خارج از تخت",
+        "او‌او‌بی",
+        "بیرون از تخت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "او او بی",
+        "خارجازتخت",
+        "اووابی",
+        "بیرونازتخت"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "oral_intake",
+      "canonical": "oral intake",
+      "type": "phrase",
+      "tier": "validated_term",
+      "forms": [
+        "oral intake",
+        "دریافت خوراکی",
+        "مصرف خوراکی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "دریافتخوراکی"
+      ],
+      "source_file": "nursing_orthopedic_terms.json"
+    },
+    {
+      "id": "plt",
+      "canonical": "PLT",
+      "type": "lab",
+      "tier": "validated_term",
+      "forms": [
+        "PLT",
+        "پی ال تی",
+        "platelet",
+        "پلاکت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "پی‌ال‌تی",
+        "پلاکت"
+      ],
+      "source_file": "nursing_orthopedic_terms.json"
+    },
+    {
+      "id": "po",
+      "canonical": "PO",
+      "type": "abbreviation",
+      "tier": "abbreviation",
+      "forms": [
+        "PO",
+        "پی او",
+        "پی‌او",
+        "oral",
+        "خوراکی",
+        "از راه دهان",
+        "از راه خوراکی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "پی‌او",
+        "خوراکی",
+        "ازراهد‌هان",
+        "ازراهدهان",
+        "ازراهخوراکی"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "surgical_drain",
+      "canonical": "surgical drain",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "surgical drain",
+        "drain",
+        "درن",
+        "درن جراحی",
+        "سورجیکال درین"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "درن",
+        "درنجراحی",
+        "سورجیکالدرین"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
       "id": "anatomy_0282",
       "canonical": "psychiatric",
       "type": "anatomy",
@@ -14064,6 +13212,1604 @@
       "speechmatics": false,
       "sounds_like": [],
       "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "mg",
+      "canonical": "mg",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "میلی گرم",
+        "میلی‌گرم"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "mcg",
+      "canonical": "mcg",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "میکروگرم",
+        "میکرو گرم"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "g",
+      "canonical": "g",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [],
+      "speechmatics": true,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "kg",
+      "canonical": "kg",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "کیلوگرم",
+        "کیلو گرم"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "ml",
+      "canonical": "mL",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "میلی لیتر",
+        "میلی‌لیتر",
+        "سی سی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "میلی لیتر"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "l",
+      "canonical": "L",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "لیتر"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "dl",
+      "canonical": "dL",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "دسی لیتر",
+        "دسی‌لیتر"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "unit",
+      "canonical": "unit",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "واحد",
+        "یونیت",
+        "unit",
+        "IU",
+        "units",
+        "international unit",
+        "واحد بین‌المللی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [
+        "U",
+        "u"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "percent",
+      "canonical": "%",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "درصد"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "mmhg",
+      "canonical": "mmHg",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "میلی متر جیوه",
+        "میلی‌متر جیوه"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "cm",
+      "canonical": "cm",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "سانتی متر",
+        "سانتی‌متر"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "mm",
+      "canonical": "mm",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "میلی متر",
+        "میلی‌متر"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "bpm",
+      "canonical": "bpm",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "ضربان در دقیقه",
+        "بی پی ام"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "celsius",
+      "canonical": "°C",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "درجه سانتی گراد",
+        "سلسیوس"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "blood-pressure",
+      "canonical": "blood pressure",
+      "type": "vital_sign",
+      "tier": "observed_alias",
+      "forms": [
+        "فشار خون",
+        "BP",
+        "بی پی",
+        "blood pressure",
+        "B/P",
+        "B.P.",
+        "فشارخون",
+        "بلد پرشر",
+        "بلاد پرشر"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "فشارخون",
+        "بیپی"
+      ],
+      "source_file": "observed_asr_aliases.json"
+    },
+    {
+      "id": "ct-scan",
+      "canonical": "CT scan",
+      "type": "imaging",
+      "tier": "curated",
+      "forms": [
+        "سی تی اسکن",
+        "سی‌تی اسکن",
+        "ct scan"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "سیتیاسکن"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "diabetes",
+      "canonical": "diabetes",
+      "type": "condition",
+      "tier": "curated",
+      "forms": [
+        "دیابت",
+        "دیابت قندی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "دیابت",
+        "دیابتقندی"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "ultrasound",
+      "canonical": "ultrasound",
+      "type": "imaging",
+      "tier": "curated",
+      "forms": [
+        "الترسوند",
+        "اولتراسوند",
+        "سونوگرافی",
+        "ultrasound",
+        "US",
+        "U/S",
+        "sonography",
+        "sono"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "الترسوند",
+        "اولتراسوند",
+        "سونوگرافی"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "diabetes-mellitus",
+      "canonical": "diabetes mellitus",
+      "type": "condition",
+      "tier": "curated",
+      "forms": [
+        "دیابت شیرین",
+        "diabetes mellitus",
+        "DM",
+        "DM1",
+        "DM2",
+        "T1DM",
+        "T2DM",
+        "diabetes",
+        "دیابت",
+        "دیابت قندی",
+        "مرض قند"
+      ],
+      "speechmatics": false,
+      "sounds_like": [
+        "دیابتملیتوس",
+        "دیابتقندی",
+        "دیابتشیرین"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0024",
+      "canonical": "tablet",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "tablet",
+        "tab",
+        "Tab",
+        "TAB",
+        "tabs",
+        "pill",
+        "قرص",
+        "حبه"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0025",
+      "canonical": "capsule",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "capsule",
+        "cap",
+        "Cap",
+        "CAP",
+        "caps",
+        "کپسول"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0026",
+      "canonical": "suppository",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "suppository",
+        "supp",
+        "Supp",
+        "شیاف"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0027",
+      "canonical": "ointment",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "ointment",
+        "ung",
+        "ung.",
+        "oint",
+        "پماد",
+        "مرهم"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0028",
+      "canonical": "cream",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "cream",
+        "crm",
+        "کرم"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0029",
+      "canonical": "solution",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "solution",
+        "sol",
+        "soln",
+        "محلول"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0030",
+      "canonical": "suspension",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "suspension",
+        "susp",
+        "سوسپانسیون",
+        "تعلیق"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0031",
+      "canonical": "syrup",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "syrup",
+        "syr",
+        "شربت"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0032",
+      "canonical": "drop",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "drop",
+        "gtt",
+        "gtt.",
+        "gtts",
+        "drops",
+        "قطره",
+        "قطره‌ها"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0033",
+      "canonical": "one half",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "one half",
+        "ss",
+        "½",
+        "semis",
+        "نصف",
+        "نیمه",
+        "نیم"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0034",
+      "canonical": "milligram",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "milligram",
+        "mg",
+        "mg.",
+        "milligrams",
+        "میلی گرم",
+        "میلی‌گرم"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0035",
+      "canonical": "microgram",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "microgram",
+        "mcg",
+        "µg",
+        "ug",
+        "میکروگرم",
+        "میکرو گرم"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0036",
+      "canonical": "gram",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "gram",
+        "gm",
+        "grams"
+      ],
+      "speechmatics": false,
+      "sounds_like": [
+        "g"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0037",
+      "canonical": "kilogram",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "kilogram",
+        "kg",
+        "کیلوگرم",
+        "کیلو"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0038",
+      "canonical": "grain",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "grain",
+        "gr",
+        "گرین",
+        "دانه"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0039",
+      "canonical": "milliliter",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "milliliter",
+        "ml",
+        "mL",
+        "millilitre",
+        "میلی لیتر",
+        "میلی‌لیتر",
+        "سی سی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0040",
+      "canonical": "liter",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "liter",
+        "litre",
+        "لیتر"
+      ],
+      "speechmatics": false,
+      "sounds_like": [
+        "L",
+        "l"
+      ],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0041",
+      "canonical": "cubic centimeter",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "cubic centimeter",
+        "cc",
+        "cm3",
+        "سانتی متر مکعب",
+        "سی‌سی",
+        "سانتی‌متر مکعب"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0042",
+      "canonical": "milliequivalent",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "milliequivalent",
+        "mEq",
+        "meq",
+        "میلی اکی والان",
+        "میلی‌اکی‌والان"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0044",
+      "canonical": "teaspoon",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "teaspoon",
+        "tsp",
+        "قاشق چایخوری",
+        "قاشق چای‌خوری"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0045",
+      "canonical": "tablespoon",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "tablespoon",
+        "tbsp",
+        "قاشق غذاخوری",
+        "۱۵ میلی‌لیتر"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0046",
+      "canonical": "ampoule",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "ampoule",
+        "amp",
+        "ampule",
+        "آمپول"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0047",
+      "canonical": "vial",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "vial",
+        "ویال"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "units_0048",
+      "canonical": "patch",
+      "type": "dosage_unit",
+      "tier": "unit",
+      "forms": [
+        "patch",
+        "transdermal patch",
+        "پچ",
+        "برچسب پوستی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0049",
+      "canonical": "PO",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "by mouth / oral",
+        "PO",
+        "p.o.",
+        "po",
+        "per os",
+        "oral",
+        "by mouth",
+        "orally",
+        "خوراکی",
+        "دهانی",
+        "از راه دهان"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0050",
+      "canonical": "intravenous",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "آی وی",
+        "وریدی",
+        "داخل وریدی",
+        "intravenous",
+        "IV",
+        "i.v.",
+        "iv",
+        "intravenously",
+        "تزریق وریدی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0051",
+      "canonical": "intramuscular",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "آی ام",
+        "درون عضلانی",
+        "عضلانی",
+        "intramuscular",
+        "IM",
+        "i.m.",
+        "im",
+        "intramuscularly",
+        "داخل عضلانی",
+        "تزریق عضلانی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0052",
+      "canonical": "subcutaneous",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "اس سی",
+        "زیر جلدی",
+        "ساب کیوتان",
+        "subcutaneous",
+        "SC",
+        "SQ",
+        "subq",
+        "subcu",
+        "subcutaneously",
+        "زیرجلدی",
+        "زیر پوستی",
+        "تزریق زیرجلدی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0053",
+      "canonical": "intradermal",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "intradermal",
+        "ID",
+        "داخل جلدی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0054",
+      "canonical": "sublingual",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "sublingual",
+        "SL",
+        "subling",
+        "زیرزبانی",
+        "زیر زبان"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0055",
+      "canonical": "rectal",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "rectal",
+        "PR",
+        "rect",
+        "rectally",
+        "per rectum",
+        "رکتال",
+        "از راه مقعد",
+        "شیاف مقعدی",
+        "از راه رکتوم"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0056",
+      "canonical": "vaginal",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "vaginal",
+        "PV",
+        "vag",
+        "vaginally",
+        "per vaginam",
+        "واژینال",
+        "از راه واژن"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0057",
+      "canonical": "inhalation",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "inhalation",
+        "INH",
+        "inh",
+        "neb",
+        "nebulizer",
+        "inhaled",
+        "استنشاقی",
+        "نبولایزر",
+        "اسپری"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0058",
+      "canonical": "topical",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "topical",
+        "TOP",
+        "top",
+        "موضعی",
+        "روی پوست"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0059",
+      "canonical": "transdermal",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "transdermal",
+        "TD",
+        "transderm",
+        "تراپوستی",
+        "از راه پوست"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0060",
+      "canonical": "intrathecal",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "intrathecal",
+        "IT",
+        "داخل نخاعی",
+        "اینتراتکال"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0061",
+      "canonical": "intra-arterial",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "intra-arterial",
+        "IA",
+        "داخل شریانی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0062",
+      "canonical": "nasogastric",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "nasogastric",
+        "NG",
+        "NGT",
+        "nasogastric tube",
+        "لوله بینی معدی",
+        "NG tube",
+        "لوله بینی-معدی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0063",
+      "canonical": "orogastric",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "orogastric",
+        "OG",
+        "OGT",
+        "لوله دهانی معدی",
+        "لوله دهانی-معدی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0064",
+      "canonical": "endotracheal",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "endotracheal",
+        "ET",
+        "ETT",
+        "endotracheal tube",
+        "لوله تراشه",
+        "اینتوبه",
+        "لوله داخل تراشه"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0065",
+      "canonical": "buccal",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "buccal",
+        "باکال",
+        "کنار گونه"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0066",
+      "canonical": "ophthalmic",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "ophthalmic",
+        "ophth",
+        "eye drops",
+        "چشمی",
+        "قطره چشمی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0067",
+      "canonical": "otic",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "otic",
+        "ear drops",
+        "گوشی",
+        "قطره گوش"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "route_0068",
+      "canonical": "nasal",
+      "type": "route",
+      "tier": "curated",
+      "forms": [
+        "nasal",
+        "intranasal",
+        "بینی",
+        "اسپری بینی"
+      ],
+      "speechmatics": false,
+      "sounds_like": [],
+      "source_file": "fst_terms.json"
+    },
+    {
+      "id": "pr",
+      "canonical": "PR",
+      "type": "abbreviation",
+      "tier": "abbreviation",
+      "forms": [
+        "پی آر",
+        "پی‌آر",
+        "تعداد نبض",
+        "نبض"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "پیآر",
+        "تعدادنبض",
+        "نبض"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "iv_line",
+      "canonical": "IV-Line",
+      "type": "abbreviation",
+      "tier": "abbreviation",
+      "forms": [
+        "آی وی لاین",
+        "آی‌وی‌لاین",
+        "لاین وریدی",
+        "خط وریدی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "آی‌وی‌لاین",
+        "لاینوریدی",
+        "خطوریدی"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "vital_signs",
+      "canonical": "Vital signs",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "علائم حیاتی",
+        "علائم‌حیاتی",
+        "وایتال ساینز"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "علائمحیاتی",
+        "وایتالساینز"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "morse_fall_scale",
+      "canonical": "Morse Fall Scale",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "مقیاس مورس",
+        "معیار مورس",
+        "مورس",
+        "مورس فال اسکیل"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "مقیاسمورس",
+        "معیارمورس",
+        "مورس",
+        "مورسفالاسکیل"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "braden_scale",
+      "canonical": "Braden Scale",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "مقیاس برادن",
+        "معیار برادن",
+        "برادن",
+        "برادن اسکیل"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "مقیاسبرادن",
+        "معیاربرادن",
+        "برادن",
+        "برادناسکیل"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "smart_framework",
+      "canonical": "SMART",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "اسمارت",
+        "اس ام ای آر تی",
+        "پروتکل اسمارت",
+        "آموزش SMART"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "اسمارت",
+        "اس‌ام‌ای‌آر‌تی",
+        "پروتکلاسمارت",
+        "آموزشاسمارت"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "neurovascular",
+      "canonical": "Neurovascular",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "نوروواسکولار",
+        "ارزیابی نوروواسکولار",
+        "نورو واسکولار"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "نوروواسکولار",
+        "ارزیابینوروواسکولار"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "capillary_refill_time",
+      "canonical": "Capillary refill time",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "زمان پرشدگی مویرگی",
+        "پرشدگی مویرگی",
+        "کاپیلاری ریفیل تایم",
+        "CRT"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "زمانپرشدگیمویرگی",
+        "پرشدگیمویرگی",
+        "کاپیلاریریفیل",
+        "سی‌آرتی"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "traction",
+      "canonical": "Traction",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "تراکشن",
+        "کشش",
+        "تراکشن اندام",
+        "تراکشن ارتوپدی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "تراکشن",
+        "کشش",
+        "تراکشناندام",
+        "تراکشنارتوپدی"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "bedside",
+      "canonical": "Bedside",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "بدساید",
+        "بد ساید",
+        "Bed Side",
+        "کنار تخت",
+        "ریل کنار تخت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "بدساید",
+        "کنارتخت",
+        "ریلکنارتخت"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "diuresis",
+      "canonical": "Diuresis",
+      "type": "phrase",
+      "tier": "validated_term",
+      "forms": [
+        "دیورز",
+        "برون‌ده ادراری",
+        "خروجی ادرار",
+        "یورین آوت‌پوت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "دیورز",
+        "بروندهادراری",
+        "خروجیادرار",
+        "یورین‌آوتپوت"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "defecation",
+      "canonical": "Defecation",
+      "type": "phrase",
+      "tier": "validated_term",
+      "forms": [
+        "دیفیکیشن",
+        "دفع مدفوع",
+        "اجابت مزاج",
+        "دفکیشن"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "دیفیکیشن",
+        "دفعمدفوع",
+        "اجابت‌مزاج",
+        "دفکیشن"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "secured",
+      "canonical": "Secured",
+      "type": "phrase",
+      "tier": "validated_term",
+      "forms": [
+        "فیکس",
+        "فیکس شده",
+        "ثابت شده",
+        "محکم شده"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "فیکس",
+        "فیکسشده",
+        "ثابتشده",
+        "محکم‌شده"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "phlebitis",
+      "canonical": "Phlebitis",
+      "type": "condition",
+      "tier": "validated_term",
+      "forms": [
+        "فلبیت",
+        "فلبیت ورید",
+        "التهاب ورید"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "فلبیت",
+        "فلبیتورید",
+        "التهابورید"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "iv_infusion_running",
+      "canonical": "IV infusion running",
+      "type": "phrase",
+      "tier": "validated_term",
+      "forms": [
+        "سرم در جریان",
+        "سرم در حال جریان",
+        "انفیوژن وریدی در جریان"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "سرمدرجریان",
+        "سرمدرحالجریان",
+        "انفیوژنوریدی"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "iv_catheter_removal",
+      "canonical": "IV catheter removal",
+      "type": "procedure",
+      "tier": "validated_term",
+      "forms": [
+        "خارج کردن آنژیوکت",
+        "خارج کردن آی وی",
+        "برداشتن آنژیوکت",
+        "خارج سازی کاتتر وریدی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "خارجکردنانژیوکت",
+        "خارجکردنآیوی",
+        "برداشتنآنژیوکت",
+        "خارجسازیکاتتروریدی"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "ecchymosis",
+      "canonical": "Ecchymosis",
+      "type": "condition",
+      "tier": "validated_term",
+      "forms": [
+        "اکیموز",
+        "کبودی",
+        "اکیموز پوستی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "اکیموز",
+        "کبودی",
+        "اکیموزپوستی"
+      ],
+      "source_file": "nursing_terms.json"
+    },
+    {
+      "id": "am",
+      "canonical": "AM",
+      "type": "abbreviation",
+      "tier": "abbreviation",
+      "forms": [
+        "ای ام",
+        "ای‌ام",
+        "صبح",
+        "قبل از ظهر",
+        "a.m.",
+        "am"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "ایام",
+        "ای‌ام",
+        "صبح",
+        "قبل‌ازظهر"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "pm",
+      "canonical": "PM",
+      "type": "abbreviation",
+      "tier": "abbreviation",
+      "forms": [
+        "پی ام",
+        "پی‌ام",
+        "بعد از ظهر",
+        "عصر",
+        "شب",
+        "p.m.",
+        "pm"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "پیام",
+        "پی‌ام",
+        "بعدازظهر",
+        "عصر",
+        "شب"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_1",
+      "canonical": "1",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "1",
+        "ساعت 1",
+        "1 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "1",
+        "ساعت1"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_2",
+      "canonical": "2",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "2",
+        "ساعت 2",
+        "2 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "2",
+        "ساعت2"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_3",
+      "canonical": "3",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "3",
+        "ساعت 3",
+        "3 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "3",
+        "ساعت3"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_4",
+      "canonical": "4",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "4",
+        "ساعت 4",
+        "4 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "4",
+        "ساعت4"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_5",
+      "canonical": "5",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "5",
+        "ساعت 5",
+        "5 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "5",
+        "ساعت5"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_6",
+      "canonical": "6",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "6",
+        "ساعت 6",
+        "6 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "6",
+        "ساعت6"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_7",
+      "canonical": "7",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "7",
+        "ساعت 7",
+        "7 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "7",
+        "ساعت7"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_8",
+      "canonical": "8",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "8",
+        "ساعت 8",
+        "8 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "8",
+        "ساعت8"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_9",
+      "canonical": "9",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "9",
+        "ساعت 9",
+        "9 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "9",
+        "ساعت9"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_10",
+      "canonical": "10",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "10",
+        "ساعت 10",
+        "10 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "10",
+        "ساعت10"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_11",
+      "canonical": "11",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "11",
+        "ساعت 11",
+        "11 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "11",
+        "ساعت11"
+      ],
+      "source_file": "nursing_time_additions"
+    },
+    {
+      "id": "hour_12",
+      "canonical": "12",
+      "type": "term",
+      "tier": "validated_term",
+      "forms": [
+        "12",
+        "ساعت 12",
+        "12 ساعت"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "12",
+        "ساعت12"
+      ],
+      "source_file": "nursing_time_additions"
     }
   ]
 }
