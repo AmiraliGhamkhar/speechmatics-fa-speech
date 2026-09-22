@@ -676,6 +676,16 @@ class TextInjector:
                     print("  [paste warn] clipboard verification failed")
                     return False
 
+            # Last-moment re-check: the first guard ran BEFORE the clipboard
+            # work, and reading/writing/verifying the clipboard takes real
+            # time during which the user can alt-tab. Ctrl+V goes to whatever
+            # window has focus at THIS instant, so the armed target must be
+            # confirmed here, immediately before the keystroke, or the
+            # transcript lands in the wrong application. (The clipboard is
+            # still restored by the `finally` below.)
+            if not self._focus_guard_ok():
+                return False
+
             ok = self._send_paste_keystroke()
 
             # Let the target application actually read the clipboard. Pasting

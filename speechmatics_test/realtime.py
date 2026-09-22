@@ -58,8 +58,30 @@ MEDICAL_DOMAIN_LANGUAGES = frozenset(
 )
 
 
-def resolve_domain(language: Any, domain: Any) -> Optional[str]:
-    """Return the domain to send for ``language`` (``None`` = omit it)."""
+#: The Medical domain is a variant of the ENHANCED model only. Asking for it
+#: on ``standard`` is a contradictory configuration, so ``auto`` never
+#: resolves to it there (an explicit ``--domain medical`` is still honored:
+#: forcing it is a documented enterprise/private-deployment opt-in, and the
+#: API remains the authority on whether the combination is accepted).
+MEDICAL_DOMAIN_MODELS = frozenset({"enhanced"})
+
+
+def resolve_domain(
+    language: Any, domain: Any, model: Any = DEFAULT_MODEL
+) -> Optional[str]:
+    """Return the domain to send (``None`` = omit the key entirely).
+
+    ``auto`` requests ``medical`` only when BOTH conditions hold:
+
+    * Speechmatics documents the Enhanced Medical model for ``language``
+      (see ``MEDICAL_DOMAIN_LANGUAGES`` — Persian is not in that list), and
+    * ``model`` is one that actually offers the medical domain
+      (see ``MEDICAL_DOMAIN_MODELS``).
+
+    Without the model check, ``--model standard --domain auto`` on an English
+    stream silently produced the self-contradictory pair
+    ``model=standard, domain=medical``.
+    """
     setting = str(domain or DEFAULT_DOMAIN).strip().lower()
     if setting not in VALID_DOMAINS:
         raise ValueError(
@@ -70,7 +92,13 @@ def resolve_domain(language: Any, domain: Any) -> Optional[str]:
     if setting == "medical":
         return "medical"
     base = str(language or "").strip().lower().split("-")[0]
-    return "medical" if base in MEDICAL_DOMAIN_LANGUAGES else None
+    if base not in MEDICAL_DOMAIN_LANGUAGES:
+        return None
+    return (
+        "medical"
+        if str(model or "").strip().lower() in MEDICAL_DOMAIN_MODELS
+        else None
+    )
 
 # This threshold only marks lexical rule matches for review. It never creates
 # a correction without a matching, validated rule.
@@ -231,7 +259,7 @@ class SpeechmaticsRealtime:
         #: The domain actually sent for this language (``None`` = omitted).
         #: ``domain="medical"`` is only sent where Speechmatics documents the
         #: Enhanced Medical model for the language (or when forced).
-        self.effective_domain = resolve_domain(language, self.domain)
+        self.effective_domain = resolve_domain(language, self.domain, self.model)
         self.result = SessionResult(language=language)
 
     # ------------------------------------------------------------------ util

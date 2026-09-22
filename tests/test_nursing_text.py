@@ -427,3 +427,94 @@ def test_ratio_normalization_preserves_both_values():
 def test_ratio_normalization_is_idempotent():
     once = polish("صد و چهل روی هشتاد و پنج")
     assert polish(once) == once
+
+
+# ------------------------------- streaming tail helpers (hold decisions)
+
+from speechmatics_test.nursing_text import (  # noqa: E402
+    MAX_PENDING_TAIL_TOKENS,
+    duplicate_boundary_tokens,
+    is_vital_label,
+    pending_tail_tokens,
+    vital_label_prefix_tokens,
+)
+
+
+def test_pending_tail_holds_a_trailing_number_run():
+    """A number may still be growing ('صد و' -> 'صد و بیست')."""
+    assert pending_tail_tokens("فشار خون صد و بیست") > 0
+
+
+def test_pending_tail_holds_an_open_ratio():
+    """'120 روی' is half a blood pressure; emitting it loses the diastolic."""
+    assert pending_tail_tokens("فشار خون 120 روی") >= 2
+
+
+def test_pending_tail_holds_a_trailing_verb_prefix():
+    """'می'/'نمی' are bound prefixes - the word is not finished.
+
+    Regression: the check used a lookahead regex that never matched, so
+    'ذکر می' was emitted and the verb was split in half.
+    """
+    assert pending_tail_tokens("درد را ذکر می") > 0
+    assert pending_tail_tokens("درد را ذکر نمی") > 0
+
+
+def test_pending_tail_releases_a_completed_verb():
+    assert pending_tail_tokens("درد را ذکر می کند") == 0
+
+
+def test_pending_tail_is_bounded():
+    """The hold must never grow without limit, or emission stalls."""
+    long_run = "بیمار " + " ".join(["صد"] * 40)
+    assert pending_tail_tokens(long_run) <= MAX_PENDING_TAIL_TOKENS
+
+
+def test_pending_tail_releases_ordinary_prose():
+    assert pending_tail_tokens("بیمار هوشیار و اوریانته است") == 0
+
+
+def test_vital_label_prefix_detects_an_unfinished_label():
+    """'blood' begins 'blood pressure' but does not finish it.
+
+    Labels are matched AFTER canonicalization, so these helpers see the
+    spelled English label, never the raw Persian the clinician said.
+    """
+    assert vital_label_prefix_tokens("بیمار blood") == 1
+    assert vital_label_prefix_tokens("oxygen") == 1
+
+
+def test_vital_label_prefix_is_zero_for_a_complete_label():
+    assert vital_label_prefix_tokens("blood pressure") == 0
+    assert vital_label_prefix_tokens("oxygen saturation") == 0
+
+
+def test_vital_label_prefix_is_zero_for_ordinary_prose():
+    assert vital_label_prefix_tokens("بیمار در اتاق است") == 0
+    assert vital_label_prefix_tokens("") == 0
+
+
+def test_is_vital_label_ignores_trailing_punctuation():
+    assert is_vital_label("blood pressure")
+    assert is_vital_label("blood pressure:")
+    assert is_vital_label("BP")
+    assert not is_vital_label("بیمار")
+
+
+def test_duplicate_boundary_tokens_detects_an_echoed_word():
+    assert duplicate_boundary_tokens("نمره", "نمره درد", frozenset()) == 1
+
+
+def test_duplicate_boundary_tokens_ignores_legitimate_repetition():
+    """'سی سی' (cc) is a real term, not a stutter."""
+    assert duplicate_boundary_tokens("سی", "سی یو", {"سی سی"}) == 0
+
+
+def test_duplicate_boundary_tokens_never_drops_a_repeated_number():
+    """Two identical numbers can both be real ('2 2 mg' is not '2 mg')."""
+    assert duplicate_boundary_tokens("140/85", "140/85", frozenset()) == 0
+
+
+def test_duplicate_boundary_tokens_is_bounded():
+    assert duplicate_boundary_tokens(
+        "الف ب پ ت", "الف ب پ ت", frozenset()) <= 2

@@ -178,7 +178,7 @@ report JSON. Disable the whole stage with `--no-text-polish`.
 ## Vocabulary
 
 `medical_knowledge\medical_dictionary.json` is the single source of truth
-(**971 terms**). Entries marked `"speechmatics": true` are exported to
+(**968 terms**). Entries marked `"speechmatics": true` are exported to
 `speechmatics_additional_vocab.json` (**136 entries**) and sent to the ASR as
 biasing hints, with spoken Persian forms attached as `sounds_like`.
 
@@ -199,7 +199,7 @@ After editing the dictionary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-**476 tests, all passing.**
+**532 tests, all passing.**
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\swiftmedics_tools.py benchmark
@@ -208,6 +208,16 @@ After editing the dictionary:
 107 nursing fixtures, offline, no API key. Writes
 `benchmark\results_current.json` and regenerates `benchmark\README.md` from
 the measured run — no number in it is hardcoded.
+
+Every fixture is scored **twice**. The whole-text run feeds each sentence to the
+post-processing chain as one string. The **streaming** run (`benchmark/streaming.py`)
+replays the same fixtures through the real `FinalStreamCanonicalizer`, split into
+synthetic Speechmatics final segments under five strategies — because realtime
+dictation never delivers a sentence whole, and a whole-text benchmark scores 100%
+while every construct that spans a segment boundary is broken in the field.
+
+Both numbers measure deterministic post-processing of already-transcribed text.
+**Neither is a Speechmatics recognition-accuracy figure**; no audio is involved.
 
 Accuracy is reported **per stage**, so a formatting fix is never presented as a
 terminology improvement:
@@ -292,7 +302,7 @@ speechmatics_test/
     realtime.py  presentation.py  evaluation.py  text.py
 
 medical_knowledge/
-    medical_dictionary.json               971 terms (source of truth)
+    medical_dictionary.json               968 terms (source of truth)
     speechmatics_additional_vocab.json    136 generated vocab entries
 
 scripts/
@@ -303,11 +313,12 @@ scripts/
 benchmark/
     dataset.py                    107 frozen nursing fixtures
     run_benchmark.py              accuracy + performance runner
+    streaming.py                  same fixtures through the real accumulator
     benchmark_matcher.py          matcher scaling
     README.md                     generated from the measured run
     results_baseline.json  results_current.json  results_comparison.json
 
-tests/                            476 tests
+tests/                            532 tests
 ```
 
 ---

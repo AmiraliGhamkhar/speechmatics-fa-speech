@@ -1,4 +1,14 @@
-speechmatics-rt
+# Speechmatics realtime SDK. Pinned: the client is constructed against a
+# specific API surface (AsyncClient, TranscriptionConfig/AudioFormat,
+# ServerMessageType.AddTranscript/EndOfTranscript, operating_point and
+# additional_vocab), and an unpinned SDK silently changes those names
+# between releases - a failure that only appears against the live service,
+# never in the tests. This is the version the app and tests run against.
+speechmatics-rt==1.1.1
+
+# Microphone capture (speechmatics_test/microphone.py). Unpinned: PyAudio is
+# a thin, stable PortAudio binding and users frequently need whichever wheel
+# exists for their platform and Python version.
 PyAudio
 python-dotenv
 pytest

@@ -51,6 +51,12 @@ from typing import Optional
 
 __all__ = [
     "PolishReport",
+    "MAX_PENDING_TAIL_TOKENS",
+    "pending_tail_tokens",
+    "is_vital_label",
+    "vital_label_prefix_tokens",
+    "number_run_start",
+    "duplicate_boundary_tokens",
     "prepolish_asr_artifacts",
     "polish_nursing_text",
     "polish_document",
@@ -891,6 +897,223 @@ def prepolish_asr_artifacts(
     if not text:
         return text or ""
     return collapse_repetitions(text, report, protected=protected)
+
+
+# ------------------------------------------------- streaming boundaries
+
+#: Hard bound on how much text the streaming accumulator may hold back while
+#: waiting for the next final segment. Every construct this module can join
+#: across a boundary is shorter than this (``ساعت بیست و سه و چهل و پنج`` is
+#: the longest realistic one), so the buffer can never grow with the session.
+MAX_PENDING_TAIL_TOKENS = 6
+
+#: Bound on the cross-segment stutter window (``نمره`` + ``نمره درد``).
+MAX_BOUNDARY_DUPLICATE_TOKENS = 2
+
+_DIGITS_ONLY = re.compile(r"\d+(?:[.,/]\d+)*")
+
+#: Persian verb prefixes that take a ZWNJ with the word AFTER them (see
+#: ``_ZWNJ_PREFIX``): a segment ending on one is mid-word, not mid-sentence.
+_VERB_PREFIXES = frozenset({"\u0645\u06cc", "\u0646\u0645\u06cc"})
+
+
+def _is_number_token(token: str) -> bool:
+    """True for a spoken cardinal, a scale word or an already-digit value."""
+    return (
+        token in _NUMBER_WORDS
+        or token in _SCALES
+        or bool(_DIGITS_ONLY.fullmatch(token))
+    )
+
+
+def _number_run_start(tokens: list[str], end: int) -> int:
+    """Index where the number run that ENDS at ``tokens[end]`` begins.
+
+    A run is a chain of cardinal/digit tokens, optionally joined by the
+    Persian connector ``و`` (``صد و چهل``, ``سه هزار و دویست``).
+    """
+    start = end
+    while start - 1 >= 0:
+        previous = tokens[start - 1]
+        if _is_number_token(previous):
+            start -= 1
+        elif (previous == "و" and start - 2 >= 0
+                and _is_number_token(tokens[start - 2])):
+            start -= 2
+        else:
+            break
+    return start
+
+
+#: Leading token -> full token count, for the multi-word spelled labels.
+_VITAL_LABEL_HEADS: dict[str, int] = {}
+for _label in _ALL_VITAL_LABELS:
+    _label_tokens = _label.casefold().split()
+    if len(_label_tokens) > 1:
+        _VITAL_LABEL_HEADS[_label_tokens[0]] = max(
+            _VITAL_LABEL_HEADS.get(_label_tokens[0], 0), len(_label_tokens)
+        )
+
+
+def vital_label_prefix_tokens(text: str) -> int:
+    """Trailing tokens of ``text`` that begin, but do not finish, a label.
+
+    ``blood pressure`` / ``oxygen saturation`` / ``heart rate`` are spelled
+    labels ``format_vital_signs`` rewrites, and they are not medical-matcher
+    rules, so nothing else stops a final segment from ending on ``blood``.
+    Returns 0 when the tail is not a partial label.
+    """
+    # A trailing ASR artifact ("blood pressure." before the value) is part
+    # of the separator the vital-sign pass rewrites, not of the label.
+    tokens = [token.rstrip(".:،,= ").casefold()
+              for token in (text or "").split()]
+    for size in range(1, min(len(tokens), 3) + 1):
+        tail = tokens[len(tokens) - size:]
+        full = _VITAL_LABEL_HEADS.get(tail[0])
+        if full is None or size >= full:
+            continue
+        phrase = " ".join(tail)
+        if any(label.casefold().startswith(phrase + " ")
+               for label in _ALL_VITAL_LABELS):
+            return size
+    return 0
+
+
+def is_vital_label(text: str) -> bool:
+    """True when ``text`` is exactly a vital-sign label ``format_vital_signs``
+    punctuates (``BP``, ``SpO2``, ``pain score``, ``oxygen saturation``, ...).
+
+    The streaming accumulator uses this to keep a label and its value in one
+    emission: ``LABEL: value`` can only be applied when both halves are in
+    the same text, so ``oxygen saturation`` emitted apart from ``97 درصد``
+    would never become ``SpO2: 97%``.
+    """
+    # A trailing ASR artifact ("heart rate." before its value) belongs to the
+    # separator the vital-sign pass rewrites, not to the label itself.
+    phrase = " ".join((text or "").split()).rstrip(".:،,= ").casefold()
+    if not phrase:
+        return False
+    return any(phrase == label.casefold() for label in _ALL_VITAL_LABELS)
+
+
+def number_run_start(tokens: list[str]) -> Optional[int]:
+    """Index where a trailing cardinal/digit run starts, else ``None``.
+
+    Exposed for the streaming accumulator: a value at the end of a segment
+    may still need the label in FRONT of it (which the matcher has to
+    canonicalize first) to be formatted correctly.
+    """
+    if not tokens or not _is_number_token(tokens[-1]):
+        return None
+    return _number_run_start(tokens, len(tokens) - 1)
+
+
+def pending_tail_tokens(text: str) -> int:
+    """How many trailing tokens of ``text`` a NEXT segment may still complete.
+
+    Speechmatics finalizes on its own timing, so a single spoken construct
+    can be split across two final segments (``سی و`` + ``پنج``). Emitting the
+    first half immediately makes the normalization impossible: ``سی و`` stays
+    verbatim and ``پنج`` becomes a lone ``5``.
+
+    Only a *demonstrably incomplete* trailing window is held - never a merely
+    "could still grow" one - so ordinary dictation is not delayed:
+
+    * a cardinal run left hanging on the connector ``و``   (``سی و``);
+    * a ratio separator with only its left value           (``صد و چهل روی``);
+    * a bare clock lead, or a clock lead plus its hour
+      (``ساعت``, ``ساعت ده`` + ``و سی دقیقه`` -> ``ساعت 10:30``).
+
+    A finished construct such as ``140/85`` or ``Temp 36`` returns 0 and is
+    emitted at once. The result is always ``<= MAX_PENDING_TAIL_TOKENS``
+    (0 when a longer window would be needed - give up rather than buffer
+    unboundedly), which is what keeps the streaming buffer small.
+    """
+    tokens = (text or "").split()
+    if not tokens:
+        return 0
+    count = len(tokens)
+    last = tokens[-1]
+
+    if last == _TIME_LEAD:
+        return 1
+    if last in _VERB_PREFIXES:
+        return 1  # "می"/"نمی" binds by ZWNJ to the verb in the next segment
+    partial_label = vital_label_prefix_tokens(text)
+    if partial_label:
+        return partial_label
+    if (last == "و" or last in _RATIO_WORDS) and count >= 2 \
+            and _is_number_token(tokens[-2]):
+        start = _number_run_start(tokens, count - 2)
+    elif _is_number_token(last):
+        # A value at the very end is always still open: the next final may
+        # carry its minutes ("ده" + "و نیم"), its unit ("97" + "درصد") or
+        # the second half of a ratio.
+        start = _number_run_start(tokens, count - 1)
+    else:
+        return 0
+
+    if start > 0 and tokens[start - 1] == _TIME_LEAD:
+        start -= 1
+    elif start >= 2 and tokens[start - 1] in _RATIO_WORDS \
+            and _is_number_token(tokens[start - 2]):
+        # The left half of a ratio belongs to the same construct: cutting
+        # between "140 روی" and "85" leaves the pair unjoinable.
+        start = _number_run_start(tokens, start - 2)
+    held = count - start
+    return held if held <= MAX_PENDING_TAIL_TOKENS else 0
+
+
+def _is_stutterable_token(token: str) -> bool:
+    """Only word tokens stutter; a repeated numeric value is real data."""
+    return len(token) >= 2 and not any(ch.isdigit() for ch in token)
+
+
+def duplicate_boundary_tokens(
+    previous: str, segment: str, protected: Optional[frozenset] = None
+) -> int:
+    """Leading tokens of ``segment`` that merely repeat the end of ``previous``.
+
+    ``prepolish_asr_artifacts`` removes a stutter INSIDE one final segment,
+    but the repetition can straddle the boundary::
+
+        final 1   نمره
+        final 2   نمره درد
+
+    Neither segment looks duplicated on its own, yet the stream says
+    ``نمره نمره درد`` and the second ``نمره`` combines with ``درد`` into the
+    dictionary phrase ``نمره درد`` ("pain score") the speaker never said.
+
+    Comparison is deterministic and exact (case-folded whole tokens, at most
+    ``MAX_BOUNDARY_DUPLICATE_TOKENS``); there is no fuzzy or semantic
+    matching. ``protected`` is the matcher's ``repetition_safe_forms``, so
+    terms that legitimately repeat a syllable (``سی سی`` + ``یو`` = CCU) are
+    never collapsed.
+    """
+    previous_tokens = (previous or "").split()
+    segment_tokens = (segment or "").split()
+    if not previous_tokens or not segment_tokens:
+        return 0
+    guard = protected or frozenset()
+
+    seam = f"{previous_tokens[-1]} {segment_tokens[0]}".casefold()
+    if seam in guard:
+        return 0
+
+    limit = min(
+        MAX_BOUNDARY_DUPLICATE_TOKENS, len(previous_tokens), len(segment_tokens)
+    )
+    for size in range(limit, 0, -1):
+        tail = previous_tokens[-size:]
+        head = segment_tokens[:size]
+        if not all(_is_stutterable_token(token) for token in head):
+            continue
+        if [t.casefold() for t in tail] != [h.casefold() for h in head]:
+            continue
+        if " ".join(tail + head).casefold() in guard:
+            continue
+        return size
+    return 0
 
 
 def polish_nursing_text(

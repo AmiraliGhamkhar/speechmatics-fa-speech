@@ -601,6 +601,13 @@
     ]
   },
   {
+    "content": "magnesium",
+    "sounds_like": [
+      "منیزیم خون",
+      "Magnesium"
+    ]
+  },
+  {
     "content": "blood culture",
     "sounds_like": [
       "کشت خون"
@@ -933,7 +940,6 @@
       "ام‌جی"
     ]
   },
-  "Magnesium",
   {
     "content": "O2",
     "sounds_like": [
@@ -1021,10 +1027,8 @@
     "sounds_like": [
       "بدساید",
       "گاردتخت",
-      "bed side",
       "گارد تخت",
       "بالا بودن بدساید",
-      "بالا بودن Bed Side",
       "نرده های کنار تخت",
       "نرده کنار تخت",
       "نرده‌های کنار تخت"

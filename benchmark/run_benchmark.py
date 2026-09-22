@@ -31,18 +31,24 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import platform
 import statistics
 import subprocess
 import sys
 import time
 import tracemalloc
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from benchmark.streaming import (  # noqa: E402
+    evaluate_streaming,
+    production_accumulator_factory,
+)
 from benchmark.dataset import (  # noqa: E402
     ALL_CASES,
     DATASET_VERSION,
@@ -66,12 +72,36 @@ from speechmatics_test.text import normalize_text  # noqa: E402
 
 
 def _git_sha() -> str | None:
+    """The commit this run was generated from (``None`` when unavailable).
+
+    Never copied from a previous result file: a stale SHA makes an artifact
+    claim a revision that did not produce it.
+    """
     try:
         out = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=str(ROOT),
             capture_output=True, text=True, timeout=10,
         )
         return out.stdout.strip() or None
+    except Exception:  # pragma: no cover - git may be unavailable
+        return None
+
+
+def _git_dirty() -> bool | None:
+    """Whether tracked files differ from the recorded commit.
+
+    A dirty tree means ``git_commit`` alone does NOT identify the code that
+    produced the artifact, so the flag has to travel with it. ``None`` when
+    git is unavailable - unknown is not the same as clean.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=str(ROOT), capture_output=True, text=True, timeout=10,
+        )
+        if out.returncode != 0:
+            return None
+        return bool(out.stdout.strip())
     except Exception:  # pragma: no cover - git may be unavailable
         return None
 
@@ -107,16 +137,67 @@ def run_pipeline(matcher: MedicalMatcher, spoken: str) -> tuple[str, list, Polis
 # ---------------------------------------------------------------- scoring
 
 
-def _term_metrics(case: Case, produced: str) -> dict:
-    """Medical-term presence against the case's declared expectations."""
-    expected = set(case.expected_terms)
-    if not expected:
-        return {"tp": 0, "fn": 0, "missing": []}
-    missing = [term for term in sorted(expected) if term not in produced]
+def _count_occurrences(text: str, term: str) -> int:
+    """Non-overlapping occurrences of a canonical term inside ``text``.
+
+    Whole-token comparison, so ``US`` is not counted inside ``ultrasound``
+    and ``mg`` is not counted inside ``mgH``.
+    """
+    if not term:
+        return 0
+    return len(re.findall(rf"(?<!\w){re.escape(term)}(?!\w)", text))
+
+
+def _term_multiset(text: str, vocabulary: set[str]) -> Counter:
+    """Multiset of the canonical terms from ``vocabulary`` present in ``text``."""
+    found: Counter = Counter()
+    for term in vocabulary:
+        count = _count_occurrences(text, term)
+        if count:
+            found[term] = count
+    return found
+
+
+def _term_metrics(case: Case, produced: str, hits: list) -> dict:
+    """Terminology metrics over the COMPLETE produced vs expected term sets.
+
+    Metric definition (per case, multiset / duplicate-aware):
+
+    * the term vocabulary considered is the union of the case's declared
+      ``expected_terms`` and every canonical the matcher actually emitted;
+    * ``expected`` = occurrences of those terms in the case's reference
+      transcript (``case.expected``) - the reference is the authority on
+      which medical terms belong in the output, not the declared subset,
+      which only lists the terms the fixture was written to prove;
+    * ``produced`` = occurrences of those terms in the pipeline output;
+    * ``TP  = sum(min(produced[t], expected[t]))``
+    * ``FP  = sum(produced - expected)``  (an extra/duplicated medical term)
+    * ``FN  = sum(expected - produced)``  (a missing medical term)
+
+    The old implementation only counted declared terms and therefore scored
+    ``expected=HTN, produced="HTN COPD"`` as ``TP=1, FP=0``: a fabricated
+    medical term was invisible whenever the case also got its expected term
+    right. ``missing`` keeps listing the DECLARED terms that are absent, so
+    the existing per-case audit trail is unchanged.
+    """
+    vocabulary = set(case.expected_terms) | {h["canonical"] for h in hits}
+    produced_terms = _term_multiset(produced, vocabulary)
+    expected_terms = _term_multiset(case.expected, vocabulary)
+
+    tp = sum((produced_terms & expected_terms).values())
+    fp = sum((produced_terms - expected_terms).values())
+    fn = sum((expected_terms - produced_terms).values())
     return {
-        "tp": len(expected) - len(missing),
-        "fn": len(missing),
-        "missing": missing,
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "expected_terms": dict(sorted(expected_terms.items())),
+        "produced_terms": dict(sorted(produced_terms.items())),
+        "extra": sorted((produced_terms - expected_terms).elements()),
+        "missing": sorted(
+            term for term in set(case.expected_terms)
+            if not _count_occurrences(produced, term)
+        ),
     }
 
 
@@ -180,7 +261,7 @@ def evaluate_cases(matcher: MedicalMatcher) -> dict:
         # to hand-maintain punctuation that the rule generates.
         exact = produced == expected or produced.rstrip(".") == expected.rstrip(".")
 
-        term_metrics = _term_metrics(case, produced)
+        term_metrics = _term_metrics(case, produced, hits)
         number_metrics = _number_metrics(case, produced)
         has_warning = bool(report.warnings)
 
@@ -211,15 +292,13 @@ def _aggregate(results: list[dict]) -> dict:
     total = len(results)
     exact = sum(1 for r in results if r["exact_match"])
 
+    # Terminology TP/FP/FN are summed from the per-case multiset comparison
+    # of PRODUCED vs EXPECTED canonical terms (see _term_metrics): an extra
+    # medical term is a false positive even when the case also produced its
+    # expected term correctly.
     term_tp = sum(r["terms"]["tp"] for r in results)
     term_fn = sum(r["terms"]["fn"] for r in results)
-    # A false positive here is a medical rewrite in a case that declared no
-    # expected terms and whose output diverged from the reference: the
-    # matcher changed clinical wording it should have left alone.
-    term_fp = sum(
-        len(r["medical_hits"]) for r in results
-        if not r["terms"]["tp"] and not r["terms"]["fn"] and not r["exact_match"]
-    )
+    term_fp = sum(r["terms"]["fp"] for r in results)
 
     number_ref = sum(len(r["numbers"]["reference_numbers"]) for r in results)
     number_false = sum(len(r["numbers"]["false_numbers"]) for r in results)
@@ -357,10 +436,17 @@ def build_payload(label: str, repeats: int) -> dict:
     matcher = MedicalMatcher(ROOT)
     vocab_path = ROOT / "medical_knowledge" / "speechmatics_additional_vocab.json"
     evaluation = evaluate_cases(matcher)
+    # The SAME fixtures, replayed through the REAL production streaming
+    # accumulator (see benchmark/streaming.py). Reported separately: it is a
+    # different pipeline shape, not a different dataset.
+    streaming_start = time.perf_counter()
+    streaming = evaluate_streaming(production_accumulator_factory())
+    streaming_seconds = time.perf_counter() - streaming_start
     performance = measure_performance(matcher, repeats)
     return {
         "label": label,
         "git_commit": _git_sha(),
+        "git_dirty": _git_dirty(),
         "python_version": platform.python_version(),
         "platform": platform.platform(),
         "packages": _package_versions(),
@@ -375,12 +461,18 @@ def build_payload(label: str, repeats: int) -> dict:
         "dataset": dataset_summary(),
         "performance": performance,
         "aggregates": evaluation["aggregates"],
+        "streaming": {
+            **streaming["aggregates"],
+            "runtime_seconds": round(streaming_seconds, 3),
+        },
         "cases": evaluation["cases"],
+        "streaming_runs": streaming["runs"],
     }
 
 
 def render_markdown(payload: dict) -> str:
     agg = payload["aggregates"]
+    stream = payload["streaming"]
     perf = payload["performance"]
     lines = [
         "# SwiftMedics benchmark results",
@@ -393,9 +485,18 @@ def render_markdown(payload: dict) -> str:
         "",
         "Every number below is measured by that run - nothing is hardcoded.",
         "",
+        "Both scores below measure DETERMINISTIC POST-PROCESSING of already-",
+        "transcribed text. Neither is a Speechmatics recognition-accuracy",
+        "number: no audio is involved anywhere in this benchmark.",
+        "",
         "## Environment",
         "",
-        f"* commit: `{payload['git_commit']}`",
+        f"* commit: `{payload['git_commit']}`"
+        + ("  **(working tree dirty - this commit alone does not identify "
+           "the code that produced these numbers)**"
+           if payload.get("git_dirty") else
+           ("  (git unavailable: provenance unverified)"
+            if payload.get("git_dirty") is None else "")),
         f"* python: {payload['python_version']}",
         f"* platform: {payload['platform']}",
         f"* matcher backend: {payload['matcher_backend']}",
@@ -421,6 +522,35 @@ def render_markdown(payload: dict) -> str:
         f"* ambiguity warnings behaving as specified: "
         f"{agg['warning_behaviour_ok']}/{agg['total_cases']}",
         f"* canonical output free of BiDi controls: {agg['bidi_clean']}",
+        "",
+        "### Streaming-boundary post-processing",
+        "",
+        "The same fixtures replayed through the REAL production streaming",
+        "accumulator (`app.FinalStreamCanonicalizer` + `MedicalLayer`), split",
+        "into synthetic Speechmatics final segments. This is the shape the",
+        "application actually runs in; the whole-text score above cannot see",
+        "final-segment boundary bugs at all.",
+        "",
+        f"* streaming exact-match: **{stream['exact_match']}/"
+        f"{stream['total_runs']} ({stream['exact_match_accuracy']:.1%})** "
+        f"across {len(stream['strategies'])} split strategies",
+        f"* streaming runtime: {stream['runtime_seconds']} s",
+        "",
+        "| split strategy | runs | exact | accuracy |",
+        "| --- | --- | --- | --- |",
+    ]
+    for strategy, data in stream["by_strategy"].items():
+        lines.append(
+            f"| {strategy} | {data['runs']} | {data['exact_match']} | "
+            f"{data['accuracy']:.1%} |"
+        )
+    if stream["failures"]:
+        lines += [
+            "",
+            "Open streaming failures (`case:strategy`): "
+            + ", ".join(f"`{name}`" for name in stream["failures"]),
+        ]
+    lines += [
         "",
         "### By pipeline stage",
         "",
@@ -563,6 +693,9 @@ def main(out: Path | None = None, repeats: int = 50,
     print(f"terminology F1     : {agg['terminology']['f1']}")
     print(f"number F1          : {agg['numbers']['f1']} "
           f"(false-number rate {agg['numbers']['false_number_rate']})")
+    print(f"streaming exact    : {payload['streaming']['exact_match']}/"
+          f"{payload['streaming']['total_runs']} "
+          f"({payload['streaming']['exact_match_accuracy']:.1%})")
     print(f"bidi clean         : {agg['bidi_clean']}")
     print(f"full pipeline p50  : "
           f"{payload['performance']['full_pipeline_latency_us']['p50']} us")

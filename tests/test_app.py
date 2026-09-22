@@ -355,3 +355,89 @@ def test_overlay_abort_destroys_root_created_after_shutdown():
     overlay._closed = False
     assert overlay._abort_if_closed(Root()) is False
     assert destroyed == [True]  # live overlay: nothing destroyed
+
+
+# ------------------------------- streaming cut guards (session hardening)
+
+def _stream(text, boundary):
+    """Feed ``text`` as two final segments split at token ``boundary``."""
+    from speechmatics_test.text import normalize_text
+
+    acc = make_accumulator()
+    tokens = normalize_text(text).split()
+    acc.add(" ".join(tokens[:boundary]), [])
+    acc.add(" ".join(tokens[boundary:]), [])
+    acc.flush()
+    return acc.canonical_text
+
+
+def test_charted_group_keeps_label_with_its_value():
+    """``LABEL: value unit`` must be emitted as one piece.
+
+    Regression: the cut landed between a vital-sign label and its number,
+    so a chart line arrived as two fragments and the value lost the label
+    it belonged to - the single most dangerous streaming defect here.
+    """
+    assert _stream("ضربان قلب 88 در دقیقه", 2) == _stream(
+        "ضربان قلب 88 در دقیقه", 4)
+
+
+def test_charted_group_pulls_back_a_label_with_no_value_yet():
+    """A trailing label alone must be held, not emitted bare.
+
+    Regression: 'heart rate.' was emitted, then '88' arrived as its own
+    orphan piece.
+    """
+    from speechmatics_test.text import normalize_text
+
+    acc = make_accumulator()
+    first = acc.add(normalize_text("ضربان قلب"), [])
+    assert first is None, "a bare vital label must never be emitted alone"
+    acc.add(normalize_text("88 است"), [])
+    acc.flush()
+    assert "88" in acc.canonical_text
+
+
+def test_cut_moves_outside_an_already_matched_multi_token_rule():
+    """The cut must not fall INSIDE a rule that already matched.
+
+    Regression: 'سی بی سی' was cut into 'سی بی' + 'سی', which canonicalized
+    to two unrelated fragments instead of CBC.
+    """
+    text = "سی بی سی درخواست شد"
+    assert _stream(text, 2) == _stream(text, 5)
+    assert "CBC" in _stream(text, 2)
+
+
+def test_intra_buffer_stutter_is_not_split_across_the_cut():
+    """A repeated token pair must stay in one piece so it can be collapsed.
+
+    Regression: 'نمره نمره درد' split into 'نمره' + 'نمره درد', which
+    defeated the de-duplication and emitted the word twice.
+    """
+    produced = _stream("نمره نمره درد سه", 1)
+    assert produced.count("pain score") <= 1
+    assert produced.split().count("نمره") <= 1
+
+
+def test_fully_emittable_buffer_is_not_clipped():
+    """The 'nothing held' short-circuit must precede the pull-back guards.
+
+    Regression: applying the guards to a buffer with nothing pending
+    clipped the cut to 0 and stalled emission entirely.
+    """
+    from speechmatics_test.text import normalize_text
+
+    acc = make_accumulator()
+    acc.add(normalize_text("بیمار هوشیار است"), [])
+    acc.flush()
+    assert acc.canonical_text.strip()
+
+
+def test_streamed_output_never_loses_the_final_token():
+    from speechmatics_test.text import normalize_text
+
+    text = "درد قفسه سینه دارد"
+    tokens = normalize_text(text).split()
+    for boundary in range(1, len(tokens)):
+        assert _stream(text, boundary).strip(), boundary

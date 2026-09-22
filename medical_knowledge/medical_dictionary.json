@@ -4,7 +4,7 @@
     "name": "SwiftMedics Nursing/Orthopedic Merged Persian-English Medical Dictionary",
     "schema_compatible_with": "speechmatics-fa-speech medical_dictionary.json / matcher.py v1",
     "generated_on": "2026-09-22",
-    "entry_count": 971,
+    "entry_count": 968,
     "design": "deterministic lexical canonicalization; Persian spoken aliases included for fa Speechmatics matching; merged from nursing_core, abbreviations, support, orthopedic additions; deduplicated by id",
     "sources": [
       "nursing_core_extraction_ordered.json",
@@ -1392,9 +1392,10 @@
       "tier": "validated_term",
       "forms": [
         "منیزیم خون",
-        "magnesium"
+        "magnesium",
+        "Magnesium"
       ],
-      "speechmatics": false,
+      "speechmatics": true,
       "sounds_like": [],
       "source_file": "nursing_terms.json"
     },
@@ -4949,7 +4950,12 @@
       "forms": [
         "عکس قفسه سینه",
         "CXR",
-        "گرافی قفسه سینه"
+        "گرافی قفسه سینه",
+        "chest x-ray",
+        "chest radiograph",
+        "رادیوگرافی قفسه سینه",
+        "chest xray",
+        "عکس ریه"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -6175,7 +6181,6 @@
         "حمله آسم",
         "اسم",
         "asthma",
-        "RAD",
         "reactive airway disease",
         "بیماری راه‌های هوایی"
       ],
@@ -6378,9 +6383,7 @@
         "حمله قلبی",
         "myocardial infarction",
         "AMI",
-        "heart attack",
-        "STEMI",
-        "NSTEMI"
+        "heart attack"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -7337,19 +7340,6 @@
       "source_file": "nursing_phrases.json"
     },
     {
-      "id": "intensive-care-unit",
-      "canonical": "Intensive Care Unit",
-      "type": "term",
-      "tier": "phrase",
-      "forms": [
-        "بخش مراقبت ویژه",
-        "intensive care unit"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_phrases.json"
-    },
-    {
       "id": "coronary-care-unit",
       "canonical": "coronary care unit",
       "type": "term",
@@ -7394,7 +7384,6 @@
         "پست ریکاوری",
         "PACU",
         "recovery room",
-        "RR",
         "post-anesthesia care unit",
         "ریکاوری"
       ],
@@ -8770,16 +8759,6 @@
         "منیزیم",
         "امجی"
       ],
-      "source_file": "nursing_terms.json"
-    },
-    {
-      "id": "Magnesium",
-      "canonical": "Magnesium",
-      "type": "lab",
-      "tier": "validated_term",
-      "forms": [],
-      "speechmatics": true,
-      "sounds_like": [],
       "source_file": "nursing_terms.json"
     },
     {
@@ -10525,24 +10504,6 @@
       "source_file": "nursing_terms.json"
     },
     {
-      "id": "vital_signs_0078",
-      "canonical": "chest x-ray",
-      "type": "vital_sign",
-      "tier": "validated_term",
-      "forms": [
-        "chest x-ray",
-        "CXR",
-        "chest radiograph",
-        "رادیوگرافی قفسه سینه",
-        "عکس قفسه سینه",
-        "chest xray",
-        "عکس ریه"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
       "id": "diet_0085",
       "canonical": "liquids only",
       "type": "phrase",
@@ -11048,7 +11009,9 @@
         "ICU",
         "مراقبت ویژه",
         "آی‌سی‌یو",
-        "بخش مراقبت‌های ویژه"
+        "بخش مراقبت‌های ویژه",
+        "Intensive Care Unit",
+        "بخش مراقبت ویژه"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -11132,8 +11095,6 @@
       "tier": "validated_term",
       "forms": [
         "radiology",
-        "Rad",
-        "X-ray",
         "رادیولوژی",
         "بخش تصویربرداری"
       ],
@@ -11760,7 +11721,6 @@
       "tier": "validated_term",
       "forms": [
         "chief complaint",
-        "CC",
         "c/c",
         "شکایت اصلی",
         "علت مراجعه"
@@ -11859,7 +11819,6 @@
       "forms": [
         "review of systems",
         "ROS",
-        "SR",
         "systemic review",
         "بررسی سیستم‌ها"
       ],
@@ -12060,7 +12019,6 @@
         "erythrocyte sedimentation rate",
         "ESR",
         "Sed rate",
-        "SR",
         "سرعت رسوب",
         "سرعت رسوب گلبول قرمز"
       ],
@@ -12171,7 +12129,6 @@
       "tier": "validated_term",
       "forms": [
         "glucose tolerance test",
-        "GTT",
         "OGTT",
         "oral glucose tolerance test",
         "تست تحمل گلوکز"
@@ -12879,10 +12836,8 @@
       "tier": "validated_term",
       "forms": [
         "bedside rails",
-        "bed side",
         "گارد تخت",
         "بالا بودن بدساید",
-        "بالا بودن Bed Side",
         "نرده های کنار تخت",
         "نرده کنار تخت",
         "نرده‌های کنار تخت"

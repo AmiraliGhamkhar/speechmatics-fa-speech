@@ -384,3 +384,99 @@ def test_vocabulary_has_no_stale_entries():
         "stale": sorted(contents - flagged),
         "missing": sorted(flagged - contents),
     }
+
+
+# ------------------------------- dictionary ambiguity audit (this pass)
+
+def test_dictionary_has_no_case_only_duplicate_canonicals():
+    """Two spellings of one concept let tier order decide the output.
+
+    Regression: 'chest X-ray'/'chest x-ray', 'Intensive Care Unit'/
+    'intensive care unit' and 'Magnesium'/'magnesium' all shipped as
+    separate terms, so the same Persian form resolved to a different
+    canonical depending on which term won arbitration.
+    """
+    report = audit_dictionary()
+    assert report["case_only_duplicate_canonicals"] == [], (
+        "case-only duplicates must be merged in scripts/_dictionary_fixes.py "
+        "or declared in DISTINCT_CASE_CANONICALS with a reason")
+
+
+def test_intentional_case_distinctions_are_real_and_documented():
+    """The audit exemption must not become a dumping ground.
+
+    'Mg' (magnesium) vs 'mg' (milligram) is a genuine distinction; every
+    exempted pair must still exist, or the exemption is stale.
+    """
+    from scripts._dictionary_fixes import DISTINCT_CASE_CANONICALS
+
+    data = json.loads(
+        (KNOWLEDGE / "medical_dictionary.json").read_text(encoding="utf-8"))
+    canonicals = {t["canonical"] for t in data["terms"]}
+    assert audit_dictionary()["intentional_case_distinctions"] == sorted(
+        DISTINCT_CASE_CANONICALS)
+    for folded, (spellings, reason) in DISTINCT_CASE_CANONICALS.items():
+        assert reason.strip(), f"{folded}: exemption needs a reason"
+        for spelling in spellings:
+            assert spelling in canonicals, (
+                f"stale exemption: {spelling!r} is no longer in the dictionary")
+
+
+def test_clinically_unsafe_abbreviation_collisions_are_resolved():
+    """A short form must not resolve to an unrelated clinical concept.
+
+    Each of these was claimed by two terms at once, so the matcher silently
+    picked one: STEMI/NSTEMI lost their ST-elevation qualifier to the
+    generic 'myocardial infarction', 'gtt' (drops) resolved to a glucose
+    tolerance test, 'CC' (cubic centimetre) to 'chief complaint' and 'RR'
+    (respiratory rate) to 'recovery room'.
+    """
+    matcher = MedicalMatcher(ROOT)
+    by_form = {r.folded: r.canonical for r in matcher.rules}
+    assert by_form.get("stemi") == "ST-elevation myocardial infarction"
+    assert by_form.get("nstemi") == "non-ST-elevation myocardial infarction"
+    assert by_form.get("gtt") == "drop"
+    assert by_form.get("cc") == "cubic centimeter"
+    assert by_form.get("rr") in (None, "respiratory rate")
+    assert by_form.get("sr") in (None, "erythrocyte sedimentation rate")
+
+
+def test_cross_concept_alias_conflicts_do_not_grow():
+    """Ratchet: benign abbreviation/expansion pairs are fine, new
+    cross-concept collisions are not."""
+    report = audit_dictionary()
+    assert (report["same_concept_alias_forms"]
+            + report["cross_concept_alias_forms"]
+            == report["conflicting_alias_forms"])
+    assert report["cross_concept_alias_forms"] <= 60, (
+        report["cross_concept_alias_examples"])
+
+
+# ------------------------------------------------------ dependency pins
+
+def test_speechmatics_sdk_is_pinned():
+    """An unpinned realtime SDK breaks only against the live service.
+
+    The client is built against a specific API surface, so the version has
+    to be reproducible from requirements.txt alone.
+    """
+    requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+    assert re.search(r"^speechmatics-rt==\d+\.\d+\.\d+$",
+                     requirements, re.MULTILINE), (
+        "speechmatics-rt must be pinned to an exact version")
+
+
+def test_pinned_sdk_matches_the_installed_version():
+    """A pin that does not match what the tests ran against is fiction."""
+    pytest.importorskip("speechmatics.rt")
+    from importlib.metadata import PackageNotFoundError, version
+
+    requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+    pinned = re.search(r"^speechmatics-rt==(\S+)$",
+                       requirements, re.MULTILINE).group(1)
+    try:
+        installed = version("speechmatics-rt")
+    except PackageNotFoundError:  # pragma: no cover - not installed
+        pytest.skip("speechmatics-rt is not installed")
+    assert installed == pinned, (
+        f"requirements pin {pinned} but {installed} is installed")

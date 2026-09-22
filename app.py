@@ -16,11 +16,18 @@ from dotenv import load_dotenv
 from speechmatics_test.cleanliness import inspect_text
 from speechmatics_test.evaluation import evaluate_stages
 from speechmatics_test.medical_layer import MedicalLayer
+from speechmatics_test.nursing_text import (
+    MAX_PENDING_TAIL_TOKENS,
+    duplicate_boundary_tokens,
+    is_vital_label,
+    pending_tail_tokens,
+)
 from speechmatics_test.realtime import (
     DEFAULT_MAX_DELAY,
     DEFAULT_MAX_DELAY_MODE,
     DEFAULT_MODEL,
     MAX_MAX_DELAY,
+    MEDICAL_DOMAIN_MODELS,
     MIN_MAX_DELAY,
     VALID_DOMAINS,
     confidence_summary,
@@ -136,6 +143,24 @@ def create_injector(enabled: bool):
         return None
 
 
+#: Canonical unit tokens that belong to the numeric value before them.
+#: Used only to decide whether a charted "LABEL: value" pair is still
+#: incomplete at a final-segment boundary (see
+#: ``FinalStreamCanonicalizer._vital_label_hold_index``).
+_VALUE_UNIT_CANONICALS = frozenset({
+    "%", "mmHg", "mg", "mL", "L", "kg", "g", "cm", "mm", "mcg", "mEq",
+    "bpm", "\u00b0C", "\u00b0F",
+})
+
+#: Tokens that can sit between a vital label and its value ("SpO2 و 97%",
+#: "BP برابر با 140/85") - see ``nursing_text._VITAL_SEPARATOR``.
+#: plus the spoken ratio separators ("140 \u0631\u0648\u06cc 85", "140 over 85").
+_VALUE_CONNECTORS = frozenset({
+    "\u0648", "\u0628\u0631\u0627\u0628\u0631", "\u0628\u0627",
+    "\u0631\u0648\u06cc", "\u0628\u0631", "over",
+})
+
+
 class FinalStreamCanonicalizer:
     """One canonicalization state shared by injection AND the final report.
 
@@ -146,9 +171,24 @@ class FinalStreamCanonicalizer:
     text could not be reproduced from the report.
 
     Raw final segments are accumulated and canonicalized incrementally.
-    Only the longest prefix that NO future final can still extend into a
-    longer rule match is emitted for injection; the short unresolved tail
-    stays buffered until the next final (or the end-of-session flush).
+    Only the longest prefix that no future final can still complete is
+    emitted for injection; the short unresolved tail stays buffered until
+    the next final (or the end-of-session flush). "Unresolved" covers two
+    independent kinds of cross-boundary construct:
+
+    * a MEDICAL one, whose leading tokens start a longer matcher rule
+      ("فشار خون" -> "فشار خون بالا"), and
+    * a NURSING one, whose trailing tokens are a demonstrably incomplete
+      number / clock / ratio construct ("سی و" + "پنج" -> "35",
+      "ساعت ده" + "و سی دقیقه" -> "ساعت 10:30") - see
+      :func:`speechmatics_test.nursing_text.pending_tail_tokens`.
+
+    Incoming segments are additionally checked for a stutter that straddles
+    the boundary ("نمره" + "نمره درد"), which the intra-segment cleanup in
+    ``prepolish_asr_artifacts`` cannot see.
+
+    Both tails are hard-bounded (a handful of tokens), so the buffer never
+    grows with the session.
 
     The report's canonical stage is built from the exact emitted pieces,
     so the report always equals what was injected.
@@ -160,6 +200,9 @@ class FinalStreamCanonicalizer:
         # segments, or the leftover of a segment split by an emission cut).
         self._pieces: list[dict] = []
         self._buffer = ""                # " ".join(piece texts), derived
+        #: Last few tokens already seen in the stream (emitted or buffered),
+        #: used only for the bounded cross-segment stutter check.
+        self._recent_tail = ""
         self.parts: list[str] = []       # emitted canonical pieces, in order
         self.hits: list[dict] = []       # medical hits of the emitted pieces
 
@@ -172,12 +215,38 @@ class FinalStreamCanonicalizer:
         """Add one normalized final segment; return the text to inject now."""
         if not normalized_text:
             return None
+        segment = self._strip_boundary_stutter(normalized_text)
+        if not segment:
+            return None
+        # Word-level ASR evidence is positional, so it is dropped (never
+        # misaligned) when the boundary cleanup moved characters.
+        evidence = list(words) if segment == normalized_text else []
         if self._buffer:
-            self._buffer += " " + normalized_text
+            self._buffer += " " + segment
         else:
-            self._buffer = normalized_text
-        self._pieces.append({"text": normalized_text, "words": list(words)})
+            self._buffer = segment
+        self._pieces.append({"text": segment, "words": evidence})
+        self._remember_tail(segment)
         return self._emit(self._safe_cut())
+
+    def _strip_boundary_stutter(self, segment: str) -> str:
+        """Drop leading tokens that only repeat the end of the stream."""
+        protected = (
+            self._medical.fst.repetition_safe_forms
+            if self._medical is not None and self._medical.polish else None
+        )
+        if protected is None:
+            return segment
+        repeated = duplicate_boundary_tokens(
+            self._recent_tail, segment, protected
+        )
+        if not repeated:
+            return segment
+        return " ".join(segment.split()[repeated:])
+
+    def _remember_tail(self, segment: str) -> None:
+        tokens = (self._recent_tail + " " + segment).split()
+        self._recent_tail = " ".join(tokens[-MAX_PENDING_TAIL_TOKENS:])
 
     def flush(self) -> str | None:
         """Emit everything still buffered (end of session)."""
@@ -187,6 +256,147 @@ class FinalStreamCanonicalizer:
 
     def _safe_cut(self) -> int:
         """Character length of the longest prefix safe to emit now.
+
+        The emission stops at the earliest token that either the medical
+        matcher (:meth:`_medical_hold_index`) or the nursing normalizer
+        (:meth:`_nursing_hold_index`) may still need the NEXT final segment
+        to resolve. Both windows are bounded, so the held-back tail stays
+        small no matter how long the session runs.
+        """
+        tokens = self._buffer.split()
+        if not tokens:
+            return len(self._buffer)
+        hold = min(
+            self._medical_hold_index(tokens),
+            self._nursing_hold_index(tokens),
+        )
+        if hold >= len(tokens):
+            return len(self._buffer)   # nothing held back: emit everything
+        hold = self._charted_group_start(tokens, hold)
+        hold = self._outside_matched_rule(tokens, hold)
+        hold = self._keep_stutter_together(tokens, hold)
+        if hold <= 0:
+            return 0
+        return sum(len(token) + 1 for token in tokens[:hold]) - 1
+
+    def _keep_stutter_together(self, tokens: list[str], hold: int) -> int:
+        """Never emit the first half of an intra-buffer stutter on its own.
+
+        ``prepolish_asr_artifacts`` collapses ``نمره نمره`` only when both
+        copies are in the same emitted piece. Cutting between them emits the
+        stutter verbatim and hands the second copy to the next emission,
+        where it recombines with its neighbour into a phrase the speaker
+        never said (``نمره`` + ``درد`` = "pain score"). Moving the cut in
+        front of the pair keeps the existing cleanup effective.
+        """
+        if hold <= 0 or hold >= len(tokens):
+            return hold
+        protected = (
+            self._medical.fst.repetition_safe_forms
+            if self._medical is not None and self._medical.polish else None
+        )
+        if protected is None:
+            return hold
+        repeated = duplicate_boundary_tokens(
+            " ".join(tokens[:hold]), " ".join(tokens[hold:]), protected
+        )
+        return hold - repeated if repeated else hold
+
+    def _outside_matched_rule(self, tokens: list[str], hold: int) -> int:
+        """Pull ``hold`` back out of a rule the matcher already matches.
+
+        The hold scan looks for suffixes that START a rule, which can land
+        inside a rule that is ALREADY complete earlier in the buffer:
+        ``... سی بی سی و`` holds at the trailing ``و`` (the start of longer
+        rules), cutting ``سی بی سی`` (CBC) into ``سی بی`` + ``سی``. Splitting
+        a matched term is always wrong - a term cut in half canonicalizes to
+        nothing - so the cut moves to the term's own start.
+
+        Bounded by the longest rule, so the walk is O(max_rule_tokens).
+        """
+        if self._medical is None or hold <= 0:
+            return hold
+        span = min(self._medical.max_rule_tokens, hold)
+        for size in range(span, 1, -1):
+            start = hold - size + 1
+            if start < 0:
+                continue
+            for end in range(hold + 1, min(len(tokens), start + size) + 1):
+                if end - start < 2:
+                    continue
+                if self._medical.is_rule_token_prefix(tokens[start:end]) \
+                        and not self._medical.is_strict_rule_token_prefix(
+                            tokens[start:end]):
+                    return start
+        return hold
+
+    def _charted_group_start(self, tokens: list[str], hold: int) -> int:
+        """Pull ``hold`` back so a charted construct is never split in half.
+
+        A cut is only legal between two complete constructs. Number/unit and
+        ``LABEL: value`` formatting are applied to ONE emitted piece at a
+        time, so a cut landing inside such a group ("Temp" | "36.7 \u00b0C",
+        "97" | "%") leaves it permanently unformatted - and unit words are
+        themselves dictionary rules, so the medical hold naturally wants to
+        stop right in front of them.
+
+        Walking back over the value tokens and then over the label in front
+        of them keeps the whole group in the same emission. The walk is
+        bounded by ``MAX_PENDING_TAIL_TOKENS``.
+        """
+        limit = max(0, hold - MAX_PENDING_TAIL_TOKENS)
+        start = hold
+        while start > limit and self._is_value_token(tokens[start - 1]):
+            start -= 1
+        for size in (3, 2, 1):
+            if start - size < limit:
+                continue
+            if self._is_vital_label(tokens[start - size:start]):
+                return start - size
+        return start
+
+    def _is_vital_label(self, tokens: list[str]) -> bool:
+        """Whether ``tokens`` canonicalize into a charted vital-sign label.
+
+        The lookup runs on the CANONICALIZED text because the matcher is
+        what turns "\u062f\u0645\u0627\u06cc \u0628\u062f\u0646" into
+        the label ``Temp``.
+        """
+        text = " ".join(tokens)
+        if self._medical is not None:
+            text, _ = self._medical.fst.canonicalize(text)
+        return is_vital_label(text)
+
+    def _is_value_token(self, token: str) -> bool:
+        """Part of a charted value: a numeral, a unit, or a value connector."""
+        if any(character.isdigit() for character in token):
+            return True
+        if token in _VALUE_CONNECTORS:
+            return True
+        if self._medical is None:
+            return False
+        canonical, _ = self._medical.fst.canonicalize(token)
+        return canonical in _VALUE_UNIT_CANONICALS
+
+    def _nursing_hold_index(self, tokens: list[str]) -> int:
+        """First token the nursing stage may still need the next final for.
+
+        ``len(tokens)`` (= hold nothing) when the buffer ends on a complete
+        construct. Only meaningful while the nursing polish stage is on;
+        with ``--no-text-polish`` nothing downstream would join the halves.
+        """
+        if self._medical is None or not self._medical.polish:
+            return len(tokens)
+        return min(
+            len(tokens) - pending_tail_tokens(self._buffer),
+            # A charted "LABEL: value" group sitting at the very end is also
+            # unresolved: the next final may still carry the value's unit,
+            # and the label must travel with it.
+            self._charted_group_start(tokens, len(tokens)),
+        )
+
+    def _medical_hold_index(self, tokens: list[str]) -> int:
+        """First token whose suffix could still complete a longer rule.
 
         A future final can only invalidate already-emitted text if some
         rule form's leading tokens match a suffix of the buffered text
@@ -208,21 +418,23 @@ class FinalStreamCanonicalizer:
         the ambiguity resolves; only the never-completes-into-anything
         whole-buffer edge case is safe to special-case here.
         """
-        tokens = self._buffer.split()
-        if self._medical is None or not tokens:
-            return len(self._buffer)
+        if self._medical is None:
+            return len(tokens)
         for i in range(len(tokens)):
             suffix = tokens[i:]
             if not self._medical.is_rule_token_prefix(suffix):
                 continue
             if i == 0 and not self._medical.is_strict_rule_token_prefix(suffix):
-                # Entire remaining buffer is only a complete, non-extendable
-                # rule on its own - not a genuine risk, keep scanning.
-                continue
-            if i == 0:
-                return 0
-            return sum(len(t) + 1 for t in tokens[:i]) - 1
-        return len(self._buffer)
+                # The ENTIRE remaining buffer is a complete rule that no
+                # longer rule can extend ("جی سی اس" = GCS, "لاین وریدی" =
+                # IV line). Emit all of it. Scanning on instead used to find
+                # a LATER suffix that merely starts some other rule and cut
+                # THERE - i.e. in the middle of the rule that already
+                # matched at i == 0, splitting "جی سی اس" into "جی سی" +
+                # "اس" and losing the GCS canonicalization entirely.
+                return len(tokens)
+            return i
+        return len(tokens)
 
     def _emit(self, cut: int) -> str | None:
         emitted_text = self._buffer[:cut].strip()
@@ -379,7 +591,7 @@ async def main() -> int:
     # The actually-sent Speechmatics domain (see resolve_domain: the medical
     # domain is only documented for a fixed language set, which does NOT
     # include Persian).
-    effective_domain = resolve_domain(args.language, args.domain)
+    effective_domain = resolve_domain(args.language, args.domain, args.model)
 
     result = None
     injected_segments: list[dict] = []
@@ -405,11 +617,17 @@ async def main() -> int:
     print(f"Auto-injection  : {'ON — every finalized segment is pasted at the cursor' if injector else 'OFF'}")
     print("=" * 72)
     if args.domain == "auto" and effective_domain is None:
+        reason = (
+            f"the Medical domain is a variant of the enhanced model, not "
+            f"'{args.model}'"
+            if args.model not in MEDICAL_DOMAIN_MODELS
+            else f"Speechmatics does not document it for language "
+                 f"'{args.language}'"
+        )
         print(
-            f"[config] The Enhanced Medical domain is not documented by "
-            f"Speechmatics for language '{args.language}' — continuing WITHOUT "
-            f"a domain on the {args.model} model. Use --domain medical to "
-            f"force it explicitly."
+            f"[config] The Enhanced Medical domain was not requested: {reason}"
+            f" — continuing WITHOUT a domain on the {args.model} model. Use "
+            f"--domain medical to force it explicitly."
         )
     if injector:
         print("Click the field where the transcript must go ONCE, then dictate.")
@@ -440,8 +658,6 @@ async def main() -> int:
         InjectionWorker(injector, on_result=on_injection_result)
         if injector else None
     )
-    worker_armed = False
-
     def on_final(text: str):
         # Finalized segment. The pipeline is fixed and single-pass:
         #
@@ -454,7 +670,6 @@ async def main() -> int:
         # RLM/RLE/PDF. The overlay and the injector each add their own
         # presentation controls on top of it; neither rewrites the medical
         # content.
-        nonlocal worker_armed
         clean = normalize_text(text)
         if not clean:
             return
@@ -472,17 +687,10 @@ async def main() -> int:
             overlay.set_final(accumulator.canonical_text)
 
         if worker and emitted:
-            if not worker_armed:
-                worker_armed = True
-                if not args.no_focus_guard:
-                    # Arm whatever field the user clicked for dictation; later
-                    # pastes are aborted while any other window is focused.
-                    injector.arm_target()
             worker.submit(emitted)
 
     def finish_injection() -> list[dict]:
         """Flush the canonical tail, drain the worker, return its records."""
-        nonlocal worker_armed
         # Flush regardless of injection: the report's canonical stage is
         # built from these emissions, with or without a worker.
         tail = accumulator.flush()
@@ -492,10 +700,6 @@ async def main() -> int:
                 overlay.set_final(accumulator.canonical_text)
         if worker is None:
             return []
-        if not worker_armed:
-            worker_armed = True
-            if not args.no_focus_guard:
-                injector.arm_target()
         if tail:
             worker.submit(tail)
         worker.shutdown()
@@ -556,6 +760,15 @@ async def main() -> int:
                 domain=args.domain,
             )
             audio = audio_source(recorder, args.max_seconds, stop_event)
+            # Arm the injection target BEFORE any audio is streamed. Arming
+            # on the first emitted canonical text instead was unsafe: that
+            # text can be buffered for several segments (cross-boundary
+            # medical/nursing constructs), during which the user may have
+            # focused a different window - and the guard would then protect
+            # the WRONG one. The window focused when dictation starts is the
+            # one the user clicked for dictation.
+            if injector and not args.no_focus_guard:
+                injector.arm_target()
             try:
                 result = await stt.run(audio, on_partial, on_final)
             except KeyboardInterrupt:
@@ -609,10 +822,14 @@ async def main() -> int:
     canonical_clean = print_cleanliness("CANONICALIZED TRANSCRIPT", canonical)
 
     evaluation_result = (
+        # Stage names describe what the text ACTUALLY is. The last stage is
+        # not purely the medical matcher's output: with the polish stage on
+        # (the default) it has also been through nursing normalization, so
+        # calling it "fst_canonical" misrepresented it.
         evaluate_stages(benchmark["expected"], {
             "raw": raw,
             "normalized": normalized,
-            "fst_canonical": canonical,
+            "canonical": canonical,
         })
         if benchmark else None
     )
@@ -647,9 +864,21 @@ async def main() -> int:
             "final_segments": getattr(result, "final_segments", []),
             "word_results": word_results,
             "confidence_summary": confidence_summary(word_results),
+            # "changed" means the LEXICAL medical stage actually rewrote
+            # something (a dictionary hit was applied). It used to be
+            # `canonical != normalized`, which is also true when only the
+            # nursing stage reformatted a number ("سی و پنج" -> "35") and
+            # no medical term was involved at all.
             "medical_canonicalization": {
                 "hit_count": len(medical_hits),
-                "changed": canonical != normalized,
+                "changed": (
+                    medical is not None
+                    and medical.medical_replacement_count > 0
+                ),
+                "replacement_count": (
+                    medical.medical_replacement_count
+                    if medical is not None else 0
+                ),
             },
             "final_transcript_raw": raw,
             "final_transcript_normalized": normalized,
@@ -700,7 +929,7 @@ async def main() -> int:
 
     if evaluation_result:
         print()
-        print("EVALUATION (raw / normalized / fst_canonical):")
+        print("EVALUATION (raw / normalized / canonical):")
         print(json.dumps(evaluation_result, ensure_ascii=False, indent=2))
 
     print()
@@ -708,6 +937,19 @@ async def main() -> int:
         print(f"JSON: {json_path}")
     else:
         print("No report saved (use --save-report or --test-id to save).")
+
+    # The transcript, the injection and the report are all preserved above
+    # even when the realtime session failed - but the PROCESS must not claim
+    # success. A script that pipes dictation into a chart had no way to tell
+    # a clean session apart from one that died on an expired API key.
+    session_error = getattr(result, "error", None) if result is not None else None
+    if session_error:
+        print()
+        print(f"[session] FAILED: {session_error}")
+        print("[session] The transcript captured before the failure was kept "
+              "(see above / the report JSON), but the exit code reports the "
+              "failure.")
+        return 2
 
     return 0
 

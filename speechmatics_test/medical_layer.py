@@ -48,6 +48,11 @@ class MedicalLayer:
         self.polish = polish
         #: Warnings raised by the polish stage (unbound numerals, ...).
         self.polish_warnings: list[str] = []
+        #: How many canonicalize() calls the LEXICAL medical stage actually
+        #: rewrote. Reports need this to tell "a medical term was
+        #: canonicalized" apart from "the nursing stage reformatted a
+        #: number", which a naive ``output != input`` check conflates.
+        self.medical_replacement_count = 0
 
     @property
     def warnings(self) -> list[str]:
@@ -105,7 +110,12 @@ class MedicalLayer:
         audit trail keeps meaning what it always meant.
         """
         if not self.polish:
-            return self.fst.canonicalize(normalized_text, word_results)
+            canonical, hits = self.fst.canonicalize(
+                normalized_text, word_results
+            )
+            if canonical != normalized_text:
+                self.medical_replacement_count += 1
+            return canonical, hits
 
         report = PolishReport()
         prepared = prepolish_asr_artifacts(
@@ -117,6 +127,8 @@ class MedicalLayer:
         # (not misaligned) when a stutter was actually removed.
         evidence = word_results if prepared == normalized_text else None
         canonical, hits = self.fst.canonicalize(prepared, evidence)
+        if canonical != prepared:
+            self.medical_replacement_count += 1
         polished = polish_nursing_text(canonical, report)
         self.polish_warnings.extend(report.warnings)
         return polished, hits

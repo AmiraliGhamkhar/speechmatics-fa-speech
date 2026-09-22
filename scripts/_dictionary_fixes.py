@@ -110,6 +110,63 @@ UNSAFE_ALIASES: dict[str, tuple[tuple[str, ...], str]] = {
             "the spec requires, so the Persian form routes there"),
 }
 
+#: Second pass: aliases that resolved to the WRONG one of two unrelated
+#: clinical concepts. Unlike UNSAFE_ALIASES (ordinary words wrongly treated
+#: as terminology), each of these is real terminology - the defect is that
+#: one short form was claimed by two different terms, so the matcher silently
+#: picked whichever won tier arbitration. Where one reading dominates nursing
+#: dictation, the alias is removed from the LOSING term (its full spelling and
+#: unambiguous abbreviations are always kept, so nothing becomes unmatchable).
+#:   {term_id: (forms_to_drop, reason)}
+COLLIDING_ALIASES: dict[str, tuple[tuple[str, ...], str]] = {
+    "myocardial-infarction": (
+        ("STEMI", "NSTEMI"),
+        "the generic 'myocardial infarction' term claimed both STEMI and "
+        "NSTEMI, and won tier arbitration against the specific "
+        "'ST-elevation myocardial infarction' / 'non-ST-elevation myocardial "
+        "infarction' entries. Dropping the ST-elevation qualifier changes the "
+        "diagnosis and the treatment pathway, so the specific terms must "
+        "keep their own abbreviations; 'MI'/'AMI'/'سکته قلبی' stay here"),
+    "asthma": (
+        ("RAD",),
+        "'RAD' (reactive airway disease) collided with 'Rad' (radiology). "
+        "The expansion 'reactive airway disease' is kept, so the concept is "
+        "still matchable without a two-meaning three-letter alias"),
+    "department_0127": (
+        ("Rad", "X-ray"),
+        "'Rad' collided with asthma's RAD, and 'X-ray' is an imaging "
+        "MODALITY being rewritten into a DEPARTMENT name - 'X-ray گرفته شد' "
+        "would become 'radiology گرفته شد'. 'radiology'/'رادیولوژی' remain"),
+    "history_0191": (
+        ("SR",),
+        "'SR' was claimed by both 'review of systems' and 'erythrocyte "
+        "sedimentation rate' - a lab value and a history section. 'ROS' is "
+        "the unambiguous abbreviation for this term and is kept"),
+    "lab_0208": (
+        ("SR",),
+        "same 'SR' collision from the lab side; 'ESR'/'Sed rate' are the "
+        "unambiguous abbreviations and are kept"),
+    "lab_0215": (
+        ("GTT",),
+        "'gtt' is the standard unit abbreviation for DROPS and is far more "
+        "frequent in nursing dictation (IV drip rates) than the glucose "
+        "tolerance test; 'OGTT' and the full spelling are kept"),
+    "history_0185": (
+        ("CC",),
+        "'cc' is the cubic-centimetre volume unit in nursing dictation, so "
+        "'CC' resolving to 'chief complaint' rewrote volumes; 'c/c' and the "
+        "full spelling 'chief complaint' are kept"),
+    "recovery-room": (
+        ("RR",),
+        "'RR' is respiratory rate on every vital-signs line; 'PACU' and the "
+        "full spelling 'recovery room' identify this term unambiguously"),
+    "bedside_rails": (
+        ("bed side", "بالا بودن Bed Side"),
+        "'bed side' is two ordinary words and also an alias of the 'Bedside' "
+        "term; the explicit 'نرده های کنار تخت' / 'گارد تخت' forms are what "
+        "actually mean rails"),
+}
+
 #: Case-variant duplicate concepts. The dictionary carried BOTH
 #: "vital signs"/"Vital signs" and "IV line"/"IV-Line" as separate terms, so
 #: the same Persian form ("علائم حیاتی", "لاین وریدی") resolved to a
@@ -127,6 +184,37 @@ MERGED_TERMS: dict[str, tuple[str, str]] = {
                 "form 'لاین وریدی'; the hyphenated spelling is kept as an alias"),
     "nurse_call": ("nurse-call-system",
                    "'nurse call' duplicated the spec's 'Nurse call' canonical"),
+    # --- second pass: the case-only duplicates the audit still reported ---
+    "vital_signs_0078": (
+        "chest-xray",
+        "'chest x-ray' duplicated 'chest X-ray' with different casing, so "
+        "'عکس قفسه سینه' resolved to a different canonical depending on tier "
+        "order; the surviving entry also has the correct type (imaging, not "
+        "vital_sign)"),
+    "intensive-care-unit": (
+        "department_0120",
+        "'Intensive Care Unit' duplicated 'intensive care unit' with "
+        "different casing and both claimed Persian forms for the same "
+        "concept; the lowercase spelling matches every other expansion in "
+        "the dictionary (heart rate, blood pressure, computed tomography)"),
+    "Magnesium": (
+        "magnesium",
+        "'Magnesium' carried no forms at all - it existed only to push a "
+        "capitalized copy of the 'magnesium' lab into the Speechmatics "
+        "vocabulary, which is what made the SAME concept appear twice with "
+        "two spellings; the vocabulary flag moves to the surviving term"),
+}
+
+#: Canonicals that differ ONLY by case and are deliberately kept apart,
+#: because they are NOT the same concept. The audit exempts exactly this
+#: pair and blocks on any other case-only collision.
+#:   {casefolded: (canonicals, reason)}
+DISTINCT_CASE_CANONICALS: dict[str, tuple[tuple[str, str], str]] = {
+    "mg": (("Mg", "mg"),
+           "'Mg' is the magnesium lab analyte and 'mg' is the milligram "
+           "dosage unit. Merging them would rewrite doses into lab results "
+           "(and vice versa), so this collision is intentional and must "
+           "survive the audit."),
 }
 
 #: Canonical spellings corrected to the form the specification names.
@@ -264,6 +352,24 @@ def apply_fixes(check: bool = False) -> int:
             ]
             changes.append(
                 f"{term_id}: dropped aliases {dropped} - {reason}")
+
+    # 1b. drop aliases that resolved to the wrong clinical concept
+    for term_id, (forms, reason) in COLLIDING_ALIASES.items():
+        term = by_id.get(term_id)
+        if term is None:
+            continue
+        folded = {f.casefold() for f in forms}
+        dropped = [f for f in term["forms"] if f.casefold() in folded]
+        if dropped:
+            term["forms"] = [
+                f for f in term["forms"] if f.casefold() not in folded
+            ]
+            term["sounds_like"] = [
+                s for s in term.get("sounds_like", [])
+                if s.casefold() not in folded
+            ]
+            changes.append(
+                f"{term_id}: dropped colliding aliases {dropped} - {reason}")
 
     # 2. remove numeric-only terms
     for term_id, reason in REMOVED_TERM_IDS.items():

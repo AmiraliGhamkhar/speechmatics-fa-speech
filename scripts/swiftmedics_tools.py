@@ -181,6 +181,63 @@ def audit_dictionary(path: Path = DICTIONARY_PATH) -> dict:
         for form, targets in by_form.items() if len(targets) > 1
     )
 
+    # Case-only duplicate canonicals: "chest X-ray" vs "chest x-ray" are one
+    # concept spelled two ways, so the same Persian form resolves to a
+    # different output depending on tier order. This is a DEFECT, unlike an
+    # ordinary duplicate canonical (which is exact and already reported).
+    # The documented exceptions in scripts/_dictionary_fixes.py are pairs
+    # where case genuinely distinguishes two concepts (Mg vs mg).
+    if str(Path(__file__).resolve().parent) not in sys.path:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _dictionary_fixes import DISTINCT_CASE_CANONICALS
+
+    case_groups: dict[str, set[str]] = collections.defaultdict(set)
+    for term in terms:
+        canonical = (term.get("canonical") or "").strip()
+        if canonical:
+            case_groups[canonical.casefold()].add(canonical)
+    case_only_duplicates = sorted(
+        (folded, sorted(spellings))
+        for folded, spellings in case_groups.items()
+        if len(spellings) > 1 and folded not in DISTINCT_CASE_CANONICALS
+    )
+    intentional = sorted(
+        folded for folded in DISTINCT_CASE_CANONICALS
+        if len(case_groups.get(folded, ())) > 1
+    )
+
+    # A raw "conflicting alias forms" count is not actionable: most of these
+    # collisions are BENIGN - an abbreviation term and its expansion term
+    # listing each other ("ECG" <-> "electrocardiogram"), where whichever
+    # canonical wins is a spelling choice, not a meaning change. The ones
+    # that matter are CROSS-CONCEPT: one form claimed by terms that are not
+    # linked by canonical/alias at all ("pe" = physical examination vs
+    # pulmonary embolism), where arbitration silently picks a diagnosis.
+    folded_forms = {
+        term.get("canonical"): {
+            casefold_preserving(normalize_text(f)) for f in term.get("forms", [])
+        }
+        for term in terms
+    }
+
+    def _same_concept(left: str, right: str) -> bool:
+        """True when each canonical appears among the other's forms."""
+        left_folded = casefold_preserving(normalize_text(left))
+        right_folded = casefold_preserving(normalize_text(right))
+        return (
+            left_folded == right_folded
+            or left_folded in folded_forms.get(right, ())
+            or right_folded in folded_forms.get(left, ())
+        )
+
+    cross_concept = [
+        (form, targets) for form, targets in conflicting
+        if not all(
+            _same_concept(a, b)
+            for i, a in enumerate(targets) for b in targets[i + 1:]
+        )
+    ]
+
     invalid = []
     for term in terms:
         if term.get("type") not in TERM_TYPES:
@@ -203,8 +260,13 @@ def audit_dictionary(path: Path = DICTIONARY_PATH) -> dict:
         "metadata_matches_actual": metadata_count == len(terms),
         "duplicate_ids": sorted(k for k, v in ids.items() if v > 1),
         "duplicate_canonicals": sorted(k for k, v in canonicals.items() if v > 1),
+        "case_only_duplicate_canonicals": case_only_duplicates,
+        "intentional_case_distinctions": intentional,
         "conflicting_alias_forms": len(conflicting),
         "conflicting_alias_examples": conflicting[:20],
+        "same_concept_alias_forms": len(conflicting) - len(cross_concept),
+        "cross_concept_alias_forms": len(cross_concept),
+        "cross_concept_alias_examples": cross_concept[:20],
         "empty_forms": empty_forms,
         "invalid_entries": invalid,
         "speechmatics_entries": speechmatics_count,
@@ -228,12 +290,22 @@ def cmd_audit_dictionary(args: argparse.Namespace) -> int:
         print(f"vocabulary artifact entries  : {report['vocabulary_entries']}")
         print(f"duplicate IDs                : {len(report['duplicate_ids'])}")
         print(f"duplicate canonicals         : {len(report['duplicate_canonicals'])}")
+        print(f"case-only duplicate canonicals: "
+              f"{len(report['case_only_duplicate_canonicals'])}")
+        for folded, spellings in report["case_only_duplicate_canonicals"]:
+            print(f"    {folded}: {spellings}")
+        if report["intentional_case_distinctions"]:
+            print(f"  (allowed case distinctions : "
+                  f"{report['intentional_case_distinctions']})")
         print(f"conflicting alias forms      : {report['conflicting_alias_forms']}")
+        print(f"  same concept (benign)      : {report['same_concept_alias_forms']}")
+        print(f"  cross concept (review)     : {report['cross_concept_alias_forms']}")
         print(f"invalid entries              : {len(report['invalid_entries'])}")
         print(f"empty forms                  : {len(report['empty_forms'])}")
     blocking = (
         report["duplicate_ids"]
         or report["duplicate_canonicals"]
+        or report["case_only_duplicate_canonicals"]
         or report["invalid_entries"]
         or not report["metadata_matches_actual"]
     )

@@ -156,8 +156,13 @@ def test_end_to_end_session_with_report(tmp_path, monkeypatch):
             "Persian": 10, "English": 0, "unknown": 0,
         }
         assert report["medical_canonicalization"] == {
-            "hit_count": len(report["medical_hits"]), "changed": True,
+            "hit_count": len(report["medical_hits"]),
+            "changed": True,
+            "replacement_count":
+                report["medical_canonicalization"]["replacement_count"],
         }
+        # This session really did apply medical rules (CCU, HTN).
+        assert report["medical_canonicalization"]["replacement_count"] > 0
     finally:
         # keep the source tree clean
         for p in reports:
