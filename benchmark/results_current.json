@@ -1,7 +1,7 @@
 {
   "label": "current",
-  "git_commit": "6931193f3f12a0d41ee035754c71523a7a1e63a0",
-  "git_dirty": false,
+  "git_commit": "494294d077225363f6e44b087ff974de6387b8f3-dirty",
+  "git_dirty": true,
   "python_version": "3.11.2",
   "platform": "Linux-6.1.158+-x86_64-with-glibc2.36",
   "packages": {
@@ -75,26 +75,26 @@
     "repeats_per_sentence": 50,
     "sentences": 107,
     "build_time_ms": {
-      "min": 43.212,
-      "median": 43.215
+      "min": 38.673,
+      "median": 39.58
     },
     "build_peak_traced_memory_mb": 3.339,
     "matcher_latency_us": {
-      "mean": 5.44,
-      "p50": 4.39,
-      "max": 56.42
+      "mean": 5.52,
+      "p50": 4.26,
+      "max": 102.54
     },
     "full_pipeline_latency_us": {
-      "mean": 42.95,
-      "p50": 35.89,
-      "max": 212.51
+      "mean": 43.15,
+      "p50": 35.11,
+      "max": 461.26
     },
-    "mean_latency_us_per_character": 1.4399,
+    "mean_latency_us_per_character": 1.4466,
     "longest_sentence_characters": 134,
     "long_paragraph": {
       "characters": 3298,
-      "mean_ms": 3.209,
-      "max_ms": 3.418
+      "mean_ms": 3.591,
+      "max_ms": 4.398
     }
   },
   "aggregates": {
@@ -479,7 +479,7 @@
       "vital_spo2_fa:every_two",
       "vital_spo2_fa:midpoint"
     ],
-    "runtime_seconds": 1.583
+    "runtime_seconds": 1.702
   },
   "cases": [
     {
@@ -3117,7 +3117,9 @@
           "SpO2": 1
         },
         "extra": [],
-        "missing": []
+        "missing": [
+          "%"
+        ]
       },
       "numbers": {
         "expected_declared": [

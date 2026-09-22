@@ -14,7 +14,7 @@ number: no audio is involved anywhere in this benchmark.
 
 ## Environment
 
-* commit: `6931193f3f12a0d41ee035754c71523a7a1e63a0`
+* commit: `494294d077225363f6e44b087ff974de6387b8f3-dirty`  **(working tree dirty - this commit alone does not identify the code that produced these numbers)**
 * python: 3.11.2
 * platform: Linux-6.1.158+-x86_64-with-glibc2.36
 * matcher backend: aho-corasick (pyahocorasick)
@@ -28,7 +28,7 @@ number: no audio is involved anywhere in this benchmark.
 These fixtures contain text, not audio. Whole-text and streaming scores measure deterministic post-processing only.
 
 * whole-text exact-match accuracy: **107/107 (100.0%)**
-* streaming-boundary exact-match: **363/405 (89.6%)** across 107 fixtures
+* streaming-boundary exact-match: **530/535 (99.1%)** (detail below)
 * terminology F1: 1.0 (P 1.0, R 1.0, FP 0, FN 0)
 * number F1: 1.0 (P 1.0, R 1.0)
 * false-number rate: 0.0 | dropped-number rate: 0.0
@@ -44,7 +44,7 @@ application actually runs in; the whole-text score above cannot see
 final-segment boundary bugs at all.
 
 * streaming exact-match: **530/535 (99.1%)** across 5 split strategies
-* streaming runtime: 1.583 s
+* streaming runtime: 1.702 s
 
 | split strategy | runs | exact | accuracy |
 | --- | --- | --- | --- |
@@ -119,12 +119,12 @@ Stages are reported separately on purpose: a lexical canonicalization, a numeric
 
 ## Performance (real dictionary)
 
-* dictionary build (load + validate + automaton): 43.212 ms min, 43.215 ms median
+* dictionary build (load + validate + automaton): 38.673 ms min, 39.58 ms median
 * build peak traced memory: 3.339 MB
-* matcher-only latency: 5.44 us mean, 4.39 us p50
-* full pipeline (matcher + polish): 42.95 us mean, 35.89 us p50
-* per-character: 1.4399 us
-* long paragraph (3298 chars): 3.209 ms mean, 3.418 ms max
+* matcher-only latency: 5.52 us mean, 4.26 us p50
+* full pipeline (matcher + polish): 43.15 us mean, 35.11 us p50
+* per-character: 1.4466 us
+* long paragraph (3298 chars): 3.591 ms mean, 4.398 ms max
 
 ## Baseline comparison
 
