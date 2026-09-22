@@ -1,12 +1,12 @@
 {
   "label": "current",
-  "git_commit": "266508fd44c3d16295e13e9358109d8acb7c9dde",
+  "git_commit": "7504f8ef357f33160b396525690677875537fc34",
   "python_version": "3.11.2",
   "platform": "Linux-6.1.158+-x86_64-with-glibc2.36",
   "packages": {
     "pyahocorasick": "2.3.1",
     "pytest": "9.1.1",
-    "speechmatics-rt": "1.1.1"
+    "speechmatics-rt": null
   },
   "matcher_backend": "aho-corasick (pyahocorasick)",
   "uses_ahocorasick": true,
@@ -74,26 +74,26 @@
     "repeats_per_sentence": 50,
     "sentences": 107,
     "build_time_ms": {
-      "min": 55.912,
-      "median": 58.426
+      "min": 54.893,
+      "median": 55.277
     },
-    "build_peak_traced_memory_mb": 3.345,
+    "build_peak_traced_memory_mb": 3.344,
     "matcher_latency_us": {
-      "mean": 8.65,
-      "p50": 7.13,
-      "max": 119.54
+      "mean": 6.93,
+      "p50": 5.41,
+      "max": 137.63
     },
     "full_pipeline_latency_us": {
-      "mean": 65.85,
-      "p50": 59.31,
-      "max": 263.14
+      "mean": 57.67,
+      "p50": 47.79,
+      "max": 426.53
     },
-    "mean_latency_us_per_character": 2.2074,
+    "mean_latency_us_per_character": 1.9331,
     "longest_sentence_characters": 134,
     "long_paragraph": {
       "characters": 3298,
-      "mean_ms": 4.093,
-      "max_ms": 4.325
+      "mean_ms": 4.352,
+      "max_ms": 4.708
     }
   },
   "aggregates": {
