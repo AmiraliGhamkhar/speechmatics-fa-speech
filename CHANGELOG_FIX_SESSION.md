@@ -6,6 +6,138 @@ Verification commands in this file are PowerShell. Run them from the repo root.
 
 ---
 
+# Session 5 — Automatic-injection target acquisition fix
+
+Focus of this session: the reported production failure where automatic
+injection delivered **0/N finalized segments** because the paste target was
+armed while the SwiftMedics console itself was still the foreground window.
+**No architectural change**: the `FinalStreamCanonicalizer →
+InjectionWorker → injector → target window` pipeline, FIFO ordering, the
+focus guard as a safety mechanism, and every CLI flag keep their meaning.
+
+Verification at the end of the session:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q                            # 554 passed
+.\.venv\Scripts\python.exe -m compileall -q .                      # OK
+.\.venv\Scripts\python.exe app.py --help                           # OK
+.\.venv\Scripts\python.exe scripts\swiftmedics_tools.py check-vocab        # OK
+.\.venv\Scripts\python.exe scripts\swiftmedics_tools.py audit-dictionary   # OK
+.\.venv\Scripts\python.exe scripts\swiftmedics_tools.py benchmark          # 107/107 unchanged
+```
+
+(Verified on Linux with `python -m pytest -q` and the documented benchmark
+command; Windows-specific injection behavior is covered by mocked tests —
+real Windows interactive verification remains required.)
+
+## 1. The paste target was armed before the user selected it (CRITICAL)
+
+- **FILES**: `injector.py`, `app.py`
+- **BUG**: `app.py` called `injector.arm_target()` right before the
+  realtime session started - at that moment the SwiftMedics console was the
+  foreground window, so the CONSOLE was stored as the paste target. The
+  app's own instruction ("Click the field...") then guaranteed the user
+  clicked a different window, focus changed, and the focus guard rejected
+  every paste: `focus changed - paste skipped to protect the armed window
+  (armed hwnd=..., current=...)` until the summary reported
+  `auto-injected 0/34 finalized segments.`
+- **FIX**: New `injector.TargetSelector` (a ~90-line watcher, no new
+  dependencies): it remembers the app's own foreground window, polls until
+  focus moves to a DIFFERENT top-level window, and arms THAT window (the
+  user's click into Word/EMR/browser). Windows owned by the app's own
+  process (the overlay) are never armed; the first transition wins; the
+  watcher starts before microphone init so a click during device startup
+  is not missed. `app.py` starts it instead of calling `arm_target()`, and
+  stops it on session teardown. `arm_target()` itself is unchanged.
+- **WHY SAFE**: No hotkey, countdown, Enter or manual re-arm is introduced;
+  dictation can start immediately (the session is NOT delayed). If the user
+  clicks a target mid-session after early refusals, it is armed then and
+  injection resumes automatically.
+- **TEST**: `tests/test_e2e.py::test_realistic_focus_flow_auto_injects_after_target_selection`
+  (console foreground → user clicks external window → armed → first final
+  injected, no hotkey; drives the REAL TargetSelector against a scripted
+  foreground), plus `tests/test_injector.py::test_target_selector_*`
+  (6 unit tests: first foreign window, own-process overlay ignored, console
+  re-focus ignored, no-HWND platforms, stop(), one-shot after arming).
+
+## 2. "Nothing armed yet" used to mean "paste anywhere"
+
+- **FILE**: `injector.py`
+- **BUG**: `_focus_guard_ok()` returned True when no window was armed. Under
+  the old always-arm-first flow that was unreachable; with runtime target
+  selection it meant a finalized segment arriving before the user clicked
+  would be pasted into whatever window had focus - the console.
+- **FIX**: New `enable_focus_guard()`: while the guard is required (Windows,
+  default flow), an unarmed injector refuses pastes with a clear
+  "no paste target armed yet" message. `--no-focus-guard` never enables it
+  (unchanged permissive behavior), and non-Windows platforms keep the
+  permissive behavior because no HWND focus API exists there.
+- **WHY SAFE**: Strictly widens what the guard refuses; no previously
+  allowed paste becomes allowed.
+- **TEST**: `tests/test_injector.py::test_required_guard_refuses_paste_until_a_target_is_armed`,
+  `::test_required_guard_refusal_is_explained_to_the_user`,
+  `::test_guard_not_required_keeps_the_permissive_legacy_behavior`,
+  `tests/test_e2e.py::test_no_target_selected_never_pastes_anywhere`,
+  `::test_focus_change_after_arming_rejects_injection`.
+
+## 3. An exception killed the injection worker thread silently
+
+- **FILE**: `app.py`
+- **BUG**: `InjectionWorker._run` had no per-job exception guard. Anything
+  raising out of `paste_text` (e.g. from payload preparation, which runs
+  outside the injector's internal try/except) killed the worker thread:
+  every later segment stayed in the queue forever and `shutdown()`
+  "drained" nothing - segments vanished with no failure record.
+- **FIX**: The per-job body is wrapped; an exception records the segment as
+  `success: False`, prints the error plus the standard AUTO-INJECTION
+  FAILED warning, and the worker keeps processing in FIFO order.
+- **WHY SAFE**: Only converts an unhandled crash into the established
+  failure-reporting path.
+- **TEST**: `tests/test_app.py::test_injection_worker_survives_an_exception_and_keeps_draining`.
+
+## 4. Non-text clipboard content was destroyed silently
+
+- **FILE**: `injector.py`
+- **BUG**: Only `CF_UNICODETEXT` is preserved across a paste. When the
+  clipboard held an image/files/rich data, `EmptyClipboard()` destroyed it
+  and nothing could restore it - with no notice at all.
+- **FIX**: A one-time, report-only warning when the clipboard holds content
+  that cannot be restored (`CountClipboardFormats` probe). A multi-format
+  clipboard backup remains deliberately out of scope; the limitation is now
+  documented in the README.
+- **WHY SAFE**: Purely informational; the paste/restore sequence is
+  unchanged.
+- **TEST**: `tests/test_injector.py::test_paste_warns_once_when_clipboard_content_is_not_restorable`,
+  `::test_paste_does_not_warn_when_the_clipboard_is_empty`,
+  `::test_paste_with_unreadable_clipboard_does_not_restore_anything`.
+
+## 5. Reference-scanner tie-break ranked low confidence FIRST
+
+- **FILE**: `speechmatics_test/matcher.py`
+- **BUG**: `_candidate_key`'s evidence rank sorted a low-confidence match
+  BETTER, contradicting its own docstring ("use compatible low-confidence
+  evidence last"). Unreachable in practice (two different rules of equal
+  length cannot match the same span), so no behavior change - fixed to
+  match the documented intent before it can ever matter.
+- **TEST**: covered by the existing automaton/reference parity tests.
+
+## 6. Documentation and smoke test aligned with the real flow
+
+- **FILES**: `README.md`, `scripts/swiftmedics_tools.py`,
+  `scripts/test_injector.ps1`, `app.py`
+- The README now documents the actual flow (start app → click target →
+  armed automatically → dictate), the pre-arm refusal behavior, what the
+  focus guard does NOT track (top-level window only, not the specific
+  field/control - UI Automation deliberately not implemented), the
+  text-only clipboard-restoration limitation, and the non-Windows guard
+  unavailability. `test-injector` now exercises the production target
+  selection on Windows (click is detected automatically; the ENTER prompt
+  remains only as the non-Windows fallback). The session report's
+  `injection` block gains a `focus_guard` boolean. Test count updated to
+  554.
+
+---
+
 # Session 4 — Auto-injection hardening, streaming parity, provenance
 
 Focus of this session: prove and harden the mandatory automatic injection

@@ -47,9 +47,16 @@ Correctness notes (these were real injection bugs):
 7. Realtime callbacks can arrive on a different thread than the UI; without a
    lock two callbacks could interleave clipboard writes and Ctrl+V keystrokes.
    All public entry points are serialized on a lock now.
+8. ``arm_target()`` used to be called by the app at startup, while its own
+   console was still the foreground window - so the console was armed as the
+   paste target and every later paste (after the user clicked the real
+   target) was refused by the focus guard. Target selection now happens
+   through :class:`TargetSelector`: wait for focus to move away from the
+   app's own window, then arm that window.
 """
 from __future__ import annotations
 
+import os
 import platform
 import re
 import threading
@@ -196,6 +203,9 @@ if _SYSTEM == "windows":
     user32.IsClipboardFormatAvailable.argtypes = [wintypes.UINT]
     user32.IsClipboardFormatAvailable.restype = wintypes.BOOL
 
+    user32.CountClipboardFormats.argtypes = []
+    user32.CountClipboardFormats.restype = wintypes.INT
+
     user32.GetClipboardSequenceNumber.argtypes = []
     user32.GetClipboardSequenceNumber.restype = wintypes.DWORD
 
@@ -256,6 +266,12 @@ class TextInjector:
         #: Focus guard (see ``arm_target``): when armed, pastes are refused
         #: unless this exact foreground window handle is still focused.
         self._armed_hwnd: Optional[int] = None
+        #: Set by ``enable_focus_guard``: pastes are then refused until a
+        #: target has been armed (see TargetSelector for why the guard must
+        #: also cover the "not armed YET" phase of a session).
+        self._guard_required: bool = False
+        #: One-time notice for clipboard content we cannot restore.
+        self._non_text_clipboard_warned: bool = False
         #: Set by ``_set_windows_clipboard`` the instant ``EmptyClipboard()``
         #: succeeds, independent of that call's own return value - see
         #: ``_paste_windows`` for why this (not the return value) must gate
@@ -351,6 +367,10 @@ class TextInjector:
         Windows paste verifies that the armed window is STILL focused and
         refuses to paste anywhere else. Returns False when the platform
         cannot identify the foreground window (non-Windows).
+
+        Callers rarely want to call this at startup: the foreground window
+        then is the caller's own console. See :class:`TargetSelector`,
+        which waits for focus to move to the user's chosen window first.
         """
         info = self.get_foreground_window_info()
         hwnd = info.get("hwnd")
@@ -361,14 +381,39 @@ class TextInjector:
         self._armed_hwnd = int(hwnd)
         return True
 
+    def enable_focus_guard(self) -> None:
+        """Require an armed target for Windows pastes (the guard's ON switch).
+
+        ``_focus_guard_ok`` used to treat "nothing armed" as "paste
+        anywhere" because the old startup flow always armed a window before
+        dictation could produce text. With target selection happening at
+        runtime (see :class:`TargetSelector`) that is no longer safe: a
+        finalized segment arriving before the user has clicked a target
+        would be pasted into whatever window happens to be focused - the
+        SwiftMedics console. After this call, pastes are refused until
+        ``arm_target`` arms a window. ``--no-focus-guard`` never calls it,
+        and non-Windows platforms keep the permissive behavior (no HWND
+        API, nothing to verify).
+        """
+        self._guard_required = True
+
     @property
     def armed_target(self) -> Optional[int]:
-        """The armed foreground-window handle (``None`` = guard inactive)."""
+        """The armed foreground-window handle (``None`` = no target armed)."""
         return self._armed_hwnd
 
     def _focus_guard_ok(self) -> bool:
         """True when injection may proceed w.r.t. the armed target."""
         if self._armed_hwnd is None:
+            if self._guard_required:
+                # No target has been selected yet: refuse to paste into
+                # whatever happens to be focused (usually our own console).
+                print(
+                    "  [injector] no paste target armed yet - paste skipped "
+                    "(click the field where the transcript must go; "
+                    "injection resumes automatically once it is armed)"
+                )
+                return False
             return True
         current = self.get_foreground_window_info().get("hwnd")
         if current == self._armed_hwnd:
@@ -638,6 +683,8 @@ class TextInjector:
         previous: Optional[str] = None
         if self.restore_clipboard:
             previous = self._get_windows_clipboard()
+            if previous is None:
+                self._warn_unrestorable_clipboard()
 
         # ``clipboard_changed`` tracks whether the clipboard's PREVIOUS
         # content was actually destroyed. A successful ``_set_windows_
@@ -749,6 +796,39 @@ class TextInjector:
         return ok
 
     # -- clipboard ----------------------------------------------------------
+
+    def _clipboard_has_content(self) -> bool:
+        """True when the clipboard currently lists any data format.
+
+        Report-only probe used to distinguish "the clipboard was empty"
+        (nothing to lose) from "it holds content we cannot restore".
+        Unknown states conservatively report content.
+        """
+        if _SYSTEM != "windows":
+            return True
+        try:
+            return user32.CountClipboardFormats() > 0
+        except Exception:
+            return True
+
+    def _warn_unrestorable_clipboard(self) -> None:
+        """One-time notice that the current clipboard content is not text.
+
+        Only ``CF_UNICODETEXT`` is preserved across a paste. Anything else
+        currently on the clipboard (a copied image, files, rich formats) is
+        destroyed by ``EmptyClipboard()`` and cannot be put back - a full
+        multi-format clipboard backup is deliberately out of scope. The
+        user is told once instead of discovering an emptied clipboard later.
+        """
+        if self._non_text_clipboard_warned:
+            return
+        self._non_text_clipboard_warned = True
+        if self._clipboard_has_content():
+            print(
+                "  [clipboard] non-text clipboard content detected: it "
+                "cannot be restored after automatic injection (only plain "
+                "text is preserved)"
+            )
 
     def _open_clipboard(self, attempts: int = 12, delay: float = 0.02) -> bool:
         """
@@ -873,3 +953,113 @@ class TextInjector:
                 except Exception:
                     pass
         return ok
+
+
+class TargetSelector:
+    """Watch for the user's first click into another window and arm it.
+
+    This replaces the old startup call to :meth:`TextInjector.arm_target`.
+    That call ran while the SwiftMedics console was still the foreground
+    window (the app had only just launched), so the CONSOLE was stored as
+    the paste target. Once the user clicked the real target (Word / EMR /
+    browser field), the focus guard saw ``armed hwnd != current hwnd`` and
+    refused every automatic paste - sessions ended with "auto-injected 0/N
+    finalized segments" although dictation itself worked.
+
+    The selector instead remembers the foreground window that owns the
+    session (the console), then polls until focus moves to a DIFFERENT
+    top-level window and arms THAT window. Windows owned by this process
+    (e.g. the always-on-top overlay) are never armed, so an accidental
+    click on the overlay cannot become the paste target. The first focus
+    transition wins; afterwards the focus guard keeps protecting exactly
+    that target for the rest of the session.
+
+    No hotkeys, no countdown, no manual re-arm: the user clicks the target
+    field once and dictates. Segments finalized before a target is armed
+    are NOT pasted anywhere (the injector refuses them; see
+    ``enable_focus_guard``) and remain in the transcript/report.
+
+    Only the top-level foreground window is tracked (an HWND), not the
+    specific text field/control inside it - that is the documented
+    limitation of the focus model.
+    """
+
+    def __init__(self, injector: "TextInjector", poll_seconds: float = 0.15) -> None:
+        self._injector = injector
+        self._poll_seconds = max(0.01, float(poll_seconds))
+        self._own_pid = os.getpid()
+        self._own_hwnd: Optional[int] = None
+        self._thread: Optional[threading.Thread] = None
+        self._armed = threading.Event()
+        self._stopped = threading.Event()
+
+    @property
+    def armed(self) -> bool:
+        """True once a target window has been armed."""
+        return self._armed.is_set()
+
+    def wait(self, timeout: Optional[float] = None) -> bool:
+        """Block until a target is armed (``None`` = indefinitely)."""
+        return self._armed.wait(timeout)
+
+    def start(self) -> bool:
+        """Begin watching for the user's target-window click.
+
+        Returns False (and starts nothing) when the current foreground
+        window cannot be identified - non-Windows platforms have no HWND
+        API, so target selection there is unavailable and pastes keep the
+        permissive non-guarded behavior.
+        """
+        if self._thread is not None:
+            return True
+        info = self._injector.get_foreground_window_info()
+        own = info.get("hwnd") if isinstance(info, dict) else None
+        if not own:
+            return False
+        self._own_hwnd = int(own)
+        self._thread = threading.Thread(
+            target=self._run, name="target-selector", daemon=True
+        )
+        self._thread.start()
+        return True
+
+    def _run(self) -> None:
+        warned = False
+        while not self._stopped.is_set():
+            try:
+                info = self._injector.get_foreground_window_info() or {}
+                hwnd = info.get("hwnd")
+                pid = info.get("pid")
+                if (
+                    hwnd
+                    and int(hwnd) != self._own_hwnd
+                    and pid != self._own_pid
+                ):
+                    if self._injector.arm_target():
+                        armed = self._injector.get_foreground_window_info() or {}
+                        title = armed.get("title") or info.get("title") or ""
+                        hwnd_now = armed.get("hwnd") or hwnd
+                        print(
+                            f"\n[injector] paste target armed: {title!r} "
+                            f"(hwnd={hwnd_now})"
+                        )
+                        self._armed.set()
+                        return
+            except Exception as exc:
+                # The watcher must not die silently: a dead watcher means
+                # nothing is ever armed and every paste is refused with no
+                # explanation. Keep polling; the session may still arm.
+                if not warned:
+                    warned = True
+                    print(
+                        f"\n[injector] target selection error: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+            self._stopped.wait(self._poll_seconds)
+
+    def stop(self) -> None:
+        """Stop watching (a no-op once armed: the thread already exited)."""
+        self._stopped.set()
+        thread = self._thread
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=2.0)

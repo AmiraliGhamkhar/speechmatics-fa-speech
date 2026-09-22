@@ -9,6 +9,7 @@ hotkeys/countdown, and never writes audio to disk.
 import asyncio
 import json
 import sys
+import threading
 
 import app as app_module
 import speechmatics_test.microphone as microphone_module
@@ -257,11 +258,23 @@ def test_no_vocab_alone_keeps_the_medical_layer_active(tmp_path, monkeypatch):
 
 
 def test_auto_injection_fires_per_final_segment(tmp_path, monkeypatch):
-    """No hotkeys/countdown: every finalized segment is pasted immediately."""
+    """No hotkeys/countdown: every finalized segment is pasted immediately.
+
+    The injector fake reports no window API (hwnd None), so this exercises
+    the permissive non-guarded path used where focus cannot be tracked;
+    the realistic focus flow has its own dedicated tests below.
+    """
     pasted = []
 
     class FakeInjector:
         calls = []
+
+        def get_foreground_window_info(self):
+            FakeInjector.calls.append("info")
+            return {"hwnd": None, "title": "", "pid": None}
+
+        def enable_focus_guard(self):
+            FakeInjector.calls.append("guard")
 
         def arm_target(self):
             FakeInjector.calls.append("arm")
@@ -302,9 +315,11 @@ def test_auto_injection_fires_per_final_segment(tmp_path, monkeypatch):
         "HTN دارد ",
     ]
     assert all(mark for _, mark in pasted)
-    # the focus guard armed the target once, before the first paste
-    assert FakeInjector.calls[0] == "arm"
-    assert FakeInjector.calls[1:4] == ["reset", "paste", "reset"]
+    # target selection was attempted once (no window API: nothing armed,
+    # guard stays permissive), then one reset+paste per finalized segment
+    assert FakeInjector.calls[0] == "info"
+    assert "arm" not in FakeInjector.calls and "guard" not in FakeInjector.calls
+    assert FakeInjector.calls[1:5] == ["reset", "paste", "reset", "paste"]
 
 
 def test_injection_disabled_with_no_inject_flag(tmp_path, monkeypatch):
@@ -421,6 +436,12 @@ def test_cross_segment_medical_phrase_injects_and_reports_identically(
     pasted = []
 
     class FakeInjector:
+        def get_foreground_window_info(self):
+            return {"hwnd": None, "title": "", "pid": None}
+
+        def enable_focus_guard(self):
+            pass
+
         def arm_target(self):
             return True
 
@@ -544,10 +565,13 @@ def test_auto_injection_fifo_three_segments_no_hotkey(tmp_path, monkeypatch):
     pasted = []
 
     class FakeInjector:
-        calls = []
+        def get_foreground_window_info(self):
+            return {"hwnd": None, "title": "", "pid": None}
+
+        def enable_focus_guard(self):
+            pass
 
         def arm_target(self):
-            FakeInjector.calls.append("arm")
             return True
 
         def reset_partial(self):
@@ -581,8 +605,6 @@ def test_auto_injection_fifo_three_segments_no_hotkey(tmp_path, monkeypatch):
         "chest pain بررسی شد ",
         "بیمار hospital discharge خواهد شد ",
     ]
-    # armed exactly once, before any transcription work
-    assert FakeInjector.calls == ["arm"]
 
 
 def test_buffered_first_final_is_auto_injected_once_completed(
@@ -595,6 +617,12 @@ def test_buffered_first_final_is_auto_injected_once_completed(
     pasted = []
 
     class FakeInjector:
+        def get_foreground_window_info(self):
+            return {"hwnd": None, "title": "", "pid": None}
+
+        def enable_focus_guard(self):
+            pass
+
         def arm_target(self):
             return True
 
@@ -670,6 +698,12 @@ def test_injection_failure_is_surfaced_and_not_silent(tmp_path, monkeypatch,
     pasted = []
 
     class FlakyInjector:
+        def get_foreground_window_info(self):
+            return {"hwnd": None, "title": "", "pid": None}
+
+        def enable_focus_guard(self):
+            pass
+
         def arm_target(self):
             return True
 
@@ -719,6 +753,249 @@ def test_injection_failure_is_surfaced_and_not_silent(tmp_path, monkeypatch,
             {"text": "HTN دارد", "success": False},
             {"text": "وضعیت پایدار است", "success": True},
         ]
+    finally:
+        for p in reports:
+            p.unlink(missing_ok=True)
+
+
+# ------------------------------ realistic focus workflow (Session 5 fix)
+
+class FocusFlowInjector:
+    """Fake injector mirroring the REAL TextInjector focus-guard semantics.
+
+    ``foreground`` is a mutable stand-in for the OS foreground window; the
+    production ``injector.TargetSelector`` polls it live, so these tests
+    exercise the genuine selection logic, not a re-implementation.
+    """
+
+    def __init__(self):
+        self.foreground = {
+            "hwnd": 111, "title": "SwiftMedics console", "pid": 1,
+        }
+        self.armed_hwnd = None
+        self.guard_required = False
+        self.pasted = []
+        self.armed_event = threading.Event()
+
+    def get_foreground_window_info(self):
+        return dict(self.foreground)
+
+    def enable_focus_guard(self):
+        self.guard_required = True
+
+    def arm_target(self):
+        hwnd = self.foreground.get("hwnd")
+        if not hwnd:
+            return False
+        self.armed_hwnd = int(hwnd)
+        self.armed_event.set()
+        return True
+
+    def reset_partial(self):
+        pass
+
+    def paste_text(self, text, add_rtl_mark=False):
+        # Exactly the real _focus_guard_ok contract (same messages).
+        if self.armed_hwnd is None:
+            if self.guard_required:
+                print("  [injector] no paste target armed yet - paste skipped "
+                      "(click the field where the transcript must go; "
+                      "injection resumes automatically once it is armed)")
+                return False  # no target selected: refuse to paste anywhere
+            self.pasted.append(text)
+            return True
+        if self.foreground["hwnd"] != self.armed_hwnd:
+            print("  [injector] focus changed - paste skipped to protect the "
+                  f"armed window (armed hwnd={self.armed_hwnd}, "
+                  f"current={self.foreground['hwnd']})")
+            return False  # focus moved away from the armed target
+        self.pasted.append(text)
+        return True
+
+    async def wait_pasted(self, timeout: float = 5.0) -> bool:
+        """Wait until at least one paste landed (worker runs off-thread)."""
+        for _ in range(int(timeout / 0.01)):
+            if self.pasted:
+                return True
+            await asyncio.sleep(0.01)
+        return bool(self.pasted)
+
+
+def _run_focus_flow_session(monkeypatch, tmp_path, injector, audio):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", audio)
+    monkeypatch.setattr(
+        app_module, "create_injector", lambda enabled: injector)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--save-report",
+    ])
+
+
+def _latest_report():
+    reports = sorted((app_module.ROOT / "results").glob("session_*.json"))
+    assert reports, "expected a session report JSON"
+    return reports, json.loads(reports[-1].read_text(encoding="utf-8"))
+
+
+def test_realistic_focus_flow_auto_injects_after_target_selection(
+    tmp_path, monkeypatch, capsys
+):
+    """Regression for the reported production bug ("auto-injected 0/34").
+
+    Real startup sequence: the SwiftMedics console is foreground while the
+    app starts, the user then clicks the Word/EMR/browser field, THAT
+    window becomes foreground and must be armed as the paste target, and
+    the first finalized segment is injected automatically - no hotkey, no
+    countdown, no manual re-arm. The old code armed the console itself at
+    startup, so the focus guard rejected every paste after the click
+    (armed hwnd != current hwnd).
+    """
+    fake = FocusFlowInjector()
+
+    async def audio(recorder, max_seconds, stop_event=None):
+        # Session is live; the console (hwnd 111) is still foreground.
+        yield b"\x00" * 6400
+        # The user clicks the target window (a different process).
+        fake.foreground = {
+            "hwnd": 222, "title": "Document1 - Word", "pid": 999,
+        }
+        # The real TargetSelector polls; wait until the click armed it.
+        assert fake.armed_event.wait(timeout=5.0), \
+            "the click into the external window did not arm the target"
+        # Now the user dictates: finals arrive on later chunks.
+        for _ in range(4):
+            yield b"\x00" * 6400
+
+    _run_focus_flow_session(monkeypatch, tmp_path, fake, audio)
+    install_fake_sdk(monkeypatch, {
+        "script": [
+            ("partial", "بیمار در سی سی یو"),          # pre-click chunk
+            ("final", "بیمار در سی سی یو است"),        # post-click finals
+            ("final", "فشار خون بالا دارد"),
+        ],
+    })
+
+    assert asyncio.run(app_module.main()) == 0
+
+    # the EXTERNAL window was armed - never the SwiftMedics console
+    assert fake.armed_hwnd == 222
+    assert fake.guard_required is True
+    # both finalized segments were injected automatically, in order, with
+    # no hotkey at any point
+    assert fake.pasted == ["بیمار در CCU است ", "HTN دارد "]
+    out = capsys.readouterr().out
+    assert "AUTO-INJECTION FAILED" not in out
+    assert "paste target armed" in out
+
+    reports, report = _latest_report()
+    try:
+        assert report["injection"]["focus_guard"] is True
+        assert report["injection"]["segments"] == [
+            {"text": "بیمار در CCU است", "success": True},
+            {"text": "HTN دارد", "success": True},
+        ]
+        assert "CCU" in report["final_transcript_canonical"]
+    finally:
+        for p in reports:
+            p.unlink(missing_ok=True)
+
+
+def test_focus_change_after_arming_rejects_injection(
+    tmp_path, monkeypatch, capsys
+):
+    """Target safety after arming: switching to another top-level
+    application mid-dictation must refuse the paste (no medical-text
+    leakage into the unrelated window) and report the failure clearly."""
+    fake = FocusFlowInjector()
+
+    async def audio(recorder, max_seconds, stop_event=None):
+        yield b"\x00" * 6400
+        fake.foreground = {
+            "hwnd": 222, "title": "Document1 - Word", "pid": 999,
+        }
+        assert fake.armed_event.wait(timeout=5.0)
+        yield b"\x00" * 6400   # final 1 -> pasted into the armed target
+        # let the worker actually deliver it while the target is focused
+        assert await fake.wait_pasted(), \
+            "the first segment was not injected while the target was focused"
+        # the user switches to an unrelated application mid-dictation
+        fake.foreground = {
+            "hwnd": 333, "title": "Mail", "pid": 777,
+        }
+        for _ in range(3):
+            yield b"\x00" * 6400
+
+    _run_focus_flow_session(monkeypatch, tmp_path, fake, audio)
+    install_fake_sdk(monkeypatch, {
+        "script": [
+            ("partial", "بیمار در سی سی یو"),
+            ("final", "بیمار در سی سی یو است"),   # delivered
+            ("final", "وضعیت پایدار است"),        # must be refused
+        ],
+    })
+
+    assert asyncio.run(app_module.main()) == 0
+    # the armed target never changed, and only the focused segment went in
+    assert fake.armed_hwnd == 222
+    assert fake.pasted == ["بیمار در CCU است "]
+
+    out = capsys.readouterr().out
+    assert out.count("AUTO-INJECTION FAILED") == 1
+    assert "NOT delivered" in out
+
+    reports, report = _latest_report()
+    try:
+        # the refused paste is reported as a failure, never as delivered
+        assert report["injection"]["segments"] == [
+            {"text": "بیمار در CCU است", "success": True},
+            {"text": "وضعیت پایدار است", "success": False},
+        ]
+        # the transcript itself is fully preserved
+        assert report["final_transcript_canonical"] == \
+            "بیمار در CCU است وضعیت پایدار است"
+    finally:
+        for p in reports:
+            p.unlink(missing_ok=True)
+
+
+def test_no_target_selected_never_pastes_anywhere(tmp_path, monkeypatch, capsys):
+    """No accidental paste: the user never clicks a target window, so
+    nothing may be injected - dictation text is preserved in the
+    transcript/report and every attempt is reported as a failure."""
+    fake = FocusFlowInjector()
+
+    async def audio(recorder, max_seconds, stop_event=None):
+        # The console stays foreground for the whole session.
+        for _ in range(4):
+            yield b"\x00" * 6400
+
+    _run_focus_flow_session(monkeypatch, tmp_path, fake, audio)
+    install_fake_sdk(monkeypatch, {
+        "script": [
+            ("partial", "بیمار در سی سی یو"),
+            ("final", "بیمار در سی سی یو است"),
+            ("final", "وضعیت پایدار است"),
+        ],
+    })
+
+    assert asyncio.run(app_module.main()) == 0
+    # never armed, never pasted - not into the console, not anywhere
+    assert fake.armed_hwnd is None
+    assert fake.pasted == []
+    out = capsys.readouterr().out
+    assert out.count("AUTO-INJECTION FAILED") == 2
+    assert "no paste target armed yet" in out
+
+    reports, report = _latest_report()
+    try:
+        assert report["injection"]["segments"] == [
+            {"text": "بیمار در CCU است", "success": False},
+            {"text": "وضعیت پایدار است", "success": False},
+        ]
+        assert report["final_transcript_canonical"] == \
+            "بیمار در CCU است وضعیت پایدار است"
     finally:
         for p in reports:
             p.unlink(missing_ok=True)

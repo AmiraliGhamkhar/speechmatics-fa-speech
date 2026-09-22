@@ -299,19 +299,35 @@ def cmd_benchmark_matcher(args: argparse.Namespace) -> int:
 
 
 def cmd_test_injector(args: argparse.Namespace) -> int:
-    """Standalone injector smoke test (identical to the legacy .ps1)."""
-    from injector import TextInjector
+    """Standalone injector smoke test (same flow as the app's injection).
+
+    On Windows this exercises the production target selection: click the
+    target field and it is armed automatically (no ENTER needed). Elsewhere
+    focus cannot be tracked, so the classic click-then-ENTER prompt is kept.
+    """
+    from injector import TargetSelector, TextInjector
     injector = TextInjector()
-    print("Click the target text field.")
-    try:
-        input("Press ENTER when ready... ")
-    except EOFError:
-        print("no interactive stdin; aborting the smoke test")
-        return 1
+    selector = TargetSelector(injector)
+    if selector.start():
+        injector.enable_focus_guard()
+        print("Click the target text field - it is armed automatically.")
+        if not selector.wait(30.0):
+            print("no target selected within 30 s; aborting the smoke test")
+            selector.stop()
+            return 1
+    else:
+        print("Focus detection unavailable on this platform.")
+        print("Click the target text field.")
+        try:
+            input("Press ENTER when ready... ")
+        except EOFError:
+            print("no interactive stdin; aborting the smoke test")
+            return 1
     ok = injector.paste_text(
         "SwiftMedics test | فارسی | CT scan | lesion | 140/90 | IV"
     )
     print("paste result:", ok)
+    selector.stop()
     return 0 if ok else 1
 
 

@@ -443,6 +443,33 @@ def test_injection_worker_shutdown_is_safe_without_jobs():
     assert worker.records == []
 
 
+def test_injection_worker_survives_an_exception_and_keeps_draining(capsys):
+    """Regression: an exception raised out of paste_text used to kill the
+    worker thread silently - every later job stayed in the queue forever
+    and shutdown() "drained" nothing while the segments went missing."""
+    class ExplodingInjector(FakeInjector):
+        def paste_text(self, text, add_rtl_mark=False):
+            if text.strip() == "boom":
+                raise RuntimeError("clipboard exploded")
+            return super().paste_text(text, add_rtl_mark=False)
+
+    injector = ExplodingInjector(fail_on=None)
+    worker = app_module.InjectionWorker(injector)
+    worker.submit("boom")
+    worker.submit("بعدی")
+    worker.shutdown()
+    # the failing job is recorded as NOT delivered...
+    assert worker.records == [
+        {"text": "boom", "success": False},
+        {"text": "بعدی", "success": True},
+    ]
+    # ...the worker survived and delivered the NEXT job in FIFO order
+    assert injector.pasted == [("بعدی ", False)]
+    out = capsys.readouterr().out
+    assert "injection worker error" in out
+    assert out.count("AUTO-INJECTION FAILED") == 1
+
+
 # ------------------------------------------------- overlay lifecycle (M7)
 
 def test_overlay_abort_destroys_root_created_after_shutdown():

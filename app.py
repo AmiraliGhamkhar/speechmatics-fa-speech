@@ -71,8 +71,9 @@ def parse_args() -> argparse.Namespace:
                         "(fa is NOT one of them); medical: force it; none: "
                         "never send a domain (default: %(default)s)")
     p.add_argument("--no-focus-guard", action="store_true",
-                   help="Disable the injection focus guard (Windows: paste "
-                        "only while the armed target window is focused)")
+                   help="Disable target arming and the injection focus "
+                        "guard: pastes go to whatever window is focused at "
+                        "paste time")
     p.add_argument("--save-report", action="store_true",
                    help="Save the text/metadata session report as JSON "
                         "(always saved when --test-id is given)")
@@ -348,8 +349,20 @@ class InjectionWorker:
             item = self._queue.get()
             if item is None:
                 return
-            self._injector.reset_partial()
-            ok = self._injector.paste_text(item + " ", add_rtl_mark=True)
+            try:
+                self._injector.reset_partial()
+                ok = self._injector.paste_text(item + " ", add_rtl_mark=True)
+            except Exception as exc:
+                # The worker thread must survive ANY per-job failure. An
+                # exception raised out of paste_text used to kill this
+                # thread silently: every later job stayed in the queue
+                # forever, and shutdown() then "drained" nothing while the
+                # report claimed the missing segments were never attempted.
+                ok = False
+                print(
+                    f"\n[injector] injection worker error: "
+                    f"{type(exc).__name__}: {exc}"
+                )
             record = {"text": item, "success": bool(ok)}
             self.records.append(record)
             if not ok:
@@ -361,8 +374,10 @@ class InjectionWorker:
                 print(
                     "\n[injector] AUTO-INJECTION FAILED: the finalized "
                     f"segment {item[:60]!r} was NOT delivered to the target "
-                    "window. Re-arm the target (click the field) if focus "
-                    "changed."
+                    "window. If no target is armed yet, click the intended "
+                    "field once - injection resumes automatically. If focus "
+                    "moved away from the armed target, click that window "
+                    "again."
                 )
             self._on_result(record)
 
@@ -470,8 +485,10 @@ async def main() -> int:
             f"force it explicitly."
         )
     if injector:
-        print("Click the field where the transcript must go ONCE, then dictate.")
-        print("Every finalized segment is pasted automatically. No keys to press.")
+        print("Click the field where the transcript must go ONCE.")
+        print("That window is armed automatically as the paste target;")
+        print("then dictate. Segments finalized before a target is armed")
+        print("are never pasted (they stay in the transcript/report).")
     print("Speak naturally. Press Ctrl+C to stop recording.")
     print()
 
@@ -498,6 +515,42 @@ async def main() -> int:
         InjectionWorker(injector, on_result=on_injection_result)
         if injector else None
     )
+
+    # Target acquisition for automatic injection. The old code called
+    # injector.arm_target() here (or just before the session): at that
+    # moment the SwiftMedics console itself was the foreground window, so
+    # the CONSOLE was armed as the paste target - and once the user clicked
+    # the real target (Word/EMR/browser), the focus guard rejected every
+    # paste ("armed hwnd != current hwnd") until the session ended with
+    # "auto-injected 0/N finalized segments".
+    #
+    # TargetSelector instead waits for focus to move away from the app's
+    # own window and arms THAT window (the user's click). It starts BEFORE
+    # the microphone/session so a click during device startup is captured,
+    # and the focus guard is required from the start: nothing is pasted
+    # anywhere until a target is armed. --no-focus-guard skips all of it
+    # and pastes to whatever window is focused at paste time.
+    target_selector = None
+    if injector is not None and not args.no_focus_guard:
+        try:
+            from injector import TargetSelector
+            selector = TargetSelector(injector)
+            if selector.start():
+                injector.enable_focus_guard()
+                target_selector = selector
+            else:
+                # No HWND/foreground API (non-Windows): nothing can be
+                # armed or verified; keep the documented permissive mode.
+                print(
+                    "[injector] focus guard unavailable on this platform - "
+                    "pastes go to whatever window is focused"
+                )
+        except Exception as exc:  # pragma: no cover - defensive
+            print(
+                f"[injector] target selection failed "
+                f"({type(exc).__name__}: {exc}); continuing without the "
+                f"focus guard"
+            )
 
     def on_final(text: str):
         # Finalized segment. The pipeline is fixed and single-pass:
@@ -601,11 +654,6 @@ async def main() -> int:
                 domain=args.domain,
             )
             audio = audio_source(recorder, args.max_seconds, stop_event)
-            # Capture the intended field before the realtime session starts.
-            # Waiting for the first emitted final is unsafe because that final
-            # may itself be buffered while focus changes.
-            if injector is not None and not args.no_focus_guard:
-                injector.arm_target()
             try:
                 result = await stt.run(audio, on_partial, on_final)
                 if result.error:
@@ -640,6 +688,8 @@ async def main() -> int:
                     signal.signal(signal.SIGINT, previous_sigint)
                 except (ValueError, OSError):
                     pass
+        if target_selector is not None:
+            target_selector.stop()
         if overlay:
             overlay.close()
 
@@ -733,6 +783,9 @@ async def main() -> int:
             "injection": {
                 "auto": True,
                 "enabled": bool(injector),
+                # True = a paste target was armed and is being guarded
+                # (Windows focus guard; see TargetSelector).
+                "focus_guard": target_selector is not None,
                 "segments": injected_segments,
             },
             "benchmark_expected": benchmark["expected"] if benchmark else None,

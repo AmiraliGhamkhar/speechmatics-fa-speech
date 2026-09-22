@@ -463,3 +463,220 @@ def test_unarmed_injector_is_never_blocked(monkeypatch):
     inj, state = make_mock_windows_injector(monkeypatch, previous="user data")
     assert inj.armed_target is None
     assert inj._paste_windows("سلام") is True
+
+
+# ------------------------- required focus guard (Session 5 fix)
+
+def test_required_guard_refuses_paste_until_a_target_is_armed(monkeypatch):
+    """With the guard required, "not armed YET" must mean "paste nowhere" -
+    not "paste into whatever is focused" (which is the SwiftMedics console
+    while the user has not clicked a target yet)."""
+    inj = TextInjector(restore_clipboard=True, paste_settle_seconds=0)
+    state = {"current": "user data", "sets": []}
+
+    def fake_set(text):
+        state["sets"].append(text)
+        state["current"] = text
+        return True
+
+    monkeypatch.setattr(inj, "_get_windows_clipboard",
+                        lambda: state["current"])
+    monkeypatch.setattr(inj, "_set_windows_clipboard", fake_set)
+    monkeypatch.setattr(inj, "_send_paste_keystroke", lambda: True)
+    monkeypatch.setattr(
+        inj, "get_foreground_window_info",
+        lambda: {"hwnd": 111, "title": "Console", "pid": 1},
+    )
+
+    inj.enable_focus_guard()
+    assert inj.armed_target is None
+    assert inj._focus_guard_ok() is False
+    # refused BEFORE the clipboard is touched at all
+    assert inj._paste_windows("سلام") is False
+    assert state["sets"] == []
+
+    # after arming (the armed window is focused) the paste proceeds
+    inj.arm_target()
+    assert inj.armed_target == 111
+    assert inj._paste_windows("سلام") is True
+    assert state["sets"][0] == "سلام"
+
+
+def test_required_guard_refusal_is_explained_to_the_user(monkeypatch, capsys):
+    inj = TextInjector(paste_settle_seconds=0)
+    monkeypatch.setattr(
+        inj, "get_foreground_window_info",
+        lambda: {"hwnd": 111, "title": "Console", "pid": 1},
+    )
+    inj.enable_focus_guard()
+    assert inj._focus_guard_ok() is False
+    out = capsys.readouterr().out
+    assert "no paste target armed yet" in out
+    assert "click the field" in out
+
+
+def test_guard_not_required_keeps_the_permissive_legacy_behavior(monkeypatch):
+    """--no-focus-guard / non-Windows: unarmed still means permissive."""
+    inj = TextInjector(paste_settle_seconds=0)
+    monkeypatch.setattr(
+        inj, "get_foreground_window_info",
+        lambda: {"hwnd": 111, "title": "Console", "pid": 1},
+    )
+    assert inj._guard_required is False
+    assert inj._focus_guard_ok() is True
+    # arming still works and still guards once armed (legacy contract)
+    inj.arm_target()
+    assert inj._focus_guard_ok() is True
+
+
+# ------------------------------------------ TargetSelector (Session 5 fix)
+
+class FakeWindowInjector:
+    """Injector stand-in with a scripted/mutable foreground window."""
+
+    def __init__(self, foreground):
+        self.foreground = dict(foreground)
+        self.armed = None
+        self.arm_calls = 0
+
+    def get_foreground_window_info(self):
+        return dict(self.foreground)
+
+    def arm_target(self):
+        self.arm_calls += 1
+        hwnd = self.foreground.get("hwnd")
+        if not hwnd:
+            return False
+        self.armed = int(hwnd)
+        return True
+
+
+def run_selector(selector, timeout=5.0):
+    """Wait until the selector armed something (it runs on its own thread)."""
+    assert selector.wait(timeout), "the selector did not arm a target"
+    selector.stop()
+
+
+def test_target_selector_arms_the_first_foreign_window():
+    """Console foreground at start -> user clicks Word (hwnd 222, another
+    process) -> THAT window is armed. This is the exact regression behind
+    'armed hwnd != current hwnd' / 'auto-injected 0/34'."""
+    from injector import TargetSelector
+
+    fake = FakeWindowInjector({"hwnd": 111, "title": "Console", "pid": 1})
+    selector = TargetSelector(fake, poll_seconds=0.01)
+    assert selector.start() is True
+    assert selector.armed is False
+    # the user clicks the external target
+    fake.foreground = {"hwnd": 222, "title": "Document - Word", "pid": 999}
+    run_selector(selector)
+
+    assert fake.armed == 222          # the external window, never the console
+    assert fake.arm_calls == 1        # armed exactly once
+
+
+def test_target_selector_ignores_windows_of_its_own_process():
+    """A click on the always-on-top overlay (own PID) must not arm it."""
+    from injector import TargetSelector
+
+    fake = FakeWindowInjector({"hwnd": 111, "title": "Console", "pid": 1})
+    selector = TargetSelector(fake, poll_seconds=0.01)
+    assert selector.start() is True
+    # overlay window: different hwnd but OUR process
+    fake.foreground = {"hwnd": 555, "title": "SwiftMedics STT Overlay",
+                       "pid": __import__("os").getpid()}
+    selector.wait(0.2)
+    assert fake.armed is None
+    # the user then clicks the real target
+    fake.foreground = {"hwnd": 222, "title": "EMR", "pid": 42}
+    run_selector(selector)
+    assert fake.armed == 222
+
+
+def test_target_selector_ignores_focus_returning_to_the_console():
+    from injector import TargetSelector
+
+    fake = FakeWindowInjector({"hwnd": 111, "title": "Console", "pid": 1})
+    selector = TargetSelector(fake, poll_seconds=0.01)
+    assert selector.start() is True
+    fake.foreground = {"hwnd": 111, "title": "Console", "pid": 1}  # no change
+    selector.wait(0.2)
+    assert fake.armed is None
+    fake.foreground = {"hwnd": 333, "title": "Browser", "pid": 7}
+    run_selector(selector)
+    assert fake.armed == 333
+
+
+def test_target_selector_start_fails_without_a_foreground_window():
+    from injector import TargetSelector
+
+    fake = FakeWindowInjector({"hwnd": None, "title": "", "pid": None})
+    selector = TargetSelector(fake, poll_seconds=0.01)
+    # no HWND API (non-Windows): selection unavailable, nothing started
+    assert selector.start() is False
+    assert selector.armed is False
+    selector.stop()  # must be a safe no-op
+
+
+def test_target_selector_stop_ends_the_watch_without_arming():
+    from injector import TargetSelector
+
+    fake = FakeWindowInjector({"hwnd": 111, "title": "Console", "pid": 1})
+    selector = TargetSelector(fake, poll_seconds=0.01)
+    assert selector.start() is True
+    selector.stop()
+    assert selector._thread is not None
+    selector._thread.join(timeout=2.0)
+    assert not selector._thread.is_alive()
+    assert fake.armed is None
+    # late foreign focus must not arm anything after stop()
+    fake.foreground = {"hwnd": 222, "title": "Word", "pid": 9}
+    selector.wait(0.1)
+    assert fake.armed is None
+
+
+def test_target_selector_is_one_shot_after_arming():
+    """First transition wins: later focus changes never re-arm (the guard
+    protects the armed target for the whole session)."""
+    from injector import TargetSelector
+
+    fake = FakeWindowInjector({"hwnd": 111, "title": "Console", "pid": 1})
+    selector = TargetSelector(fake, poll_seconds=0.01)
+    assert selector.start() is True
+    fake.foreground = {"hwnd": 222, "title": "Word", "pid": 9}
+    run_selector(selector)
+    fake.foreground = {"hwnd": 333, "title": "Mail", "pid": 10}
+    selector.wait(0.1)
+    assert fake.armed == 222
+    assert fake.arm_calls == 1
+
+
+# --------------------------- non-text clipboard notice (Session 5 fix)
+
+def test_paste_warns_once_when_clipboard_content_is_not_restorable(monkeypatch,
+                                                                   capsys):
+    """A non-text clipboard (image/files) cannot be restored: the loss must
+    be reported once, not silently discovered later."""
+    inj, state = make_mock_windows_injector(monkeypatch, previous=None)
+    monkeypatch.setattr(inj, "_clipboard_has_content", lambda: True)
+    assert inj._paste_windows("سلام") is True
+    assert inj._paste_windows("دوم") is True
+    out = capsys.readouterr().out
+    assert out.count("non-text clipboard content") == 1
+    assert "cannot be restored" in out
+
+
+def test_paste_does_not_warn_when_the_clipboard_is_empty(monkeypatch, capsys):
+    inj, state = make_mock_windows_injector(monkeypatch, previous=None)
+    monkeypatch.setattr(inj, "_clipboard_has_content", lambda: False)
+    assert inj._paste_windows("سلام") is True
+    assert "non-text clipboard" not in capsys.readouterr().out
+
+
+def test_paste_with_unreadable_clipboard_does_not_restore_anything(monkeypatch):
+    """previous=None (unreadable/non-text): no restoration write happens."""
+    inj, state = make_mock_windows_injector(monkeypatch, previous=None)
+    monkeypatch.setattr(inj, "_clipboard_has_content", lambda: True)
+    assert inj._paste_windows("سلام") is True
+    # only the transcript text was ever written; nothing was "restored"
+    assert state["sets"] == ["سلام"]

@@ -41,21 +41,25 @@ Then dictate:
 The normal dictation flow is:
 
 ```text
-1. Click inside the target application (Word / EMR / browser field / editor)
-2. Start SwiftMedics  ->  it ARMS that focused window as the paste target
+1. Start SwiftMedics (its console is the focused window for now)
+2. Click inside the target application (Word / EMR / browser field / editor)
+   -> SwiftMedics detects that focus moved to that window and ARMS it
+      as the paste target
 3. Speak              ->  Speechmatics streams realtime results
 4. Each final segment ->  normalize -> medical canonicalization
                           -> nursing normalization (numbers/times/units)
-5. Automatic injection of the finalized text at the armed cursor
+5. Automatic injection of the finalized text at the armed target
 6. Repeat             ->  segments paste in spoken (FIFO) order
 7. Ctrl+C in the console to stop
 ```
 
-Step 5 needs **no keypress at all**. The arming happens once, *before* the
-realtime session begins producing text, so the first finalized segment —
-even one the post-processor briefly buffers to complete a medical phrase or
-a spoken number — is injected into the intended window, not into whatever
-happens to have focus later. Press `Ctrl+C` in the console to stop.
+Step 5 needs **no keypress at all** — no hotkey, no countdown, no manual
+re-arm, no Enter, no Ctrl+V. The target is armed the moment you click into
+it (the app watches for focus to leave its own console window), and
+dictation can start immediately afterwards. Segments finalized *before* a
+target is armed are never pasted anywhere: they are reported as failed
+injections and remain in the transcript/report. Press `Ctrl+C` in the
+console to stop.
 
 > **Requires Python 3.11+.** The project is validated with Python 3.11 and
 > `speechmatics-rt==1.1.1`. `install.ps1` prefers an existing project
@@ -141,7 +145,7 @@ existing commands keep working. They contain no logic of their own.
 | `--no-vocab` | Don't send the custom vocabulary to Speechmatics |
 | `--no-medical-layer` | Skip medical canonicalization |
 | `--no-text-polish` | Skip numbers/times/units/formatting |
-| `--no-focus-guard` | Skip arming a target window; paste wherever focus is |
+| `--no-focus-guard` | Don't arm a target; paste into whatever window is focused at paste time |
 | `--save-report` | Write a session JSON to `results\` |
 | `--device-index N` | Pick a specific microphone |
 | `--model standard\|enhanced` | Speechmatics model |
@@ -229,7 +233,7 @@ After editing the dictionary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-**538 tests, all passing.**
+**554 tests, all passing.**
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\swiftmedics_tools.py benchmark
@@ -303,19 +307,49 @@ focus guard refused it), the segment is **not** counted as delivered: a
 warning is printed immediately, the failure is recorded in the session
 report's `injection.segments`, and the FIFO stream continues.
 
+**Clipboard restoration is text-only.** The previous `CF_UNICODETEXT`
+content is restored after every paste. Non-text clipboard content (a copied
+image, files, rich formats) cannot be preserved by this injector — it is
+overwritten by the paste, and you are warned once per session when that is
+about to happen. Multi-format clipboard backup is deliberately out of scope.
+
 ### Focus guard
 
-At startup the app **arms the currently focused window** as the only paste
-target (`arm_target()` runs before the realtime session starts). Each
-Windows paste re-validates focus twice: once before touching the
-clipboard, and once more *immediately before the Ctrl+V keystroke* — a
-clipboard preparation takes long enough that alt-tabbing mid-paste would
-otherwise leak chart text into the wrong application. A refused paste is
-reported as failed (never silently "delivered").
+The app does **not** arm a paste target at startup. It used to — and that
+armed the SwiftMedics console itself (the foreground window right after
+launch), so once the user clicked the real target the focus guard rejected
+every paste (`armed hwnd != current hwnd`, sessions ended with
+`auto-injected 0/N`). Instead, a small watcher remembers the app's own
+console window and waits until focus moves to a **different top-level
+window** — your click into Word / the EMR / the browser — then arms that
+window as the paste target and says so on the console. The first focus
+transition wins; dictation can begin as soon as you have clicked.
 
-`--no-focus-guard` disables exactly this: nothing is armed and the paste
-goes to whatever is focused at paste time. Use it only when you
-deliberately want to dictate into a moving focus target.
+While the guard is active:
+
+* a finalized segment arriving **before** any target is armed is *not*
+  pasted anywhere (reported as a failed injection, kept in the
+  transcript/report) — nothing is ever pasted into the console by accident;
+* each Windows paste re-validates focus **twice**: once before touching the
+  clipboard, and once more *immediately before the Ctrl+V keystroke* — a
+  clipboard preparation takes long enough that alt-tabbing mid-paste would
+  otherwise leak chart text into the wrong application;
+* if you switch to a different top-level application mid-dictation, pastes
+  are refused and reported as failures until the armed target is focused
+  again.
+
+**What the guard does not track:** it watches the top-level foreground
+*window* (an HWND), not the specific text field/control inside it. Clicking
+field A and then field B within the same armed window is not distinguished —
+pastes go to whatever control of the armed window has the cursor. Control-
+level (UI Automation) targeting is deliberately not implemented; the
+top-level model keeps the guard small, native and dependency-free.
+
+`--no-focus-guard` disables all of this: nothing is armed and pastes go to
+whatever window is focused at paste time. Use it only when you deliberately
+want to dictate into a moving focus target. On non-Windows platforms there
+is no HWND focus API: the app reports the guard as unavailable and pastes
+go to the focused window (same as `--no-focus-guard`).
 
 ### Overlay
 

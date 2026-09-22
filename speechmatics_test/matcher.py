@@ -809,8 +809,13 @@ class MedicalMatcher:
         rule: MedicalRule, evidence: Optional[dict[str, Any]]
     ) -> tuple:
         """Keep lexical precedence; use compatible low-confidence evidence last."""
-        evidence_rank = 0 if evidence and evidence["asr_low_confidence"] and \
-            evidence["asr_language_matches_form"] is not False else 1
+        # Low-confidence evidence ranks the candidate WORSE (higher key),
+        # exactly as the docstring promises. (Today this never decides
+        # anything: two different rules of equal length cannot match the
+        # same span, so this only guards the documented intent if equal
+        # ties ever become possible.)
+        evidence_rank = 1 if evidence and evidence["asr_low_confidence"] and \
+            evidence["asr_language_matches_form"] is not False else 0
         return (-len(rule.form), rule.tier, evidence_rank, rule.seq)
 
     @staticmethod
