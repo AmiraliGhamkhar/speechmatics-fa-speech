@@ -14,7 +14,7 @@ number: no audio is involved anywhere in this benchmark.
 
 ## Environment
 
-* commit: `494294d077225363f6e44b087ff974de6387b8f3-dirty`  **(working tree dirty - this commit alone does not identify the code that produced these numbers)**
+* commit: `99f2bba1d77afe7b4cd787dcfe94030f2071b467`
 * python: 3.11.2
 * platform: Linux-6.1.158+-x86_64-with-glibc2.36
 * matcher backend: aho-corasick (pyahocorasick)
@@ -44,7 +44,7 @@ application actually runs in; the whole-text score above cannot see
 final-segment boundary bugs at all.
 
 * streaming exact-match: **530/535 (99.1%)** across 5 split strategies
-* streaming runtime: 1.702 s
+* streaming runtime: 1.709 s
 
 | split strategy | runs | exact | accuracy |
 | --- | --- | --- | --- |
@@ -119,12 +119,12 @@ Stages are reported separately on purpose: a lexical canonicalization, a numeric
 
 ## Performance (real dictionary)
 
-* dictionary build (load + validate + automaton): 38.673 ms min, 39.58 ms median
+* dictionary build (load + validate + automaton): 35.737 ms min, 38.144 ms median
 * build peak traced memory: 3.339 MB
-* matcher-only latency: 5.52 us mean, 4.26 us p50
-* full pipeline (matcher + polish): 43.15 us mean, 35.11 us p50
-* per-character: 1.4466 us
-* long paragraph (3298 chars): 3.591 ms mean, 4.398 ms max
+* matcher-only latency: 4.55 us mean, 3.72 us p50
+* full pipeline (matcher + polish): 35.9 us mean, 30.27 us p50
+* per-character: 1.2035 us
+* long paragraph (3298 chars): 3.063 ms mean, 3.312 ms max
 
 ## Baseline comparison
 
