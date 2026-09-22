@@ -207,6 +207,7 @@ SPEECHMATICS_API_KEY=YOUR_SPEECHMATICS_API_KEY
 | `--domain auto\|medical\|none`     | Configure Speechmatics domain                     |
 | `--save-report`                    | Save a session JSON report                        |
 | `--test-id ID`                     | Run a benchmark case and save its report          |
+| `--no-text-polish`                 | Disable nursing text normalization (numbers, times, units, formatting) |
 
 ## Automatic Injection
 
@@ -312,13 +313,25 @@ Run the complete test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Run matcher benchmarks:
+Run the nursing accuracy benchmark (103 fixtures, offline, no API key):
 
 ```powershell
-.\.venv\Scripts\python.exe benchmark\benchmark_matcher.py
+.\.venv\Scripts\python.exe scripts\swiftmedics_tools.py benchmark
 ```
 
-or:
+It writes `benchmark/results_current.json` and regenerates
+`benchmark/README.md` from the measured values. Accuracy is reported
+separately per pipeline stage (generic normalization, medical
+canonicalization, number/time/unit, grammar/format, full paragraphs), so a
+formatting fix is never presented as a terminology improvement.
+
+Run matcher performance benchmarks:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\swiftmedics_tools.py benchmark-matcher
+```
+
+or, equivalently:
 
 ```powershell
 .\scripts\run_matcher_benchmark.ps1
@@ -365,10 +378,14 @@ medical_knowledge/
     speechmatics_additional_vocab.json
 
 scripts/
-    install.ps1
+    swiftmedics_tools.py        <- all tooling logic lives here
+    _dictionary_fixes.py        <- idempotent, audited dictionary repairs
+    install.ps1                 <- thin wrappers, kept for compatibility
     run.ps1
+    run.sh
     run_fa.ps1
     run_en.ps1
+    run_no_vocab.ps1
     run_benchmark.ps1
     run_matcher_benchmark.ps1
     export_additional_vocab.py
@@ -379,9 +396,13 @@ tests/
         pre_migration_canonicalization.json
 
 benchmark/
-    benchmark_matcher.py
-    results_before.json
-    results_after.json
+    dataset.py                  <- 103 frozen nursing fixtures
+    run_benchmark.py            <- accuracy + performance runner
+    benchmark_matcher.py        <- matcher scaling benchmark
+    README.md                   <- generated from measured results
+    results_baseline.json
+    results_current.json
+    results_comparison.json
 ```
 
 ## Design Constraints
@@ -407,3 +428,64 @@ Official Speechmatics resources:
 
 * Speechmatics Academy: https://github.com/speechmatics/speechmatics-academy
 * Speechmatics Python SDK: https://github.com/speechmatics/speechmatics-python-sdk
+
+## Tooling
+
+All tooling logic lives in a single script, `scripts/swiftmedics_tools.py`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\swiftmedics_tools.py --help
+```
+
+| Subcommand          | Purpose                                                  |
+| ------------------- | -------------------------------------------------------- |
+| `install`           | Create `.venv` and install `requirements.txt`            |
+| `run`               | Run `app.py` with pass-through arguments                 |
+| `run-fa`            | Run Persian dictation                                     |
+| `run-en`            | Run English dictation                                     |
+| `benchmark`         | Nursing accuracy benchmark (offline)                      |
+| `benchmark-matcher` | Matcher build/latency/memory scaling benchmark            |
+| `export-vocab`      | Regenerate `speechmatics_additional_vocab.json`           |
+| `check-vocab`       | Verify the vocabulary artifact matches the dictionary     |
+| `audit-dictionary`  | Report duplicates, invalid entries, metadata drift        |
+| `test-injector`     | Standalone injector smoke test                            |
+
+The `.ps1` / `.sh` files are thin forwarding wrappers so existing commands and
+documentation keep working; they contain no logic of their own.
+
+## Nursing Text Normalization
+
+After medical canonicalization, a deterministic normalization stage
+(`speechmatics_test/nursing_text.py`) turns spoken nursing documentation into
+clean clinical prose. It is rule-based and auditable - no model, no inference.
+
+| Spoken                     | Output                |
+| -------------------------- | --------------------- |
+| `سی و پنج ساله`            | `35 ساله`             |
+| `ده و نیم`                 | `10:30`               |
+| `ساعت ده سی`               | `ساعت 10:30`          |
+| `۱۰ و ۳۰ دقیقه`            | `10:30`               |
+| `میلی متر جیوه`            | `mmHg`                |
+| `درجه سانتی گراد`          | `°C`                  |
+| `نمره نمره`                | `نمره`                |
+| `می باشد. باشد.`           | `می‌باشد.`            |
+| `Temp . 36.7. °C`          | `Temp: 36.7 °C`       |
+| `blood pressure. 140/85 mmHg` | `BP: 140/85 mmHg`  |
+
+Safety rules it will not break:
+
+* **No number is ever invented or deleted.** An unbound numeral next to a time
+  (`10 و 30 دقیقه 90`) is kept verbatim and reported as a warning rather than
+  absorbed into the timestamp.
+* **Ambiguous cardinals need numeric context.** `یک`, `نه`, `سی`, `ده`, `شش`,
+  `صد`, `دو` are only converted when a counter or explicit `و`-run makes the
+  reading unambiguous, so `سی تی اسکن` and `یک بیمار` are left alone.
+* **Repetition cleanup is repetition-safe.** Abbreviations with a genuine
+  doubled syllable (`سی سی یو` = CCU, `آر آر` = RR) are protected from
+  de-duplication.
+* **Canonical text stays in logical Unicode order.** No BiDi control character
+  is ever written into canonical output; presentation controls belong only to
+  the overlay and injector.
+
+Disable the stage with `--no-text-polish`. Warnings it raises are printed in
+the session banner and stored under `text_polish_warnings` in the report JSON.

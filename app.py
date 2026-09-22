@@ -42,6 +42,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--test-id")
     p.add_argument("--no-vocab", action="store_true")
     p.add_argument("--no-medical-layer", action="store_true")
+    p.add_argument("--no-text-polish", action="store_true",
+                   help="Disable the deterministic nursing text stage "
+                        "(numbers, clock times, units, charted vital-sign "
+                        "punctuation, ASR-stutter and Persian typography "
+                        "cleanup). The lexical medical layer stays active.")
     p.add_argument("--inject", dest="inject", action="store_true", default=True,
                    help="Automatically inject each finalized segment into the "
                         "focused field (default). No hotkeys, no countdown.")
@@ -354,7 +359,10 @@ async def main() -> int:
     # even loaded (no matcher build, no warnings, no additional_vocab). Do
     # NOT construct MedicalLayer(ROOT) unconditionally here - that would load
     # and compile the whole dictionary even when the flag says not to.
-    medical = None if args.no_medical_layer else MedicalLayer(ROOT)
+    medical = (
+        None if args.no_medical_layer
+        else MedicalLayer(ROOT, polish=not args.no_text_polish)
+    )
     # Bounded Speechmatics vocabulary, derived once from the dictionary's
     # speechmatics-eligible entries (medical_knowledge/medical_dictionary.json
     # is the single source of truth; the generated
@@ -388,6 +396,8 @@ async def main() -> int:
     print(f"Max delay       : {args.max_delay:.1f}s ({args.max_delay_mode})")
     print(f"Medical vocab   : {'ON' if vocab else 'OFF'}")
     print(f"Matcher engine  : {medical.engine if medical is not None else 'OFF'}")
+    print(f"Text polish     : "
+          f"{'ON' if (medical is not None and medical.polish) else 'OFF'}")
     print(f"Device index    : {args.device_index if args.device_index is not None else 'default'}")
     print("Audio storage   : NONE (in-memory streaming only)")
     print(f"Report          : {json_path.name if json_path else 'not saved (use --save-report)'}")
@@ -646,6 +656,13 @@ async def main() -> int:
             "final_transcript_canonical": canonical,
             "medical_hits": medical_hits,
             "medical_warnings": medical.warnings if medical is not None else [],
+            # Deterministic nursing-text stage: what it did, and every
+            # ambiguity it refused to resolve (e.g. a numeral left unbound
+            # next to a clock time) instead of guessing.
+            "text_polish_enabled": bool(medical is not None and medical.polish),
+            "text_polish_warnings": (
+                medical.polish_warnings if medical is not None else []
+            ),
             "cleanliness": {
                 "raw": raw_clean,
                 "normalized": normalized_clean,

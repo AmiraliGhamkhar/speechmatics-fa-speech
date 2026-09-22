@@ -1,0 +1,4162 @@
+{
+  "label": "baseline",
+  "git_commit": null,
+  "python_version": "3.11.2",
+  "platform": "Linux-6.1.158+-x86_64-with-glibc2.36",
+  "packages": {
+    "pyahocorasick": "2.3.1",
+    "pytest": "9.1.1",
+    "speechmatics-rt": null
+  },
+  "matcher_backend": "aho-corasick (pyahocorasick)",
+  "uses_ahocorasick": true,
+  "dictionary_terms": 978,
+  "matcher_rules": 2614,
+  "vocabulary_entries": 146,
+  "dataset": {
+    "dataset_version": "nursing-2026.09.22.4",
+    "case_count": 107,
+    "stages": {
+      "generic_normalization": 1,
+      "medical_canonicalization": 40,
+      "number_time_unit": 37,
+      "grammar_format": 12,
+      "paragraph": 17
+    },
+    "groups": {
+      "abbreviations": 4,
+      "admission_assessment": 1,
+      "allergy_history": 1,
+      "assessments": 3,
+      "bidi": 2,
+      "boundary_safety": 5,
+      "braden_assessment": 1,
+      "cardiovascular": 3,
+      "consultation": 1,
+      "devices": 2,
+      "education": 1,
+      "fall_prevention": 1,
+      "fall_risk": 1,
+      "iv_line": 1,
+      "iv_terminology": 2,
+      "laboratory": 4,
+      "mixed_language": 1,
+      "morse_assessment": 1,
+      "number_safety": 2,
+      "numbers_arabic_indic": 1,
+      "numbers_decimal": 2,
+      "numbers_dose": 1,
+      "numbers_integer": 2,
+      "numbers_percent": 1,
+      "numbers_persian_digits": 1,
+      "numbers_ratio": 3,
+      "numbers_score": 1,
+      "numbers_spoken": 1,
+      "orthopedic": 3,
+      "persianized_english": 2,
+      "physician_notification": 1,
+      "pressure_injury": 1,
+      "procedures": 2,
+      "punctuation": 5,
+      "repetition": 5,
+      "routes": 2,
+      "routine_labs": 1,
+      "semantics": 1,
+      "skin_assessment": 3,
+      "time": 11,
+      "typography": 1,
+      "units": 12,
+      "vital_signs": 6,
+      "whitespace": 1
+    }
+  },
+  "performance": {
+    "repeats_per_sentence": 20,
+    "sentences": 107,
+    "build_time_ms": {
+      "min": 58.528,
+      "median": 59.669
+    },
+    "build_peak_traced_memory_mb": 3.374,
+    "matcher_latency_us": {
+      "mean": 7.55,
+      "p50": 5.78,
+      "max": 82.87
+    },
+    "full_pipeline_latency_us": {
+      "mean": 54.0,
+      "p50": 45.78,
+      "max": 273.27
+    },
+    "mean_latency_us_per_character": 1.81,
+    "longest_sentence_characters": 134,
+    "long_paragraph": {
+      "characters": 3298,
+      "mean_ms": 4.096,
+      "max_ms": 4.379
+    }
+  },
+  "aggregates": {
+    "total_cases": 107,
+    "exact_match": 45,
+    "exact_match_accuracy": 0.4206,
+    "terminology": {
+      "precision": 0.7976,
+      "recall": 0.7614,
+      "f1": 0.7791,
+      "true_positives": 67,
+      "false_positives": 17,
+      "false_negatives": 21
+    },
+    "numbers": {
+      "precision": 0.9592,
+      "recall": 0.6812,
+      "f1": 0.7966,
+      "true_positives": 47,
+      "false_positives": 2,
+      "false_negatives": 22,
+      "reference_numbers": 69,
+      "false_number_rate": 0.029,
+      "dropped_number_rate": 0.3188
+    },
+    "warning_behaviour_ok": 105,
+    "bidi_clean": true,
+    "by_stage": {
+      "generic_normalization": {
+        "cases": 1,
+        "exact_match": 1,
+        "accuracy": 1.0,
+        "failures": []
+      },
+      "medical_canonicalization": {
+        "cases": 40,
+        "exact_match": 28,
+        "accuracy": 0.7,
+        "failures": [
+          "vital_spo2_fa",
+          "device_iv_line",
+          "fall_precautions",
+          "iv_phlebitis",
+          "iv_infiltration",
+          "cv_dyspnea",
+          "ortho_fracture",
+          "ortho_traction",
+          "skin_turgor",
+          "persianized_saturation",
+          "persianized_nurse_call",
+          "safe_now"
+        ]
+      },
+      "number_time_unit": {
+        "cases": 37,
+        "exact_match": 13,
+        "accuracy": 0.3514,
+        "failures": [
+          "safe_persian_one",
+          "num_decimal",
+          "num_persian_digits",
+          "num_ratio",
+          "num_ratio_spoken_fa",
+          "num_ratio_spoken_en",
+          "num_percent",
+          "num_score",
+          "num_dose_ml",
+          "num_age_spoken",
+          "time_half",
+          "time_minutes_word",
+          "time_with_lead",
+          "time_digits_word",
+          "time_persian_digits",
+          "time_bare_pair",
+          "time_morning",
+          "time_night",
+          "time_quarter",
+          "time_unbound_number",
+          "unit_percent_fa",
+          "unit_attached_en",
+          "unit_separated_en",
+          "unit_mmhg_en"
+        ]
+      },
+      "grammar_format": {
+        "cases": 12,
+        "exact_match": 1,
+        "accuracy": 0.0833,
+        "failures": [
+          "gram_repeated_word",
+          "gram_repeated_word_plain",
+          "gram_echoed_verb",
+          "gram_echoed_inflection",
+          "gram_vital_period",
+          "gram_vital_bp",
+          "gram_vital_spo2",
+          "gram_vital_hr",
+          "gram_repeated_punct",
+          "gram_spacing",
+          "gram_zwnj_prefix"
+        ]
+      },
+      "paragraph": {
+        "cases": 17,
+        "exact_match": 2,
+        "accuracy": 0.1176,
+        "failures": [
+          "para_admission",
+          "para_vitals",
+          "para_allergy",
+          "para_iv_line",
+          "para_fall",
+          "para_braden",
+          "para_morse",
+          "para_education",
+          "para_physician_notify",
+          "para_consult",
+          "para_skin",
+          "para_cardiac",
+          "para_ortho",
+          "para_mixed_language",
+          "bidi_vitals_list"
+        ]
+      }
+    },
+    "by_group": {
+      "abbreviations": {
+        "cases": 4,
+        "exact_match": 4,
+        "accuracy": 1.0,
+        "failures": []
+      },
+      "admission_assessment": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "para_admission"
+        ]
+      },
+      "allergy_history": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "para_allergy"
+        ]
+      },
+      "assessments": {
+        "cases": 3,
+        "exact_match": 3,
+        "accuracy": 1.0,
+        "failures": []
+      },
+      "bidi": {
+        "cases": 2,
+        "exact_match": 1,
+        "accuracy": 0.5,
+        "failures": [
+          "bidi_vitals_list"
+        ]
+      },
+      "boundary_safety": {
+        "cases": 5,
+        "exact_match": 4,
+        "accuracy": 0.8,
+        "failures": [
+          "safe_now"
+        ]
+      },
+      "braden_assessment": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "para_braden"
+        ]
+      },
+      "cardiovascular": {
+        "cases": 3,
+        "exact_match": 1,
+        "accuracy": 0.3333,
+        "failures": [
+          "cv_dyspnea",
+          "para_cardiac"
+        ]
+      },
+      "consultation": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "para_consult"
+        ]
+      },
+      "devices": {
+        "cases": 2,
+        "exact_match": 1,
+        "accuracy": 0.5,
+        "failures": [
+          "device_iv_line"
+        ]
+      },
+      "education": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "para_education"
+        ]
+      },
+      "fall_prevention": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "para_fall"
+        ]
+      },
+      "fall_risk": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "fall_precautions"
+        ]
+      },
+      "iv_line": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "para_iv_line"
+        ]
+      },
+      "iv_terminology": {
+        "cases": 2,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "iv_phlebitis",
+          "iv_infiltration"
+        ]
+      },
+      "laboratory": {
+        "cases": 4,
+        "exact_match": 4,
+        "accuracy": 1.0,
+        "failures": []
+      },
+      "mixed_language": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "para_mixed_language"
+        ]
+      },
+      "morse_assessment": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "para_morse"
+        ]
+      },
+      "number_safety": {
+        "cases": 2,
+        "exact_match": 1,
+        "accuracy": 0.5,
+        "failures": [
+          "safe_persian_one"
+        ]
+      },
+      "numbers_arabic_indic": {
+        "cases": 1,
+        "exact_match": 1,
+        "accuracy": 1.0,
+        "failures": []
+      },
+      "numbers_decimal": {
+        "cases": 2,
+        "exact_match": 1,
+        "accuracy": 0.5,
+        "failures": [
+          "num_decimal"
+        ]
+      },
+      "numbers_dose": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "num_dose_ml"
+        ]
+      },
+      "numbers_integer": {
+        "cases": 2,
+        "exact_match": 2,
+        "accuracy": 1.0,
+        "failures": []
+      },
+      "numbers_percent": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "num_percent"
+        ]
+      },
+      "numbers_persian_digits": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "num_persian_digits"
+        ]
+      },
+      "numbers_ratio": {
+        "cases": 3,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "num_ratio",
+          "num_ratio_spoken_fa",
+          "num_ratio_spoken_en"
+        ]
+      },
+      "numbers_score": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "num_score"
+        ]
+      },
+      "numbers_spoken": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "num_age_spoken"
+        ]
+      },
+      "orthopedic": {
+        "cases": 3,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "ortho_fracture",
+          "ortho_traction",
+          "para_ortho"
+        ]
+      },
+      "persianized_english": {
+        "cases": 2,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "persianized_saturation",
+          "persianized_nurse_call"
+        ]
+      },
+      "physician_notification": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "para_physician_notify"
+        ]
+      },
+      "pressure_injury": {
+        "cases": 1,
+        "exact_match": 1,
+        "accuracy": 1.0,
+        "failures": []
+      },
+      "procedures": {
+        "cases": 2,
+        "exact_match": 2,
+        "accuracy": 1.0,
+        "failures": []
+      },
+      "punctuation": {
+        "cases": 5,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "gram_vital_period",
+          "gram_vital_bp",
+          "gram_vital_spo2",
+          "gram_vital_hr",
+          "gram_repeated_punct"
+        ]
+      },
+      "repetition": {
+        "cases": 5,
+        "exact_match": 1,
+        "accuracy": 0.2,
+        "failures": [
+          "gram_repeated_word",
+          "gram_repeated_word_plain",
+          "gram_echoed_verb",
+          "gram_echoed_inflection"
+        ]
+      },
+      "routes": {
+        "cases": 2,
+        "exact_match": 2,
+        "accuracy": 1.0,
+        "failures": []
+      },
+      "routine_labs": {
+        "cases": 1,
+        "exact_match": 1,
+        "accuracy": 1.0,
+        "failures": []
+      },
+      "semantics": {
+        "cases": 1,
+        "exact_match": 1,
+        "accuracy": 1.0,
+        "failures": []
+      },
+      "skin_assessment": {
+        "cases": 3,
+        "exact_match": 1,
+        "accuracy": 0.3333,
+        "failures": [
+          "skin_turgor",
+          "para_skin"
+        ]
+      },
+      "time": {
+        "cases": 11,
+        "exact_match": 1,
+        "accuracy": 0.0909,
+        "failures": [
+          "time_half",
+          "time_minutes_word",
+          "time_with_lead",
+          "time_digits_word",
+          "time_persian_digits",
+          "time_bare_pair",
+          "time_morning",
+          "time_night",
+          "time_quarter",
+          "time_unbound_number"
+        ]
+      },
+      "typography": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "gram_zwnj_prefix"
+        ]
+      },
+      "units": {
+        "cases": 12,
+        "exact_match": 8,
+        "accuracy": 0.6667,
+        "failures": [
+          "unit_percent_fa",
+          "unit_attached_en",
+          "unit_separated_en",
+          "unit_mmhg_en"
+        ]
+      },
+      "vital_signs": {
+        "cases": 6,
+        "exact_match": 4,
+        "accuracy": 0.6667,
+        "failures": [
+          "vital_spo2_fa",
+          "para_vitals"
+        ]
+      },
+      "whitespace": {
+        "cases": 1,
+        "exact_match": 0,
+        "accuracy": 0.0,
+        "failures": [
+          "gram_spacing"
+        ]
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "abbr_ccu",
+      "stage": "medical_canonicalization",
+      "group": "abbreviations",
+      "spoken": "بیمار در سی سی یو بستری است",
+      "expected": "بیمار در CCU بستری است",
+      "produced": "بیمار در CCU بستری است",
+      "exact_match": true,
+      "medical_hits": [
+        "CCU"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "abbr_icu",
+      "stage": "medical_canonicalization",
+      "group": "abbreviations",
+      "spoken": "انتقال به آی سی یو انجام شد",
+      "expected": "انتقال به ICU انجام شد",
+      "produced": "انتقال به ICU انجام شد",
+      "exact_match": true,
+      "medical_hits": [
+        "ICU"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "abbr_npo",
+      "stage": "medical_canonicalization",
+      "group": "abbreviations",
+      "spoken": "بیمار ان پی او است",
+      "expected": "بیمار NPO است",
+      "produced": "بیمار NPO است",
+      "exact_match": true,
+      "medical_hits": [
+        "NPO"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "abbr_gcs",
+      "stage": "medical_canonicalization",
+      "group": "abbreviations",
+      "spoken": "جی سی اس بیمار ثبت شد",
+      "expected": "GCS بیمار ثبت شد",
+      "produced": "GCS بیمار ثبت شد",
+      "exact_match": true,
+      "medical_hits": [
+        "GCS"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "vital_bp",
+      "stage": "medical_canonicalization",
+      "group": "vital_signs",
+      "spoken": "بی پی بیمار کنترل شد",
+      "expected": "BP بیمار کنترل شد",
+      "produced": "BP بیمار کنترل شد",
+      "exact_match": true,
+      "medical_hits": [
+        "BP"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "vital_hr_fa",
+      "stage": "medical_canonicalization",
+      "group": "vital_signs",
+      "spoken": "اچ آر بیمار ثبت گردید",
+      "expected": "HR بیمار ثبت گردید",
+      "produced": "HR بیمار ثبت گردید",
+      "exact_match": true,
+      "medical_hits": [
+        "HR"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "vital_rr_fa",
+      "stage": "medical_canonicalization",
+      "group": "vital_signs",
+      "spoken": "آر آر بیمار شمارش شد",
+      "expected": "RR بیمار شمارش شد",
+      "produced": "RR بیمار شمارش شد",
+      "exact_match": true,
+      "medical_hits": [
+        "RR"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "vital_spo2_fa",
+      "stage": "medical_canonicalization",
+      "group": "vital_signs",
+      "spoken": "اس پی او دو بیمار پایش می شود",
+      "expected": "SpO2 بیمار پایش می‌شود",
+      "produced": "SpO2 بیمار پایش می شود",
+      "exact_match": false,
+      "medical_hits": [
+        "SpO2"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "vital_temp_fa",
+      "stage": "medical_canonicalization",
+      "group": "vital_signs",
+      "spoken": "تمپ بیمار اندازه گیری شد",
+      "expected": "Temp بیمار اندازه گیری شد",
+      "produced": "Temp بیمار اندازه گیری شد",
+      "exact_match": true,
+      "medical_hits": [
+        "Temp"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "lab_cbc",
+      "stage": "medical_canonicalization",
+      "group": "laboratory",
+      "spoken": "سی بی سی درخواست شد",
+      "expected": "CBC درخواست شد",
+      "produced": "CBC درخواست شد",
+      "exact_match": true,
+      "medical_hits": [
+        "CBC"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "lab_fbs",
+      "stage": "medical_canonicalization",
+      "group": "laboratory",
+      "spoken": "اف بی اس بیمار چک شد",
+      "expected": "FBS بیمار چک شد",
+      "produced": "FBS بیمار چک شد",
+      "exact_match": true,
+      "medical_hits": [
+        "FBS"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "lab_inr",
+      "stage": "medical_canonicalization",
+      "group": "laboratory",
+      "spoken": "آی ان آر بیمار گزارش شد",
+      "expected": "INR بیمار گزارش شد",
+      "produced": "INR بیمار گزارش شد",
+      "exact_match": true,
+      "medical_hits": [
+        "INR"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "lab_ua",
+      "stage": "medical_canonicalization",
+      "group": "laboratory",
+      "spoken": "آزمایش ادرار ارسال شد",
+      "expected": "U/A ارسال شد",
+      "produced": "U/A ارسال شد",
+      "exact_match": true,
+      "medical_hits": [
+        "U/A"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "route_iv_fa",
+      "stage": "medical_canonicalization",
+      "group": "routes",
+      "spoken": "دارو به صورت آی وی تزریق شد",
+      "expected": "دارو به صورت IV تزریق شد",
+      "produced": "دارو به صورت IV تزریق شد",
+      "exact_match": true,
+      "medical_hits": [
+        "IV"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "route_im_fa",
+      "stage": "medical_canonicalization",
+      "group": "routes",
+      "spoken": "تزریق آی ام انجام شد",
+      "expected": "تزریق IM انجام شد",
+      "produced": "تزریق IM انجام شد",
+      "exact_match": true,
+      "medical_hits": [
+        "IM"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "device_iv_line",
+      "stage": "medical_canonicalization",
+      "group": "devices",
+      "spoken": "لاین وریدی برقرار است",
+      "expected": "IV line برقرار است",
+      "produced": "IV-Line برقرار است",
+      "exact_match": false,
+      "medical_hits": [
+        "IV-Line"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 1,
+        "missing": [
+          "IV line"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "device_foley",
+      "stage": "medical_canonicalization",
+      "group": "devices",
+      "spoken": "سوند فولی تعبیه شد",
+      "expected": "Foley catheter تعبیه شد",
+      "produced": "Foley catheter تعبیه شد",
+      "exact_match": true,
+      "medical_hits": [
+        "Foley catheter"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "proc_ct",
+      "stage": "medical_canonicalization",
+      "group": "procedures",
+      "spoken": "در سی تی اسکن ضایعه دیده شد",
+      "expected": "در CT scan ضایعه دیده شد",
+      "produced": "در CT scan ضایعه دیده شد",
+      "exact_match": true,
+      "medical_hits": [
+        "CT scan"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "proc_mri",
+      "stage": "medical_canonicalization",
+      "group": "procedures",
+      "spoken": "ام آر آی درخواست شد",
+      "expected": "MRI درخواست شد",
+      "produced": "MRI درخواست شد",
+      "exact_match": true,
+      "medical_hits": [
+        "MRI"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "assess_morse",
+      "stage": "medical_canonicalization",
+      "group": "assessments",
+      "spoken": "مقیاس مورس تکمیل شد",
+      "expected": "Morse Fall Scale تکمیل شد",
+      "produced": "Morse Fall Scale تکمیل شد",
+      "exact_match": true,
+      "medical_hits": [
+        "Morse Fall Scale"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "assess_braden",
+      "stage": "medical_canonicalization",
+      "group": "assessments",
+      "spoken": "مقیاس برادن ثبت شد",
+      "expected": "Braden Scale ثبت شد",
+      "produced": "Braden Scale ثبت شد",
+      "exact_match": true,
+      "medical_hits": [
+        "Braden Scale"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "assess_nursing",
+      "stage": "medical_canonicalization",
+      "group": "assessments",
+      "spoken": "ارزیابی پرستاری انجام شد",
+      "expected": "nursing assessment انجام شد",
+      "produced": "nursing assessment انجام شد",
+      "exact_match": true,
+      "medical_hits": [
+        "nursing assessment"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "fall_precautions",
+      "stage": "medical_canonicalization",
+      "group": "fall_risk",
+      "spoken": "احتیاطات سقوط رعایت شد",
+      "expected": "fall precautions رعایت شد",
+      "produced": "احتیاطات سقوط رعایت شد",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 1,
+        "missing": [
+          "fall precautions"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "pressure_injury",
+      "stage": "medical_canonicalization",
+      "group": "pressure_injury",
+      "spoken": "زخم بستر مشاهده نشد",
+      "expected": "pressure injury مشاهده نشد",
+      "produced": "pressure injury مشاهده نشد",
+      "exact_match": true,
+      "medical_hits": [
+        "pressure injury"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "iv_phlebitis",
+      "stage": "medical_canonicalization",
+      "group": "iv_terminology",
+      "spoken": "فلبیت در محل کاتتر دیده نشد",
+      "expected": "phlebitis در محل کاتتر دیده نشد",
+      "produced": "Phlebitis در محل کاتتر دیده نشد",
+      "exact_match": false,
+      "medical_hits": [
+        "Phlebitis"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 1,
+        "missing": [
+          "phlebitis"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "iv_infiltration",
+      "stage": "medical_canonicalization",
+      "group": "iv_terminology",
+      "spoken": "نشت دارویی گزارش نشد",
+      "expected": "infiltration گزارش نشد",
+      "produced": "نشت دارویی گزارش نشد",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 1,
+        "missing": [
+          "infiltration"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "cv_chest_pain",
+      "stage": "medical_canonicalization",
+      "group": "cardiovascular",
+      "spoken": "بیمار چست پین دارد",
+      "expected": "بیمار chest pain دارد",
+      "produced": "بیمار chest pain دارد",
+      "exact_match": true,
+      "medical_hits": [
+        "chest pain"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "cv_dyspnea",
+      "stage": "medical_canonicalization",
+      "group": "cardiovascular",
+      "spoken": "تنگی نفس گزارش شد",
+      "expected": "shortness of breath گزارش شد",
+      "produced": "dyspnea گزارش شد",
+      "exact_match": false,
+      "medical_hits": [
+        "dyspnea"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 1,
+        "missing": [
+          "shortness of breath"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "ortho_fracture",
+      "stage": "medical_canonicalization",
+      "group": "orthopedic",
+      "spoken": "شکستگی استخوان ران تایید شد",
+      "expected": "femur fracture تایید شد",
+      "produced": "fracture استخوان ران تایید شد",
+      "exact_match": false,
+      "medical_hits": [
+        "fracture"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 1,
+        "missing": [
+          "femur fracture"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "ortho_traction",
+      "stage": "medical_canonicalization",
+      "group": "orthopedic",
+      "spoken": "کشش پوستی برقرار است",
+      "expected": "skin traction برقرار است",
+      "produced": "Traction dermatologic برقرار است",
+      "exact_match": false,
+      "medical_hits": [
+        "Traction",
+        "dermatologic"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 1,
+        "missing": [
+          "skin traction"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "skin_ecchymosis",
+      "stage": "medical_canonicalization",
+      "group": "skin_assessment",
+      "spoken": "اکیموز در ساعد چپ مشاهده شد",
+      "expected": "Ecchymosis در ساعد چپ مشاهده شد",
+      "produced": "Ecchymosis در ساعد چپ مشاهده شد",
+      "exact_match": true,
+      "medical_hits": [
+        "Ecchymosis"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "skin_turgor",
+      "stage": "medical_canonicalization",
+      "group": "skin_assessment",
+      "spoken": "تورگور پوست طبیعی است",
+      "expected": "skin turgor طبیعی است",
+      "produced": "تورگور پوست طبیعی است",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 1,
+        "missing": [
+          "skin turgor"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "persianized_saturation",
+      "stage": "medical_canonicalization",
+      "group": "persianized_english",
+      "spoken": "ساتوریشن بیمار پایش شد",
+      "expected": "oxygen saturation بیمار پایش شد",
+      "produced": "SpO2 بیمار پایش شد",
+      "exact_match": false,
+      "medical_hits": [
+        "SpO2"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 1,
+        "missing": [
+          "oxygen saturation"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "persianized_nurse_call",
+      "stage": "medical_canonicalization",
+      "group": "persianized_english",
+      "spoken": "نرس کال در دسترس بیمار است",
+      "expected": "Nurse call در دسترس بیمار است",
+      "produced": "nurse call در دسترس بیمار است",
+      "exact_match": false,
+      "medical_hits": [
+        "nurse call"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 1,
+        "missing": [
+          "Nurse call"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "safe_now",
+      "stage": "medical_canonicalization",
+      "group": "boundary_safety",
+      "spoken": "Please do it now and document the result",
+      "expected": "Please do it now and document the result",
+      "produced": "Please do intrathecal now and document the result",
+      "exact_match": false,
+      "medical_hits": [
+        "intrathecal"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "lowercase 'now' is the English adverb, not the STAT shorthand"
+    },
+    {
+      "id": "safe_or",
+      "stage": "medical_canonicalization",
+      "group": "boundary_safety",
+      "spoken": "Give the tablet or the syrup to the patient",
+      "expected": "Give the tablet or the syrup to the patient",
+      "produced": "Give the tablet or the syrup to the patient",
+      "exact_match": true,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "lowercase 'or' is a conjunction, not the operating room"
+    },
+    {
+      "id": "safe_substring_action",
+      "stage": "medical_canonicalization",
+      "group": "boundary_safety",
+      "spoken": "The care plan requires immediate action",
+      "expected": "The care plan requires immediate action",
+      "produced": "The care plan requires immediate action",
+      "exact_match": true,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "'action' contains 'act'/'ct' - substring matching must not fire"
+    },
+    {
+      "id": "safe_substring_delivery",
+      "stage": "medical_canonicalization",
+      "group": "boundary_safety",
+      "spoken": "delivery of the medication was delayed",
+      "expected": "delivery of the medication was delayed",
+      "produced": "delivery of the medication was delayed",
+      "exact_match": true,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "boundary safety inside a longer token"
+    },
+    {
+      "id": "safe_negation",
+      "stage": "medical_canonicalization",
+      "group": "semantics",
+      "spoken": "بیمار cardiovascular disease ندارد",
+      "expected": "بیمار cardiovascular disease ندارد",
+      "produced": "بیمار cardiovascular disease ندارد",
+      "exact_match": true,
+      "medical_hits": [],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "negation must be preserved verbatim; no semantic inference"
+    },
+    {
+      "id": "safe_persian_one",
+      "stage": "number_time_unit",
+      "group": "number_safety",
+      "spoken": "یک بیمار در بخش پذیرش شد",
+      "expected": "یک بیمار در بخش پذیرش شد",
+      "produced": "یک بیمار در بخش admitting and discharge شد",
+      "exact_match": false,
+      "medical_hits": [
+        "admitting and discharge"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "'یک' as the article 'a' must not become the digit 1"
+    },
+    {
+      "id": "safe_ct_form",
+      "stage": "medical_canonicalization",
+      "group": "number_safety",
+      "spoken": "سی تی اسکن قفسه سینه انجام شد",
+      "expected": "CT scan قفسه سینه انجام شد",
+      "produced": "CT scan قفسه سینه انجام شد",
+      "exact_match": true,
+      "medical_hits": [
+        "CT scan"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "'سی' inside 'سی تی' must not be read as the number 30"
+    },
+    {
+      "id": "num_integer",
+      "stage": "number_time_unit",
+      "group": "numbers_integer",
+      "spoken": "دوز 500 میلی گرم تجویز شد",
+      "expected": "دوز 500 mg تجویز شد",
+      "produced": "دوز 500 mg تجویز شد",
+      "exact_match": true,
+      "medical_hits": [
+        "mg"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "500"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "500"
+        ],
+        "produced_numbers": [
+          "500"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "num_decimal",
+      "stage": "number_time_unit",
+      "group": "numbers_decimal",
+      "spoken": "دمای بدن 36.7 درجه سانتی گراد بود",
+      "expected": "Temp: 36.7 °C بود",
+      "produced": "Temp 36.7 °C بود",
+      "exact_match": false,
+      "medical_hits": [
+        "Temp",
+        "°C"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "36.7"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "36.7"
+        ],
+        "produced_numbers": [
+          "36.7"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "num_persian_digits",
+      "stage": "number_time_unit",
+      "group": "numbers_persian_digits",
+      "spoken": "فشار خون ۱۴۰/۸۵ میلی متر جیوه بود",
+      "expected": "BP: 140/85 mmHg بود",
+      "produced": "BP 140/85 mmHg بود",
+      "exact_match": false,
+      "medical_hits": [
+        "BP",
+        "mmHg"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "140/85"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "140/85"
+        ],
+        "produced_numbers": [
+          "140/85"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "num_arabic_indic",
+      "stage": "generic_normalization",
+      "group": "numbers_arabic_indic",
+      "spoken": "علائم حیاتی ٨٨ و ٩٧ ثبت شد",
+      "expected": "vital signs 88 و 97 ثبت شد",
+      "produced": "vital signs 88 و 97 ثبت شد",
+      "exact_match": true,
+      "medical_hits": [
+        "vital signs"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "88",
+          "97"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "88",
+          "97"
+        ],
+        "produced_numbers": [
+          "88",
+          "97"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "Arabic-Indic digits fold to ASCII; the fixture avoids 'نبض', which is a legitimate PR alias, so this case measures the digit folding only"
+    },
+    {
+      "id": "num_ratio",
+      "stage": "number_time_unit",
+      "group": "numbers_ratio",
+      "spoken": "blood pressure 120/80 mmHg",
+      "expected": "BP: 120/80 mmHg",
+      "produced": "blood pressure 120/80 mmHg",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "120/80"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "120/80"
+        ],
+        "produced_numbers": [
+          "120/80"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "num_ratio_spoken_fa",
+      "stage": "number_time_unit",
+      "group": "numbers_ratio",
+      "spoken": "فشار خون صد و چهل روی هشتاد و پنج",
+      "expected": "BP: 140/85",
+      "produced": "BP صد و چهل روی هشتاد و پنج",
+      "exact_match": false,
+      "medical_hits": [
+        "BP"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "140/85"
+        ],
+        "missing_declared": [
+          "140/85"
+        ],
+        "reference_numbers": [
+          "140/85"
+        ],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": [
+          "140/85"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "a dictated BP: the two spoken cardinals plus the separator 'روی' are the charted ratio 140/85. This stayed as '140 روی 85' until the spoken-ratio rule was added"
+    },
+    {
+      "id": "num_ratio_spoken_en",
+      "stage": "number_time_unit",
+      "group": "numbers_ratio",
+      "spoken": "blood pressure 140 over 85 mmHg",
+      "expected": "BP: 140/85 mmHg",
+      "produced": "blood pressure 140 over 85 mmHg",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "140/85"
+        ],
+        "missing_declared": [
+          "140/85"
+        ],
+        "reference_numbers": [
+          "140/85"
+        ],
+        "produced_numbers": [
+          "140",
+          "85"
+        ],
+        "false_numbers": [
+          "140",
+          "85"
+        ],
+        "dropped_numbers": [
+          "140/85"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "num_ratio_word_not_a_ratio",
+      "stage": "number_time_unit",
+      "group": "boundary_safety",
+      "spoken": "پانسمان روی زخم تعویض شد",
+      "expected": "پانسمان روی زخم تعویض شد",
+      "produced": "پانسمان روی زخم تعویض شد",
+      "exact_match": true,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "'روی' is an ordinary preposition ('on'); without numerals on both sides it must never become a slash"
+    },
+    {
+      "id": "num_malformed_cardinal",
+      "stage": "number_time_unit",
+      "group": "numbers_decimal",
+      "spoken": "درجه حرارت سی و شش و هفت درجه سانتی گراد",
+      "expected": "درجه حرارت سی و شش و هفت °C",
+      "produced": "درجه حرارت سی و شش و هفت °C",
+      "exact_match": true,
+      "medical_hits": [
+        "°C"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": true,
+      "warning_behaviour_ok": false,
+      "bidi_controls_in_output": [],
+      "note": "SAFETY: this is how 36.7 is dictated. Summing the parts produced 43 - a temperature nobody said. An unparseable cardinal must survive verbatim and raise a warning"
+    },
+    {
+      "id": "num_percent",
+      "stage": "number_time_unit",
+      "group": "numbers_percent",
+      "spoken": "oxygen saturation 97 درصد",
+      "expected": "SpO2: 97%",
+      "produced": "oxygen saturation 97 %",
+      "exact_match": false,
+      "medical_hits": [
+        "%"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "97"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "97"
+        ],
+        "produced_numbers": [
+          "97"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "num_score",
+      "stage": "number_time_unit",
+      "group": "numbers_score",
+      "spoken": "نمره درد 4 از 10 گزارش شد",
+      "expected": "pain score: 4 از 10 گزارش شد",
+      "produced": "pain score 4 از 10 گزارش شد",
+      "exact_match": false,
+      "medical_hits": [
+        "pain score"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "4",
+          "10"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "4",
+          "10"
+        ],
+        "produced_numbers": [
+          "4",
+          "10"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "'pain score' is a charted label, so the label rule gives it the standard 'LABEL: value' punctuation"
+    },
+    {
+      "id": "num_dose_ml",
+      "stage": "number_time_unit",
+      "group": "numbers_dose",
+      "spoken": "500 میلی لیتر سرم انفوزیون شد",
+      "expected": "500 mL سرم infusion شد",
+      "produced": "500 mL IV fluid infusion شد",
+      "exact_match": false,
+      "medical_hits": [
+        "mL",
+        "IV fluid",
+        "infusion"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "500"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "500"
+        ],
+        "produced_numbers": [
+          "500"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "num_age_spoken",
+      "stage": "number_time_unit",
+      "group": "numbers_spoken",
+      "spoken": "مددجو آقای سی و پنج ساله",
+      "expected": "مددجو آقای 35 ساله",
+      "produced": "مددجو آقای سی و پنج ساله",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "35"
+        ],
+        "missing_declared": [
+          "35"
+        ],
+        "reference_numbers": [
+          "35"
+        ],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": [
+          "35"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "num_bpm",
+      "stage": "number_time_unit",
+      "group": "numbers_integer",
+      "spoken": "ضربان 88 بار در دقیقه",
+      "expected": "ضربان 88 بار در دقیقه",
+      "produced": "ضربان 88 بار در دقیقه",
+      "exact_match": true,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "88"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "88"
+        ],
+        "produced_numbers": [
+          "88"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "time_half",
+      "stage": "number_time_unit",
+      "group": "time",
+      "spoken": "ده و نیم",
+      "expected": "10:30",
+      "produced": "ده و one half",
+      "exact_match": false,
+      "medical_hits": [
+        "one half"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:30"
+        ],
+        "missing_declared": [
+          "10:30"
+        ],
+        "reference_numbers": [
+          "10",
+          "30"
+        ],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": [
+          "10",
+          "30"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "time_minutes_word",
+      "stage": "number_time_unit",
+      "group": "time",
+      "spoken": "ده و سی دقیقه",
+      "expected": "10:30",
+      "produced": "ده و سی دقیقه",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:30"
+        ],
+        "missing_declared": [
+          "10:30"
+        ],
+        "reference_numbers": [
+          "10",
+          "30"
+        ],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": [
+          "10",
+          "30"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "time_with_lead",
+      "stage": "number_time_unit",
+      "group": "time",
+      "spoken": "ساعت ده و سی دقیقه",
+      "expected": "ساعت 10:30",
+      "produced": "ساعت ده و سی دقیقه",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:30"
+        ],
+        "missing_declared": [
+          "10:30"
+        ],
+        "reference_numbers": [
+          "10",
+          "30"
+        ],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": [
+          "10",
+          "30"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "time_digits_word",
+      "stage": "number_time_unit",
+      "group": "time",
+      "spoken": "10 و 30 دقیقه",
+      "expected": "10:30",
+      "produced": "10 و 30 دقیقه",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:30"
+        ],
+        "missing_declared": [
+          "10:30"
+        ],
+        "reference_numbers": [
+          "10",
+          "30"
+        ],
+        "produced_numbers": [
+          "10",
+          "30"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "time_persian_digits",
+      "stage": "number_time_unit",
+      "group": "time",
+      "spoken": "۱۰ و ۳۰ دقیقه",
+      "expected": "10:30",
+      "produced": "10 و 30 دقیقه",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:30"
+        ],
+        "missing_declared": [
+          "10:30"
+        ],
+        "reference_numbers": [
+          "10",
+          "30"
+        ],
+        "produced_numbers": [
+          "10",
+          "30"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "time_colon",
+      "stage": "number_time_unit",
+      "group": "time",
+      "spoken": "10:30",
+      "expected": "10:30",
+      "produced": "10:30",
+      "exact_match": true,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:30"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "10",
+          "30"
+        ],
+        "produced_numbers": [
+          "10",
+          "30"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "time_bare_pair",
+      "stage": "number_time_unit",
+      "group": "time",
+      "spoken": "ساعت ده سی",
+      "expected": "ساعت 10:30",
+      "produced": "ساعت ده سی",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:30"
+        ],
+        "missing_declared": [
+          "10:30"
+        ],
+        "reference_numbers": [
+          "10",
+          "30"
+        ],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": [
+          "10",
+          "30"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "time_morning",
+      "stage": "number_time_unit",
+      "group": "time",
+      "spoken": "ده و نیم صبح",
+      "expected": "10:30 صبح",
+      "produced": "ده و one half AM",
+      "exact_match": false,
+      "medical_hits": [
+        "one half",
+        "AM"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:30"
+        ],
+        "missing_declared": [
+          "10:30"
+        ],
+        "reference_numbers": [
+          "10",
+          "30"
+        ],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": [
+          "10",
+          "30"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "time_night",
+      "stage": "number_time_unit",
+      "group": "time",
+      "spoken": "ده و نیم شب",
+      "expected": "10:30 شب",
+      "produced": "ده و one half PM",
+      "exact_match": false,
+      "medical_hits": [
+        "one half",
+        "PM"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:30"
+        ],
+        "missing_declared": [
+          "10:30"
+        ],
+        "reference_numbers": [
+          "10",
+          "30"
+        ],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": [
+          "10",
+          "30"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "time_quarter",
+      "stage": "number_time_unit",
+      "group": "time",
+      "spoken": "ده و ربع",
+      "expected": "10:15",
+      "produced": "ده و ربع",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:15"
+        ],
+        "missing_declared": [
+          "10:15"
+        ],
+        "reference_numbers": [
+          "10",
+          "15"
+        ],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": [
+          "10",
+          "15"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "time_unbound_number",
+      "stage": "number_time_unit",
+      "group": "time",
+      "spoken": "10 و 30 دقیقه 90",
+      "expected": "10:30 90",
+      "produced": "10 و 30 دقیقه 90",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:30",
+          "90"
+        ],
+        "missing_declared": [
+          "10:30"
+        ],
+        "reference_numbers": [
+          "10",
+          "30",
+          "90"
+        ],
+        "produced_numbers": [
+          "10",
+          "30",
+          "90"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": true,
+      "warning_behaviour_ok": false,
+      "bidi_controls_in_output": [],
+      "note": "the trailing 90 must survive AND be reported, never absorbed"
+    },
+    {
+      "id": "unit_mmhg_fa",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "فشار 140/85 میلی متر جیوه",
+      "expected": "فشار 140/85 mmHg",
+      "produced": "فشار 140/85 mmHg",
+      "exact_match": true,
+      "medical_hits": [
+        "mmHg"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "140/85"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "140/85"
+        ],
+        "produced_numbers": [
+          "140/85"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "unit_percent_fa",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "اشباع اکسیژن 97 درصد",
+      "expected": "SpO2: 97%",
+      "produced": "SpO2 97 %",
+      "exact_match": false,
+      "medical_hits": [
+        "SpO2",
+        "%"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "97"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "97"
+        ],
+        "produced_numbers": [
+          "97"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "'اشباع' on its own is the ordinary word 'saturation' and is deliberately NOT an SpO2 alias; the full phrase is"
+    },
+    {
+      "id": "unit_celsius_fa",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "36.7 درجه سانتی گراد",
+      "expected": "36.7 °C",
+      "produced": "36.7 °C",
+      "exact_match": true,
+      "medical_hits": [
+        "°C"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "36.7"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "36.7"
+        ],
+        "produced_numbers": [
+          "36.7"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "unit_mg_fa",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "20 میلی گرم",
+      "expected": "20 mg",
+      "produced": "20 mg",
+      "exact_match": true,
+      "medical_hits": [
+        "mg"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "20"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "20"
+        ],
+        "produced_numbers": [
+          "20"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "unit_mcg_fa",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "50 میکروگرم",
+      "expected": "50 mcg",
+      "produced": "50 mcg",
+      "exact_match": true,
+      "medical_hits": [
+        "mcg"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "50"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "50"
+        ],
+        "produced_numbers": [
+          "50"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "unit_ml_fa",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "250 میلی لیتر",
+      "expected": "250 mL",
+      "produced": "250 mL",
+      "exact_match": true,
+      "medical_hits": [
+        "mL"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "250"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "250"
+        ],
+        "produced_numbers": [
+          "250"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "unit_l_fa",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "2 لیتر",
+      "expected": "2 L",
+      "produced": "2 L",
+      "exact_match": true,
+      "medical_hits": [
+        "L"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "2"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "2"
+        ],
+        "produced_numbers": [
+          "2"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "unit_cm_fa",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "3 سانتی متر",
+      "expected": "3 cm",
+      "produced": "3 cm",
+      "exact_match": true,
+      "medical_hits": [
+        "cm"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "3"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "3"
+        ],
+        "produced_numbers": [
+          "3"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "unit_attached_en",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "36.7°C",
+      "expected": "36.7 °C",
+      "produced": "36.7°C",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "36.7"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "36.7"
+        ],
+        "produced_numbers": [
+          "36.7"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "unit_separated_en",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "97 %",
+      "expected": "97%",
+      "produced": "97 %",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "97"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "97"
+        ],
+        "produced_numbers": [
+          "97"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "unit_mmhg_en",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "140/85 mmhg",
+      "expected": "140/85 mmHg",
+      "produced": "140/85 mmhg",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "140/85"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "140/85"
+        ],
+        "produced_numbers": [
+          "140/85"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "unit_bpm_en",
+      "stage": "number_time_unit",
+      "group": "units",
+      "spoken": "88 bpm",
+      "expected": "88 bpm",
+      "produced": "88 bpm",
+      "exact_match": true,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "88"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "88"
+        ],
+        "produced_numbers": [
+          "88"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "gram_repeated_word",
+      "stage": "grammar_format",
+      "group": "repetition",
+      "spoken": "نمره نمره درد ثبت شد",
+      "expected": "pain score ثبت شد",
+      "produced": "نمره pain score ثبت شد",
+      "exact_match": false,
+      "medical_hits": [
+        "pain score"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "the stutter must be collapsed BEFORE canonicalization: otherwise the leftover 'نمره' + 'درد' spells the dictionary phrase 'نمره درد' and the output keeps a stray 'نمره' in front of a term the speaker never said twice"
+    },
+    {
+      "id": "gram_repeated_word_plain",
+      "stage": "grammar_format",
+      "group": "repetition",
+      "spoken": "بیمار بیمار در بخش بستری شد",
+      "expected": "بیمار در بخش بستری شد",
+      "produced": "بیمار بیمار در inpatient ward شد",
+      "exact_match": false,
+      "medical_hits": [
+        "inpatient ward"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "pure stutter with no dictionary interaction"
+    },
+    {
+      "id": "gram_repeated_abbrev_safe",
+      "stage": "grammar_format",
+      "group": "repetition",
+      "spoken": "بیمار در سی سی یو بستری است",
+      "expected": "بیمار در CCU بستری است",
+      "produced": "بیمار در CCU بستری است",
+      "exact_match": true,
+      "medical_hits": [
+        "CCU"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "regression: 'سی سی یو' has a REAL repeated syllable and must survive the duplicated-word cleanup (it became 'سی یو')"
+    },
+    {
+      "id": "gram_echoed_verb",
+      "stage": "grammar_format",
+      "group": "repetition",
+      "spoken": "بیمار هوشیار می باشد. باشد.",
+      "expected": "بیمار هوشیار می‌باشد.",
+      "produced": "بیمار alert and oriented می باشد. باشد.",
+      "exact_match": false,
+      "medical_hits": [
+        "alert and oriented"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "gram_echoed_inflection",
+      "stage": "grammar_format",
+      "group": "repetition",
+      "spoken": "درد را ذکر می کند. کنند",
+      "expected": "درد را ذکر می‌کند",
+      "produced": "درد را ذکر می کند. کنند",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "gram_vital_period",
+      "stage": "grammar_format",
+      "group": "punctuation",
+      "spoken": "Temp . 36.7. °C",
+      "expected": "Temp: 36.7 °C",
+      "produced": "Temp. 36.7. °C",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "36.7"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "36.7"
+        ],
+        "produced_numbers": [
+          "36.7"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "gram_vital_bp",
+      "stage": "grammar_format",
+      "group": "punctuation",
+      "spoken": "blood pressure. 140/85 mmHg",
+      "expected": "BP: 140/85 mmHg",
+      "produced": "blood pressure. 140/85 mmHg",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "140/85"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "140/85"
+        ],
+        "produced_numbers": [
+          "140/85"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "gram_vital_spo2",
+      "stage": "grammar_format",
+      "group": "punctuation",
+      "spoken": "oxygen saturation و 97%",
+      "expected": "SpO2: 97%",
+      "produced": "oxygen saturation و 97%",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "97"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "97"
+        ],
+        "produced_numbers": [
+          "97"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "gram_vital_hr",
+      "stage": "grammar_format",
+      "group": "punctuation",
+      "spoken": "heart rate. 88",
+      "expected": "HR: 88",
+      "produced": "heart rate. 88",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "88"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "88"
+        ],
+        "produced_numbers": [
+          "88"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "gram_repeated_punct",
+      "stage": "grammar_format",
+      "group": "punctuation",
+      "spoken": "بیمار پذیرش شد.. علائم پایدار است",
+      "expected": "بیمار پذیرش شد. علائم پایدار است",
+      "produced": "بیمار admitting and discharge شد.. symptoms پایدار است",
+      "exact_match": false,
+      "medical_hits": [
+        "admitting and discharge",
+        "symptoms"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "gram_spacing",
+      "stage": "grammar_format",
+      "group": "whitespace",
+      "spoken": "بیمار   در   بخش   بستری شد",
+      "expected": "بیمار در بخش بستری شد",
+      "produced": "بیمار در inpatient ward شد",
+      "exact_match": false,
+      "medical_hits": [
+        "inpatient ward"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "gram_zwnj_prefix",
+      "stage": "grammar_format",
+      "group": "typography",
+      "spoken": "بیمار درد را ذکر می کند",
+      "expected": "بیمار درد را ذکر می‌کند",
+      "produced": "بیمار درد را ذکر می کند",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_admission",
+      "stage": "paragraph",
+      "group": "admission_assessment",
+      "spoken": "مددجو آقای سی و پنج ساله با شکایت چست پین با تشخیص آنژین ناپایدار در سرویس دکتر احمدی با پای خود در ساعت ده و سی دقیقه وارد بخش قلب شد",
+      "expected": "مددجو آقای 35 ساله با شکایت chest pain با تشخیص آنژین ناپایدار در سرویس دکتر احمدی با پای خود در ساعت 10:30 وارد بخش قلب شد.",
+      "produced": "مددجو آقای سی و پنج ساله با شکایت chest pain با تشخیص آنژین ناپایدار در سرویس doctor احمدی با پای خود در ساعت ده و سی دقیقه وارد بخش heart شد",
+      "exact_match": false,
+      "medical_hits": [
+        "chest pain",
+        "doctor",
+        "heart"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "35",
+          "10:30"
+        ],
+        "missing_declared": [
+          "35",
+          "10:30"
+        ],
+        "reference_numbers": [
+          "35",
+          "10",
+          "30"
+        ],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": [
+          "35",
+          "10",
+          "30"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "the reference keeps every clinical element of the spoken form"
+    },
+    {
+      "id": "para_vitals",
+      "stage": "paragraph",
+      "group": "vital_signs",
+      "spoken": "علائم حیاتی شامل blood pressure. 140/85 mmHg و heart rate. 88 و oxygen saturation و 97% و Temp . 36.7. °C می باشد",
+      "expected": "vital signs شامل BP: 140/85 mmHg و HR: 88 و SpO2: 97% و Temp: 36.7 °C می‌باشد.",
+      "produced": "vital signs شامل blood pressure. 140/85 mmHg و heart rate. 88 و oxygen saturation و 97% و Temp. 36.7. °C می باشد",
+      "exact_match": false,
+      "medical_hits": [
+        "vital signs"
+      ],
+      "terms": {
+        "tp": 2,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "140/85",
+          "88",
+          "97",
+          "36.7"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "140/85",
+          "88",
+          "97",
+          "36.7"
+        ],
+        "produced_numbers": [
+          "140/85",
+          "88",
+          "97",
+          "36.7"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_allergy",
+      "stage": "paragraph",
+      "group": "allergy_history",
+      "spoken": "مددجو سابقه آلرژی دارویی را ذکر می کند. کنند و سابقه جراحی قبلی ندارد",
+      "expected": "مددجو سابقه آلرژی دارویی را ذکر می‌کند و سابقه جراحی قبلی ندارد.",
+      "produced": "مددجو سابقه آلرژی دارویی را ذکر می کند. کنند و past surgical history قبلی ندارد",
+      "exact_match": false,
+      "medical_hits": [
+        "past surgical history"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "negation 'ندارد' must be preserved; stutter tail removed"
+    },
+    {
+      "id": "para_iv_line",
+      "stage": "paragraph",
+      "group": "iv_line",
+      "spoken": "لاین وریدی در ساعد چپ برقرار و فیکس می باشد و فلبیت و قرمزی مشاهده نشد",
+      "expected": "IV line در ساعد چپ برقرار و فیکس می‌باشد و phlebitis و redness مشاهده نشد.",
+      "produced": "IV-Line در ساعد چپ برقرار و Secured می باشد و Phlebitis و قرمزی مشاهده نشد",
+      "exact_match": false,
+      "medical_hits": [
+        "IV-Line",
+        "Secured",
+        "Phlebitis"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 3,
+        "missing": [
+          "IV line",
+          "phlebitis",
+          "redness"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_fall",
+      "stage": "paragraph",
+      "group": "fall_prevention",
+      "spoken": "احتیاطات سقوط رعایت شد و نرده های کنار تخت بالا و نرس کال در دسترس بیمار قرار داده شد",
+      "expected": "fall precautions رعایت شد و bedside rails بالا و Nurse call در دسترس بیمار قرار داده شد.",
+      "produced": "احتیاطات سقوط رعایت شد و نرده های POC بالا و nurse call در دسترس بیمار قرار داده شد",
+      "exact_match": false,
+      "medical_hits": [
+        "POC",
+        "nurse call"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 3,
+        "missing": [
+          "Nurse call",
+          "bedside rails",
+          "fall precautions"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_braden",
+      "stage": "paragraph",
+      "group": "braden_assessment",
+      "spoken": "مقیاس برادن برای مددجو تکمیل و نمره نمره 18 ثبت شد",
+      "expected": "Braden Scale برای مددجو تکمیل و نمره 18 ثبت شد.",
+      "produced": "Braden Scale برای مددجو تکمیل و نمره نمره 18 ثبت شد",
+      "exact_match": false,
+      "medical_hits": [
+        "Braden Scale"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "18"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "18"
+        ],
+        "produced_numbers": [
+          "18"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_morse",
+      "stage": "paragraph",
+      "group": "morse_assessment",
+      "spoken": "مقیاس مورس تکمیل و نمره 45 ثبت گردید و بیمار در معرض خطر سقوط می باشد",
+      "expected": "Morse Fall Scale تکمیل و نمره 45 ثبت گردید و بیمار در معرض خطر سقوط می‌باشد.",
+      "produced": "Morse Fall Scale تکمیل و نمره 45 ثبت گردید و بیمار در معرض fall risk می باشد",
+      "exact_match": false,
+      "medical_hits": [
+        "Morse Fall Scale",
+        "fall risk"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "45"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "45"
+        ],
+        "produced_numbers": [
+          "45"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_education",
+      "stage": "paragraph",
+      "group": "education",
+      "spoken": "آموزش های لازم در خصوص استراحت مطلق و رژیم غذایی به مددجو و همراه داده شد",
+      "expected": "آموزش‌های لازم در خصوص استراحت مطلق و رژیم غذایی به مددجو و همراه داده شد.",
+      "produced": "آموزش های لازم در خصوص استراحت مطلق و رژیم غذایی به مددجو و همراه داده شد",
+      "exact_match": false,
+      "medical_hits": [],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_physician_notify",
+      "stage": "paragraph",
+      "group": "physician_notification",
+      "spoken": "پزشک معالج در ساعت ده و نیم اطلاع داده شد و دستورات جدید اخذ گردید",
+      "expected": "پزشک معالج در ساعت 10:30 اطلاع داده شد و دستورات جدید اخذ گردید.",
+      "produced": "doctor در ساعت ده و one half اطلاع داده شد و دستورات جدید اخذ گردید",
+      "exact_match": false,
+      "medical_hits": [
+        "doctor",
+        "one half"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "10:30"
+        ],
+        "missing_declared": [
+          "10:30"
+        ],
+        "reference_numbers": [
+          "10",
+          "30"
+        ],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": [
+          "10",
+          "30"
+        ]
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_consult",
+      "stage": "paragraph",
+      "group": "consultation",
+      "spoken": "مشاوره قلب درخواست شد و بیمار توسط سرویس قلب ویزیت گردید",
+      "expected": "مشاوره قلب درخواست شد و بیمار توسط سرویس قلب ویزیت گردید.",
+      "produced": "مشاوره heart درخواست شد و بیمار توسط سرویس heart ویزیت گردید",
+      "exact_match": false,
+      "medical_hits": [
+        "heart",
+        "heart"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_labs",
+      "stage": "paragraph",
+      "group": "routine_labs",
+      "spoken": "آزمایشات روتین شامل سی بی سی و آزمایش ادرار و اف بی اس ارسال شد",
+      "expected": "آزمایشات روتین شامل CBC و U/A و FBS ارسال شد.",
+      "produced": "آزمایشات روتین شامل CBC و U/A و FBS ارسال شد",
+      "exact_match": true,
+      "medical_hits": [
+        "CBC",
+        "U/A",
+        "FBS"
+      ],
+      "terms": {
+        "tp": 3,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_skin",
+      "stage": "paragraph",
+      "group": "skin_assessment",
+      "spoken": "تورگور پوست طبیعی و اکیموز در ساعد راست مشاهده شد و زخم بستر وجود ندارد",
+      "expected": "skin turgor طبیعی و Ecchymosis در ساعد راست مشاهده شد و pressure injury وجود ندارد.",
+      "produced": "تورگور پوست طبیعی و Ecchymosis در ساعد راست مشاهده شد و pressure injury وجود ندارد",
+      "exact_match": false,
+      "medical_hits": [
+        "Ecchymosis",
+        "pressure injury"
+      ],
+      "terms": {
+        "tp": 2,
+        "fn": 1,
+        "missing": [
+          "skin turgor"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": "'وجود ندارد' negation preserved verbatim"
+    },
+    {
+      "id": "para_cardiac",
+      "stage": "paragraph",
+      "group": "cardiovascular",
+      "spoken": "مددجو با چست پین تیپیک و تنگی نفس مراجعه و نوار قلب گرفته شد",
+      "expected": "مددجو با chest pain تیپیک و shortness of breath مراجعه و ECG گرفته شد.",
+      "produced": "مددجو با chest pain تیپیک و dyspnea مراجعه و EKG گرفته شد",
+      "exact_match": false,
+      "medical_hits": [
+        "chest pain",
+        "dyspnea",
+        "EKG"
+      ],
+      "terms": {
+        "tp": 1,
+        "fn": 2,
+        "missing": [
+          "ECG",
+          "shortness of breath"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_ortho",
+      "stage": "paragraph",
+      "group": "orthopedic",
+      "spoken": "مددجو با شکستگی استخوان ران راست بستری و کشش پوستی برقرار گردید",
+      "expected": "مددجو با femur fracture راست بستری و skin traction برقرار گردید.",
+      "produced": "مددجو با fracture استخوان ران راست بستری و Traction dermatologic برقرار گردید",
+      "exact_match": false,
+      "medical_hits": [
+        "fracture",
+        "Traction",
+        "dermatologic"
+      ],
+      "terms": {
+        "tp": 0,
+        "fn": 2,
+        "missing": [
+          "femur fracture",
+          "skin traction"
+        ]
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "para_mixed_language",
+      "stage": "paragraph",
+      "group": "mixed_language",
+      "spoken": "بیمار NPO است و IV line برقرار می باشد و vital signs هر چهار ساعت کنترل می گردد",
+      "expected": "بیمار NPO است و IV line برقرار می‌باشد و vital signs every four hours کنترل می‌گردد.",
+      "produced": "بیمار NPO است و IV line برقرار می باشد و vital signs every four hours کنترل می گردد",
+      "exact_match": false,
+      "medical_hits": [
+        "every four hours"
+      ],
+      "terms": {
+        "tp": 3,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [],
+        "missing_declared": [],
+        "reference_numbers": [],
+        "produced_numbers": [],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "bidi_mixed_inline",
+      "stage": "paragraph",
+      "group": "bidi",
+      "spoken": "مددجو با شکایت chest pain و BP: 140/85 mmHg مراجعه کرد.",
+      "expected": "مددجو با شکایت chest pain و BP: 140/85 mmHg مراجعه کرد.",
+      "produced": "مددجو با شکایت chest pain و BP: 140/85 mmHg مراجعه کرد.",
+      "exact_match": true,
+      "medical_hits": [],
+      "terms": {
+        "tp": 2,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "140/85"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "140/85"
+        ],
+        "produced_numbers": [
+          "140/85"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    },
+    {
+      "id": "bidi_vitals_list",
+      "stage": "paragraph",
+      "group": "bidi",
+      "spoken": "علائم حیاتی شامل BP: 140/85 mmHg، SpO2: 97%، Temp: 36.7 °C و HR: 88 می‌باشد.",
+      "expected": "vital signs شامل BP: 140/85 mmHg، SpO2: 97%، Temp: 36.7 °C و HR: 88 می‌باشد.",
+      "produced": "vital signs شامل BP: 140/85 mmHg، SpO2: 97%، Temp: 36.7 °C و HR: 88 می باشد.",
+      "exact_match": false,
+      "medical_hits": [
+        "vital signs"
+      ],
+      "terms": {
+        "tp": 2,
+        "fn": 0,
+        "missing": []
+      },
+      "numbers": {
+        "expected_declared": [
+          "140/85",
+          "97",
+          "36.7",
+          "88"
+        ],
+        "missing_declared": [],
+        "reference_numbers": [
+          "140/85",
+          "97",
+          "36.7",
+          "88"
+        ],
+        "produced_numbers": [
+          "140/85",
+          "97",
+          "36.7",
+          "88"
+        ],
+        "false_numbers": [],
+        "dropped_numbers": []
+      },
+      "warnings": [],
+      "warning_expected": false,
+      "warning_behaviour_ok": true,
+      "bidi_controls_in_output": [],
+      "note": ""
+    }
+  ]
+}

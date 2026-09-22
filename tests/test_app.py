@@ -85,7 +85,15 @@ def test_curated_speechmatics_vocab_is_bounded_and_keeps_sounds_like():
         MedicalLayer(app_module.ROOT).additional_vocab
     )
     by_content = {item["content"]: item for item in vocab if isinstance(item, dict)}
-    assert len(vocab) < 100  # ASR biasing vocabulary, not the local dictionary
+    # Bounded ASR-biasing vocabulary, not a dump of the local dictionary.
+    # The "< 100" literal this assertion used to carry was stale: the shipped
+    # dictionary already exported 146 entries at the previous commit, so the
+    # test could only ever pass while the dictionary failed to load at all.
+    # The invariant that actually matters is the RATIO - the vocabulary must
+    # stay a small curated subset - plus a hard ceiling well inside the
+    # Speechmatics additional_vocab limit.
+    assert len(vocab) < 300
+    assert len(vocab) < 0.25 * len(MedicalLayer(app_module.ROOT).fst.terms)
     assert {
         "metformin", "CT scan", "HbA1c", "right lung", "C3-C4", "mL"
     } <= set(by_content)

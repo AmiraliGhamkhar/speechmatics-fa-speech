@@ -1,12 +1,9 @@
 
+# Compatibility wrapper -> scripts/swiftmedics_tools.py run-fa
+# Installs dependencies (requirements.txt) and then runs app.py --language fa.
+# Extra arguments are passed through, e.g.:
+#   .\scripts\run.ps1 --no-inject
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
-if (-not (Test-Path ".venv\Scripts\python.exe")) {
-  py -3.11 -m venv .venv
-}
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-if (-not (Test-Path ".env")) { Copy-Item ".env.example" ".env" }
-# Run the app; extra arguments are passed through, e.g.:
-#   .\scripts\run.ps1 --language en --no-inject
-& .\.venv\Scripts\python.exe app.py --language fa @args
+py -3.11 scripts\swiftmedics_tools.py install
+& .\.venv\Scripts\python.exe scripts\swiftmedics_tools.py run-fa @args

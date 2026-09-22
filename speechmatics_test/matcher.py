@@ -117,7 +117,35 @@ _LOW_CONFIDENCE_THRESHOLD = 0.75
 #: underlying terms (e.g. "قبل از غذا", "ante cibum", "before food") are a
 #: different ``match_form`` entirely and are therefore unaffected by this
 #: restriction; they were already unambiguous "stronger evidence" per se.
-_AMBIGUOUS_SHORT_FORMS = frozenset({"or", "p", "now", "diff", "ac", "pc", "hs", "od"})
+#: Extended after the nursing benchmark caught real regressions in ordinary
+#: English prose: "Please do it now" became "Please do intrathecal now"
+#: (``it`` -> intrathecal) and "keep the patient warm, not cold" would have
+#: become "... not chronic obstructive pulmonary disease" (``cold`` -> COPD).
+#: Each addition is an ordinary English word that is ALSO charted shorthand;
+#: requiring the uppercase charting form keeps the clinical meaning available
+#: ("IT", "COLD", "US") while leaving prose untouched.
+_AMBIGUOUS_SHORT_FORMS = frozenset({
+    "or", "p", "now", "diff", "ac", "pc", "hs", "od",
+    "it",     # intrathecal  vs the pronoun
+    "be",     # barium enema vs the verb
+    "cold",   # COPD         vs the adjective
+    "him",    # medical records (HIM) vs the pronoun
+    "lab",    # laboratory   vs the ordinary noun (already English)
+    "post",   # after        vs "post-operative"/"post" the noun
+    "skin",   # dermatologic vs the ordinary noun
+    "soft",   # soft diet    vs the adjective
+    "top",    # topical      vs the ordinary noun
+    "us",     # ultrasound   vs the pronoun
+    "am",     # AM           vs the verb "am"
+    "cap",    # capsule      vs the ordinary noun
+    "reg",    # regular diet
+    "sr",     # review of systems
+    "ss",     # one half
+    "ca",     # calcium / carcinoma - far too ambiguous unmarked
+    "ob",     # obstetrics vs occult blood
+    "pe",     # pulmonary embolism vs physical examination
+    "pt",     # physical therapy vs prothrombin time vs patient
+})
 
 
 def _language_group(language: Any) -> str:
@@ -403,21 +431,56 @@ class AhoAutomaton:
 # ----------------------------------------------------------------- matcher
 
 
+#: Zero-width non-joiner: a Persian orthographic separator, not punctuation.
+_ZWNJ = "\u200c"
+
+
+def _is_pronounceable_hint(form: str) -> bool:
+    """True when ``form`` is safe to send as a Speechmatics ``sounds_like``.
+
+    ``sounds_like`` entries describe how a word is SPOKEN, so only letters,
+    spaces and the ZWNJ are acceptable. Written-only variants such as
+    ``B/P``, ``B.P.`` or ``C3-C4`` carry punctuation or digits the ASR
+    cannot pronounce, and would be noise (or rejected) in the API payload.
+    """
+    if not form or not form.strip():
+        return False
+    return all(
+        ch.isalpha() or ch.isspace() or ch == _ZWNJ for ch in form
+    )
+
+
 def _build_additional_vocab(terms: list[DictionaryTerm]) -> list:
     """Bounded Speechmatics ``additional_vocab`` from eligible terms only.
 
     Only ``speechmatics: true`` terms are considered - the vocabulary is a
     deliberately curated ASR-biasing list, never a dump of the dictionary.
+
+    Each entry's ``sounds_like`` is the declared ``sounds_like`` PLUS the
+    term's own spoken forms. Those forms are exactly how a nurse pronounces
+    the term out loud (``BP`` is said ``فشار خون`` / ``بی پی``), so omitting
+    them throws away the strongest biasing signal the dictionary has. This
+    mirrors the hand-maintained artifact that shipped before the export was
+    automated: it contained those forms, while a naive regeneration dropped
+    them and silently weakened recognition.
+
+    Forms that are written-only (punctuation or digits, e.g. ``B/P``) are
+    excluded by :func:`_is_pronounceable_hint`, and the canonical itself is
+    never repeated as its own pronunciation hint.
     """
     vocab: list[Any] = []
     for term in terms:
         if not term.speechmatics:
             continue
-        if term.sounds_like:
-            vocab.append({
-                "content": term.canonical,
-                "sounds_like": list(term.sounds_like),
-            })
+        hints: list[str] = []
+        for candidate in (*term.sounds_like, *term.forms):
+            if candidate == term.canonical or candidate in hints:
+                continue
+            if not _is_pronounceable_hint(candidate):
+                continue
+            hints.append(candidate)
+        if hints:
+            vocab.append({"content": term.canonical, "sounds_like": hints})
         else:
             vocab.append(term.canonical)
     return vocab
@@ -887,6 +950,29 @@ class MedicalMatcher:
     def max_rule_tokens(self) -> int:
         """Longest rule form measured in whitespace tokens (0 without rules)."""
         return max((len(rule.form.split()) for rule in self.rules), default=0)
+
+    @property
+    def repetition_safe_forms(self) -> frozenset:
+        """Case-folded rule forms that contain a genuine repeated token.
+
+        Persian spells a number of clinical abbreviations with a real
+        doubled syllable - ``سی سی یو`` (CCU), ``آر آر`` (RR), ``تی تی``
+        (TT), ``پی تی تی`` (PTT). A generic "collapse duplicated words"
+        cleanup destroys exactly these terms (``سی سی یو`` -> ``سی یو``),
+        so the nursing-text stutter rule consults this set and leaves them
+        alone. Returned folded because the cleanup compares case-folded.
+
+        Both the full form and each repeated ``"x x"`` pair inside it are
+        included, so the rule can recognise the repetition either way.
+        """
+        safe: set[str] = set()
+        for rule in self.rules:
+            tokens = rule.match_form.split()
+            for index in range(len(tokens) - 1):
+                if tokens[index] == tokens[index + 1]:
+                    safe.add(rule.match_form)
+                    safe.add(f"{tokens[index]} {tokens[index + 1]}")
+        return frozenset(safe)
 
     def is_rule_token_prefix(self, tokens: list[str]) -> bool:
         """True when ``tokens`` start some rule form (prefix or full form).
