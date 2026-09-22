@@ -10,7 +10,7 @@ Every number below is measured by that run - nothing is hardcoded.
 
 ## Environment
 
-* commit: `d2846a0691bb1a5d15bb6c236bd5f0bf9f8258c2-dirty`
+* commit: `a5d731fb81f3284fb66e2e71afa66a1b34a9e001`
 * python: 3.11.2
 * platform: Linux-6.1.158+-x86_64-with-glibc2.36
 * matcher backend: aho-corasick (pyahocorasick)
@@ -94,12 +94,12 @@ Stages are reported separately on purpose: a lexical canonicalization, a numeric
 
 ## Performance (real dictionary)
 
-* dictionary build (load + validate + automaton): 49.804 ms min, 50.912 ms median
+* dictionary build (load + validate + automaton): 50.507 ms min, 51.586 ms median
 * build peak traced memory: 3.344 MB
-* matcher-only latency: 6.66 us mean, 5.46 us p50
-* full pipeline (matcher + polish): 54.52 us mean, 45.8 us p50
-* per-character: 1.8277 us
-* long paragraph (3298 chars): 4.053 ms mean, 4.735 ms max
+* matcher-only latency: 6.62 us mean, 5.37 us p50
+* full pipeline (matcher + polish): 54.79 us mean, 46.76 us p50
+* per-character: 1.8365 us
+* long paragraph (3298 chars): 3.99 ms mean, 4.247 ms max
 
 ## Baseline comparison
 
@@ -112,10 +112,10 @@ baseline = repository commit 4017279 code (original matcher, original dictionary
 | number F1 | 0.7966 | 1.0 |
 | dictionary terms | 978 | 968 |
 | compiled rules | 2614 | 2594 |
-| build time (ms, min) | 58.528 | 49.804 |
+| build time (ms, min) | 58.528 | 50.507 |
 | build peak memory (MB) | 3.374 | 3.344 |
-| matcher latency p50 (us) | 5.78 | 5.46 |
-| full pipeline p50 (us) | 45.78 | 45.8 |
+| matcher latency p50 (us) | 5.78 | 5.37 |
+| full pipeline p50 (us) | 45.78 | 46.76 |
 
 Per stage (exact-match accuracy):
 
