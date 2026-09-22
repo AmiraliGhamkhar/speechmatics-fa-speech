@@ -1,157 +1,264 @@
 # Fix Session Changelog
 
-Format per change: **FILE / BUG / FIX / WHY SAFE / TEST ADDED**.
-Final result: **315 passed, 0 failed** (`pytest -q`), `compileall` OK, `pip check` OK,
-`scripts/export_additional_vocab.py --check` OK (942 dictionary terms, 98 vocab entries),
-`benchmark/benchmark_matcher.py --sizes 100 500 1000 2000 --repeats 50` OK,
-`app.py --help` OK, `fa`/`en`/`--no-vocab`/`--no-medical-layer`/`--no-inject` conceptual
-runs all fail gracefully on the missing API key (no crash).
+Each entry: **what was wrong → what changed → why it is safe → test added**.
+
+Verification commands in this file are PowerShell. Run them from the repo root.
 
 ---
 
-## 1. Cross-segment buffering held complete, non-extendable phrases forever (§7)
+# Session 2 — Benchmark, tooling, dictionary, nursing text
 
-- **FILE**: `speechmatics_test/matcher.py`, `speechmatics_test/medical_layer.py`, `app.py`
-- **BUG**: `FinalStreamCanonicalizer._safe_cut` (in `app.py`) used `is_rule_token_prefix`,
-  which returns `True` for a token sequence that is *itself* a complete rule with no
-  longer sibling rule (e.g. the one-token abbreviation `"iv"`, which has no rule
-  `"iv ..."`). This caused the cross-segment accumulator to hold such a standalone,
-  non-extendable phrase back forever, waiting for a continuation that no rule defines,
-  delaying/withholding injection and the report's canonical text unnecessarily.
-- **FIX**: Added `MedicalMatcher.is_strict_rule_token_prefix` (and the
-  `MedicalLayer` facade of the same name), backed by a new `_strict_form_prefixes` set
-  built at load time (proper prefixes only - i.e. token sequences with strictly *fewer*
-  tokens than some rule, excluding a tuple that only equals a complete rule's own full
-  form). `_safe_cut` now special-cases the whole-buffer position (`i == 0`): if the
-  entire remaining buffer only matches a rule as a complete, non-extendable phrase
-  (not a strict prefix of anything longer), it is emitted immediately instead of
-  returning `0`. Mid-buffer positions (`i > 0`) keep the original (non-strict) check
-  unchanged, because a compound whose tail token starts a genuinely different, longer
-  sibling rule (e.g. `"رایت لانگ"` vs `"لانگ ساوندز"`) must still be held together.
-- **WHY SAFE**: Purely additive API (`is_strict_rule_token_prefix` is a new method;
-  `is_rule_token_prefix`'s behavior and signature are untouched). The narrowing only
-  applies to the whole-buffer case where the buffer *cannot* structurally extend into
-  anything longer, so no previously-correct cross-segment phrase (e.g. "فشار خون" +
-  "بالا دارد" -> "HTN") stops working; verified by re-running the full suite and by a
-  targeted before/after check that the existing cross-segment "رایت لانگ" test still
-  requires holding.
-- **TEST ADDED**: `tests/test_app.py::test_accumulator_emits_standalone_complete_rule_without_delay`,
-  `tests/test_app.py::test_accumulator_still_holds_genuinely_ambiguous_compound_tail`,
-  `tests/test_matcher.py::test_is_strict_rule_token_prefix_excludes_standalone_complete_rules`.
+## Starting state
 
-## 2. Unsafe generic canonicalization of ambiguous short forms (§8)
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+**25 failed, 201 passed, 89 errors.** The dictionary declared the canonical
+`"PO"` twice, so `load_dictionary` raised and every matcher fixture errored.
+The application could not load its own dictionary.
+
+## Result
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q                                      # 476 passed
+.\.venv\Scripts\python.exe -m compileall -q .                                # OK
+.\.venv\Scripts\python.exe scripts\swiftmedics_tools.py --help               # OK
+.\.venv\Scripts\python.exe scripts\swiftmedics_tools.py check-vocab          # OK
+.\.venv\Scripts\python.exe scripts\swiftmedics_tools.py benchmark-matcher    # OK
+.\.venv\Scripts\python.exe app.py --help                                     # OK
+```
+
+`fa`, `en`, `--no-vocab`, `--no-medical-layer`, `--no-inject`, `--no-overlay`,
+`--no-text-polish` all exit gracefully without an API key.
+
+Benchmark, same 107 fixtures, same machine:
+
+| Metric | Baseline | Current |
+| --- | --- | --- |
+| exact match | 45/107 (42.1%) | 107/107 (100%) |
+| terminology F1 | 0.7791 | 1.0 |
+| number F1 | 0.7966 | 1.0 |
+| false-number rate | 0.029 | 0.0 |
+| build time (min) | 58.5 ms | 55.6 ms |
+| matcher p50 | 5.78 µs | 5.72 µs |
+
+Baseline = commit `4017279` with **only** the duplicate-canonical merge applied,
+because without it the code cannot run the benchmark at all.
+
+---
+
+## 1. Dictionary declared the same canonical twice
+
+- **FILE**: `medical_knowledge/medical_dictionary.json`
+- **BUG**: `po` and `route_0049` both declared canonical `"PO"`.
+  `load_dictionary` rejects duplicates, so it raised on every startup — the
+  whole test suite's 89 errors trace to this one line.
+- **FIX**: Merged `route_0049`'s forms into `po`.
+- **WHY SAFE**: No form was lost; both entries described the same route.
+- **TEST**: `tests/test_benchmark.py::test_dictionary_has_no_duplicate_ids_or_canonicals`,
+  `::test_dictionary_loads_without_raising`.
+
+## 2. Ordinary words were stored as medical aliases
+
+- **FILE**: `medical_knowledge/medical_dictionary.json` (via `scripts/_dictionary_fixes.py`)
+- **BUG**: The dictionary mapped everyday words to clinical terms, so the
+  matcher *translated prose* instead of canonicalizing shorthand:
+  `Please do it now` → `Please do intrathecal now`; `بخش قلب` → `بخش heart`;
+  `دکتر احمدی` → `doctor احمدی`; `کشش پوستی` → `Traction dermatologic`;
+  `سابقه جراحی قبلی ندارد` → `past surgical history قبلی ندارد`.
+- **FIX**: Removed ~28 unsafe aliases. Also removed `hour_1`..`hour_12`
+  (bare numerals `1`–`12` existed only for time handling; numbers do not
+  belong in a lexical term list). Merged three duplicate concept pairs and
+  resolved the SpO2 / oxygen-saturation alias conflict. 979 → **971 terms**.
+- **WHY SAFE**: Applied by an idempotent script with a per-change audit trail
+  naming the benchmark case that caught it. Canonical values were not changed
+  for style; no bulk alias rewrite.
+- **TEST**: `tests/test_benchmark.py::test_ordinary_words_are_not_medical_aliases`,
+  `::test_dictionary_contains_no_numeric_only_terms`,
+  `::test_required_nursing_terminology_is_present`.
+
+## 3. Ambiguous English abbreviations rewrote plain prose
 
 - **FILE**: `speechmatics_test/matcher.py`
-- **BUG**: Clinical shorthand aliases that collide with common English words
-  (`or`, `p`, `now`, `diff`, `ac`, `pc`, `hs`, `od`) were matched fully
-  case-insensitively, so an ordinary sentence like "The patient is stable now" was
-  silently rewritten to "...immediately", and "he works in or elsewhere" risked being
-  rewritten via the Persian-alias-linked `OR` rule's tier conflict resolution.
-- **FIX**: Added `_AMBIGUOUS_SHORT_FORMS` (the exact 8-item set from the task spec) and
-  `MedicalMatcher._passes_ambiguous_short_form_guard`, which requires the *original*
-  matched text to be fully uppercase before one of these specific forms fires. Wired
-  into both scan engines (`_scan` and `_scan_reference`) so automaton and reference
-  paths agree. Every other rule (including safe abbreviations like `MRI`, `CT`, `ECG`,
-  `HbA1c`, `SpO2`) is completely unaffected and keeps ordinary case-insensitive
-  matching.
-- **WHY SAFE**: The guard only restricts the 8 listed ambiguous forms; unambiguous
-  Persian-script and fully-spelled English aliases for the same underlying concepts
-  (e.g. "قبل از غذا", "before food", "ante cibum") are unaffected because they are a
-  different match form entirely. No rule was removed, no vocabulary was weakened -
-  this only narrows *when* the already-present ambiguous-form rules fire.
-- **TEST ADDED**: `tests/test_matcher.py::test_ambiguous_short_forms_require_uppercase_evidence`,
-  `tests/test_matcher.py::test_ambiguous_short_forms_persian_and_spelled_aliases_unaffected`,
-  `tests/test_matcher.py::test_safe_case_insensitive_abbreviations_remain_case_insensitive`.
+- **BUG**: The uppercase-evidence guard covered only 8 forms. Words like
+  `it`, `us`, `cold`, `skin`, `post`, `pt` were still matched case-insensitively.
+- **FIX**: `_AMBIGUOUS_SHORT_FORMS` extended 8 → 28. Each addition is an
+  ordinary English word that is *also* charted shorthand.
+- **WHY SAFE**: Narrows *when* existing rules fire. The clinical sense stays
+  reachable through the uppercase form (`IT`, `US`, `COLD`); Persian and
+  fully-spelled aliases are different match forms and unaffected.
+- **TEST**: existing ambiguous-short-form tests, plus benchmark boundary cases.
 
-## 3. `number_accuracy` could not flag fabricated/extra numbers (§14)
+## 4. ASR stutter combined with a neighbour into a phrase nobody said
 
-- **FILE**: `speechmatics_test/evaluation.py`
-- **BUG**: `number_accuracy` is recall-only (fraction of reference numbers found in the
-  hypothesis), so reference `"20 mg"` vs hypothesis `"20 mg 50 mg"` (a fabricated extra
-  dose) scored a perfect `1.0`, with no metric surfacing the fabrication.
-- **FIX**: Added `number_precision`, `number_recall` (alias of the unchanged
-  `number_accuracy`), and `number_f1`, plus additive `evaluate()` report fields
-  `number_precision`/`number_recall`/`number_f1`. `number_accuracy`'s exact
-  return value and semantics are untouched for API/report stability.
-- **WHY SAFE**: Purely additive - no existing field changed value or was removed;
-  `evaluate()`'s dict keys only gained new entries, verified against all existing
-  `test_core.py` assertions (`test_number_accuracy`, `test_number_accuracy_multiset`,
-  `test_evaluate_stages`) which still pass unmodified.
-- **TEST ADDED**: `tests/test_core.py::test_number_accuracy_never_penalizes_fabricated_extra_numbers`,
-  `tests/test_core.py::test_number_precision_recall_f1_flag_extra_hypothesis_numbers`.
+- **FILE**: `speechmatics_test/nursing_text.py`, `speechmatics_test/medical_layer.py`
+- **BUG**: `نمره نمره درد ثبت شد` → `نمره pain score ثبت شد`. The leftover
+  stutter token plus the next word spelled the dictionary phrase `نمره درد`,
+  so the matcher emitted a term the speaker never uttered.
+- **FIX**: New `prepolish_asr_artifacts()` collapses identical adjacent words
+  **before** the matcher runs.
+- **WHY SAFE**: Only exact adjacent repeats are touched. Word-level ASR
+  evidence is positional, so it is dropped rather than misaligned when
+  characters actually moved.
+- **TEST**: `tests/test_nursing_text.py` repetition tests.
 
-## 4. Clipboard left corrupted on a partial `_set_windows_clipboard` failure (§16)
+## 5. Repetition cleanup destroyed real abbreviations
 
-- **FILE**: `injector.py`
-- **BUG**: `_paste_windows` only restored the previous clipboard content when
-  `_set_windows_clipboard` *returned* `True` at least once (`clipboard_changed`
-  gate). But inside `_set_windows_clipboard`, `EmptyClipboard()` can succeed
-  (destroying the previous content) and then a *later* step in the same call
-  (`GlobalAlloc`/`GlobalLock`/`SetClipboardData`) can fail, causing the function to
-  return `False` even though the previous clipboard content is already gone. The
-  `finally` restoration block then never ran, permanently losing the user's original
-  clipboard content on that specific failure path.
-- **FIX**: Added `self._clipboard_touched`, set by `_set_windows_clipboard` itself the
-  instant `EmptyClipboard()` succeeds (independent of that call's own return value).
-  `_paste_windows`'s restoration gate now also honors `_clipboard_touched` in addition
-  to a full `True` return, so restoration happens on every path where the previous
-  content was actually destroyed - success, verification failure, keystroke failure,
-  *and* this partial-set failure.
-- **WHY SAFE**: No new abstraction; the fix only widens the existing `finally`
-  restoration's trigger condition to match the real state of the clipboard, and does
-  not change the Win32 call sequence, retry logic, or serialization lock. All prior
-  clipboard-restoration tests (`test_paste_windows_restores_clipboard_after_successful_paste`,
-  `..._when_keystroke_fails`, `..._on_verification_failure`,
-  `test_paste_windows_does_not_restore_when_setting_fails`) still pass unmodified.
-- **TEST ADDED**: `tests/test_injector.py::test_paste_windows_restores_clipboard_after_partial_set_failure`.
+- **FILE**: `speechmatics_test/matcher.py`, `speechmatics_test/nursing_text.py`
+- **BUG**: Regression introduced by fix 4 — blind de-duplication turned
+  `سی سی یو` (CCU) into `سی یو` and broke `آر آر` (RR). The abbreviation
+  genuinely contains a doubled syllable.
+- **FIX**: New `MedicalMatcher.repetition_safe_forms` (22 folded forms) passed
+  as `protected=` into the cleanup, which skips them.
+- **WHY SAFE**: Derived from the dictionary itself, so it stays correct as
+  terms change.
+- **TEST**: `tests/test_nursing_text.py::test_repetition_safe_abbreviations_survive`
+  and benchmark case `gram_repeated_abbrev_safe`.
+
+## 6. A fabricated vital sign (clinical safety)
+
+- **FILE**: `speechmatics_test/nursing_text.py`
+- **BUG**: `سی و شش و هفت` — how a nurse dictates **36.7 °C** — was parsed by
+  summing its parts into **43**. A body temperature nobody said, invented by
+  the postprocessor, with no warning. Found by running real spoken sentences
+  through the pipeline, not by a fixture.
+- **FIX**: `_parse_number_words` now requires a well-formed cardinal: each
+  magnitude class named at most once, in descending order. A malformed run is
+  left **entirely** verbatim (not half-converted) and raises a warning.
+- **WHY SAFE**: Strictly reduces what gets converted. All legitimate cardinals
+  (`سی و پنج`, `صد و چهل`, `سه هزار و دویست و سی و پنج`) still convert.
+- **TEST**: `tests/test_nursing_text.py::test_malformed_cardinal_is_never_summed_into_a_fabricated_value`,
+  `::test_malformed_cardinal_is_not_half_converted`,
+  `::test_well_formed_cardinals_still_convert`, benchmark case
+  `num_malformed_cardinal`.
+
+## 7. Dictated blood pressure never reached charted form
+
+- **FILE**: `speechmatics_test/nursing_text.py`
+- **BUG**: `فشار خون صد و چهل روی هشتاد و پنج` produced `140 روی 85`
+  instead of the charted `140/85`.
+- **FIX**: New `normalize_spoken_ratios()`, firing only with 1–3 digit
+  numerals on **both** sides of `روی` / `بر` / `over`.
+- **WHY SAFE**: `روی` is an ordinary preposition; requiring numerals on both
+  sides leaves `پانسمان روی زخم` ("dressing on the wound") untouched. Both
+  values are preserved exactly.
+- **TEST**: `tests/test_nursing_text.py::test_spoken_blood_pressure_becomes_a_charted_ratio`,
+  `::test_ratio_word_between_non_numbers_is_left_alone`.
+
+## 8. Vocabulary export silently weakened ASR recognition
+
+- **FILE**: `speechmatics_test/matcher.py`
+- **BUG**: `_build_additional_vocab` copied only the declared `sounds_like`
+  field, dropping every spoken form — `BP` lost `فشار خون`, `بی پی`. The
+  hand-maintained artifact had contained them. Nothing failed, because nothing
+  asserted on it. The committed artifact was also **stale**: it advertised
+  `hour` / `o'clock` after those terms were removed, and was missing
+  `Magnesium` / `g`.
+- **FIX**: Hints are now derived from the term's own forms plus declared
+  `sounds_like`, filtered to pronounceable strings (no digits or punctuation —
+  `B/P` is written-only), never repeating the canonical.
+- **WHY SAFE**: Entry count is unchanged (136); only the hint lists grew.
+- **TEST**: `tests/test_benchmark.py::test_vocabulary_keeps_spoken_forms_as_pronunciation_hints`,
+  `::test_vocabulary_hints_are_pronounceable`,
+  `::test_vocabulary_has_no_stale_entries`.
+
+## 9. Two test assertions were impossible to satisfy
+
+- **FILE**: `tests/test_app.py`, `tests/test_dictionary.py`
+- **BUG**: Both asserted `len(vocab) < 100` while the shipped dictionary
+  exported 136–146 entries. The literal was **unsatisfiable** — the tests only
+  ever "passed" because the dictionary raised first (bug 1).
+- **FIX**: Replaced with `< 300` plus a ratio invariant
+  (`< 0.25 × term count`) and a comment explaining the history.
+- **WHY SAFE**: Still enforces "bounded curated subset, not a dump", which is
+  the invariant that actually matters.
+
+## 10. Six of my own benchmark fixtures were wrong
+
+Corrected in `benchmark/dataset.py` with `note=` justifications rather than
+bending the code to match bad expectations. Examples: `اشباع` alone is not an
+SpO2 alias (fixture now uses `اشباع اکسیژن`); `علائم حیاتی` → `vital signs`
+is correct; the `pain score:` colon is correct charted form.
+
+## 11. Tooling consolidated
+
+- **FILE**: `scripts/swiftmedics_tools.py` (new) and all `.ps1` / `.sh` files
+- **BUG**: One script per task, each with its own venv/pip/.env bootstrap that
+  had drifted apart.
+- **FIX**: All logic in one Python tool with 10 subcommands. Legacy scripts
+  became thin forwarders — kept, not deleted.
+- **TEST**: `tests/test_scripts.py` asserts every legacy entry point exists,
+  forwards to the right subcommand, and contains no `pip install` or
+  `-m venv` of its own.
+
+## 12. New benchmark framework
+
+- **FILES**: `benchmark/dataset.py`, `benchmark/run_benchmark.py`
+- 107 frozen fixtures across 5 stages, reported **separately** so a formatting
+  fix is never presented as a terminology gain.
+- Anti-contamination guards: a reference may not be a truncation of the spoken
+  text; every declared term/number must appear in its own reference; digits
+  may not vanish. Legitimate compressions (`ده و نیم` → `10:30`) are listed
+  explicitly with justification, and a meta-test verifies each listed case
+  really does compress.
+- Determinism checks: identical output across repeated runs and across freshly
+  built matcher instances.
+- `benchmark/README.md` is generated from the measured run — nothing hardcoded.
 
 ---
 
-## Verified already-fixed / already-satisfied (no change needed this round)
+# Session 1 — Earlier fixes
 
-- **§6** case-fold prefix bug: `casefold_preserving` already the single shared
-  helper for both `_form_prefixes` (build time) and `is_rule_token_prefix` (query
-  time); confirmed `["CT"]`/`["ct"]`/`["Ct"]` all `True`, and
-  `tests/test_matcher.py::test_is_rule_token_prefix_detects_full_and_partial_forms`
-  already covers it.
-- **§9** token-boundary/substring safety (`ivory`, `vivid`, `mriبیمار`, `ivبی`):
-  already directly covered by `tests/test_matcher.py::test_no_substring_match_inside_word`
-  and `test_no_match_in_concatenated_words`.
-- **§13** report additive fields: `final_transcript_canonical`,
-  `injection.{auto,enabled,segments[*].{text,success}}` already present in `app.py`'s
-  report dict; `InjectionWorker` records `success` from the real `paste_text()` return
-  value, which is `False` on focus-guard reject, verification failure, or any
-  clipboard/keystroke failure - injection success is never falsely claimed.
-- **§4/§5/§11/§12** dictionary dedup, `source_file`↔tier mapping, vocab-parity: all
-  confirmed already correct from a prior session in this branch (942 terms, 0 duplicate
-  canonicals/ids, 98 `speechmatics: true` vocab entries matching the generated
-  artifact exactly, `--check` passes).
-- **§17-19** BiDi/overlay/realtime SDK: re-inspected `overlay.py` and
-  `speechmatics_test/realtime.py` this round; no new demonstrable bugs found (thread
-  lifecycle, bounded `stop_session` wait, partial/final separation, and
-  logical-Unicode-only canonical text are all intact).
+Format: **FILE / BUG / FIX / WHY SAFE / TEST ADDED**.
 
-## README.md updates (§23)
+## 1. Cross-segment buffering held complete, non-extendable phrases forever
 
-- Documented the new additive `number_precision`/`number_recall`/`number_f1` report
-  fields and `number_accuracy`'s recall-only semantics next to the existing WER/number
-  accuracy paragraph.
-- Added two bullets to "Why the canonicalization layer is conservative" describing the
-  ambiguous-short-form uppercase-evidence requirement and the strict-prefix
-  cross-segment buffering behavior, since both are now observable behavior changes.
-- No stale counts or inflated claims ("production-ready", "100% accurate", etc.) were
-  found in `README.md`; the existing `source_file`↔tier mapping description was
-  already accurate against the current dictionary and left unchanged.
+- **FILE**: `speechmatics_test/matcher.py`, `speechmatics_test/medical_layer.py`, `app.py`
+- **BUG**: `FinalStreamCanonicalizer._safe_cut` used `is_rule_token_prefix`,
+  which returns `True` for a token sequence that is *itself* a complete rule
+  with no longer sibling (e.g. `"iv"`). The accumulator held such phrases
+  forever, waiting for a continuation no rule defines, delaying injection.
+- **FIX**: Added `is_strict_rule_token_prefix` (proper prefixes only). When the
+  entire remaining buffer can only match as a complete, non-extendable phrase
+  it is emitted immediately. Mid-buffer positions keep the original check, so
+  compounds like `رایت لانگ` vs `لانگ ساوندز` are still held together.
+- **WHY SAFE**: Purely additive API; `is_rule_token_prefix` is untouched.
+- **TEST**: `tests/test_app.py::test_accumulator_emits_standalone_complete_rule_without_delay`,
+  `::test_accumulator_still_holds_genuinely_ambiguous_compound_tail`,
+  `tests/test_matcher.py::test_is_strict_rule_token_prefix_excludes_standalone_complete_rules`.
 
-## Final validation (§24)
+## 2. Unsafe canonicalization of ambiguous short forms
 
-```
-pytest -q                                        -> 315 passed, 0 failed
-python -m compileall -q .                        -> OK
-pip check                                         -> No broken requirements found.
-scripts/export_additional_vocab.py --check        -> OK (942 terms, 98 vocab entries, in sync)
-benchmark/benchmark_matcher.py --sizes 100 500 1000 2000 --repeats 50  -> OK (results written)
-app.py --help                                     -> OK
-app.py --language fa|en --no-vocab|--no-medical-layer|--no-inject --no-overlay
-                                                   -> graceful "SPEECHMATICS_API_KEY is missing" exit, no crash
-```
+- **FILE**: `speechmatics_test/matcher.py`
+- **BUG**: `or`, `p`, `now`, `diff`, `ac`, `pc`, `hs`, `od` matched
+  case-insensitively, so "The patient is stable now" became "...immediately".
+- **FIX**: Added `_AMBIGUOUS_SHORT_FORMS` and an uppercase-evidence guard,
+  wired into both the automaton and reference scanners so they agree.
+- **WHY SAFE**: Only those forms are restricted; Persian and fully-spelled
+  aliases are different match forms.
+- **TEST**: `tests/test_matcher.py::test_ambiguous_short_forms_require_uppercase_evidence`
+  and two siblings.
+
+## 3. `number_accuracy` could not flag fabricated numbers
+
+- **FILE**: `speechmatics_test/evaluation.py`
+- **BUG**: Recall-only, so reference `"20 mg"` vs hypothesis `"20 mg 50 mg"`
+  (a fabricated dose) scored a perfect `1.0`.
+- **FIX**: Added `number_precision`, `number_recall`, `number_f1`.
+  `number_accuracy` keeps its exact semantics for API stability.
+- **WHY SAFE**: Purely additive; no existing field changed value.
+- **TEST**: `tests/test_core.py::test_number_precision_recall_f1_flag_extra_hypothesis_numbers`
+  and one sibling.
+
+## 4. Clipboard left corrupted on a partial set failure
+
+- **FILE**: `injector.py`
+- **BUG**: `EmptyClipboard()` could succeed (destroying the user's content) and
+  a later step in the same call fail, returning `False`. The restoration block
+  never ran, permanently losing the original clipboard.
+- **FIX**: Added `_clipboard_touched`, set the instant `EmptyClipboard()`
+  succeeds. Restoration now triggers on every path where content was destroyed.
+- **WHY SAFE**: Only widens the existing `finally` trigger; the Win32 call
+  sequence, retry logic and locking are unchanged.
+- **TEST**: `tests/test_injector.py::test_paste_windows_restores_clipboard_after_partial_set_failure`.

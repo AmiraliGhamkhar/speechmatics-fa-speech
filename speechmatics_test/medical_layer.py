@@ -23,15 +23,31 @@ from pathlib import Path
 from typing import Any
 
 from .matcher import MedicalMatcher
+from .nursing_text import (
+    PolishReport,
+    polish_nursing_text,
+    prepolish_asr_artifacts,
+)
 from .text import normalize_text
 
 
 class MedicalLayer:
-    """Facade over the deterministic medical Aho-Corasick layer."""
+    """Facade over the deterministic medical Aho-Corasick layer.
 
-    def __init__(self, root: Path) -> None:
+    ``polish`` (default on) enables the deterministic nursing text stage
+    (:mod:`speechmatics_test.nursing_text`): spoken numbers/times/units,
+    charted vital-sign punctuation, ASR-stutter cleanup and Persian
+    typography. It runs AFTER lexical canonicalization and never changes
+    medical content - see that module's safety contract. Pass
+    ``polish=False`` to get the exact pre-polish canonicalization output.
+    """
+
+    def __init__(self, root: Path, polish: bool = True) -> None:
         self.root = Path(root)
         self.fst = MedicalMatcher(self.root)
+        self.polish = polish
+        #: Warnings raised by the polish stage (unbound numerals, ...).
+        self.polish_warnings: list[str] = []
 
     @property
     def warnings(self) -> list[str]:
@@ -73,11 +89,44 @@ class MedicalLayer:
 
         ``word_results`` is optional final-only ASR evidence. Missing metadata
         follows the exact legacy canonicalization path.
+
+        With ``polish`` enabled the deterministic nursing text stage runs
+        around the matcher:
+
+        1. ``prepolish_asr_artifacts`` collapses duplicated words BEFORE
+           matching (a stutter can otherwise combine with its neighbour into
+           a dictionary phrase the speaker never said), while protecting the
+           forms that legitimately contain a repeated syllable (``سی سی یو``).
+        2. the matcher canonicalizes, exactly as before;
+        3. ``polish_nursing_text`` applies numbers/times/units, charted
+           vital-sign punctuation and Persian typography.
+
+        The returned hits always describe the LEXICAL layer only, so the
+        audit trail keeps meaning what it always meant.
         """
-        return self.fst.canonicalize(normalized_text, word_results)
+        if not self.polish:
+            return self.fst.canonicalize(normalized_text, word_results)
+
+        report = PolishReport()
+        prepared = prepolish_asr_artifacts(
+            normalized_text, report,
+            protected=self.fst.repetition_safe_forms,
+        )
+        # Word-level ASR evidence is positional. It can only be trusted when
+        # the pre-polish step did not move any characters, so it is dropped
+        # (not misaligned) when a stutter was actually removed.
+        evidence = word_results if prepared == normalized_text else None
+        canonical, hits = self.fst.canonicalize(prepared, evidence)
+        polished = polish_nursing_text(canonical, report)
+        self.polish_warnings.extend(report.warnings)
+        return polished, hits
 
     def normalize(
         self, text: str, word_results: list[dict[str, Any]] | None = None
     ) -> tuple[str, list[dict[str, Any]]]:
-        """Convenience: generic normalization + medical layer in one call."""
-        return self.fst.canonicalize(normalize_text(text), word_results)
+        """Convenience: generic normalization + medical layer in one call.
+
+        Routes through ``canonicalize`` so it gets the identical treatment
+        (including the polish stage) rather than a second, divergent path.
+        """
+        return self.canonicalize(normalize_text(text), word_results)

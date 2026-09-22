@@ -1,0 +1,101 @@
+{
+  "comparison_note": "baseline = repository commit 4017279 code (original matcher, original dictionary with only the blocking duplicate-canonical merge applied so it loads at all, NO nursing text stage) measured against the SAME dataset version as current. Same machine, same Python, same dataset - the only variable is the code under test.",
+  "dataset_version": "nursing-2026.09.22.4",
+  "dataset_cases": 107,
+  "python_version": "3.11.2",
+  "matcher_backend": "aho-corasick (pyahocorasick)",
+  "baseline": {
+    "label": "baseline",
+    "git_commit": "4017279ce8968ad70b467e3e6c27755ed5d5a9f0",
+    "dictionary_terms": 978,
+    "matcher_rules": 2614,
+    "exact_match": 45,
+    "exact_match_accuracy": 0.4206,
+    "terminology": {
+      "precision": 0.7976,
+      "recall": 0.7614,
+      "f1": 0.7791,
+      "true_positives": 67,
+      "false_positives": 17,
+      "false_negatives": 21
+    },
+    "numbers": {
+      "precision": 0.9592,
+      "recall": 0.6812,
+      "f1": 0.7966,
+      "true_positives": 47,
+      "false_positives": 2,
+      "false_negatives": 22,
+      "reference_numbers": 69,
+      "false_number_rate": 0.029,
+      "dropped_number_rate": 0.3188
+    },
+    "by_stage": {
+      "generic_normalization": 1.0,
+      "medical_canonicalization": 0.7,
+      "number_time_unit": 0.3514,
+      "grammar_format": 0.0833,
+      "paragraph": 0.1176
+    },
+    "performance": {
+      "build_time_ms_min": 58.528,
+      "build_peak_traced_memory_mb": 3.374,
+      "matcher_latency_us_p50": 5.78,
+      "full_pipeline_latency_us_p50": 45.78,
+      "long_paragraph_mean_ms": 4.096
+    }
+  },
+  "current": {
+    "label": "current",
+    "git_commit": "4017279ce8968ad70b467e3e6c27755ed5d5a9f0",
+    "dictionary_terms": 971,
+    "matcher_rules": 2593,
+    "exact_match": 107,
+    "exact_match_accuracy": 1.0,
+    "terminology": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "true_positives": 88,
+      "false_positives": 0,
+      "false_negatives": 0
+    },
+    "numbers": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "true_positives": 69,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "reference_numbers": 69,
+      "false_number_rate": 0.0,
+      "dropped_number_rate": 0.0
+    },
+    "by_stage": {
+      "generic_normalization": 1.0,
+      "medical_canonicalization": 1.0,
+      "number_time_unit": 1.0,
+      "grammar_format": 1.0,
+      "paragraph": 1.0
+    },
+    "performance": {
+      "build_time_ms_min": 55.601,
+      "build_peak_traced_memory_mb": 3.348,
+      "matcher_latency_us_p50": 5.72,
+      "full_pipeline_latency_us_p50": 46.72,
+      "long_paragraph_mean_ms": 4.148
+    }
+  },
+  "delta": {
+    "exact_match": 62,
+    "exact_match_accuracy": 0.5794,
+    "terminology_f1": 0.2209,
+    "number_f1": 0.2034,
+    "false_number_rate": -0.029,
+    "dictionary_terms": -7,
+    "matcher_rules": -21,
+    "build_time_ms_min": -2.927,
+    "matcher_latency_us_p50": -0.06,
+    "full_pipeline_latency_us_p50": 0.94
+  }
+}
