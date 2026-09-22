@@ -23,9 +23,12 @@ number: no audio is involved anywhere in this benchmark.
 * Speechmatics vocabulary entries: 136
 * dataset version: nursing-2026.09.22.4 (107 cases)
 
-## Accuracy
+## Post-processing accuracy (not ASR accuracy)
 
-* exact-match accuracy: **107/107 (100.0%)**
+These fixtures contain text, not audio. Whole-text and streaming scores measure deterministic post-processing only.
+
+* whole-text exact-match accuracy: **107/107 (100.0%)**
+* streaming-boundary exact-match: **363/405 (89.6%)** across 107 fixtures
 * terminology F1: 1.0 (P 1.0, R 1.0, FP 0, FN 0)
 * number F1: 1.0 (P 1.0, R 1.0)
 * false-number rate: 0.0 | dropped-number rate: 0.0
@@ -132,12 +135,12 @@ baseline = repository commit 4017279 code (original matcher, original dictionary
 | exact-match | 45/107 (42.1%) | 107/107 (100.0%) |
 | terminology F1 | 0.7791 | 1.0 |
 | number F1 | 0.7966 | 1.0 |
-| dictionary terms | 978 | 971 |
-| compiled rules | 2614 | 2593 |
-| build time (ms, min) | 58.528 | 55.601 |
-| build peak memory (MB) | 3.374 | 3.348 |
-| matcher latency p50 (us) | 5.78 | 5.72 |
-| full pipeline p50 (us) | 45.78 | 46.72 |
+| dictionary terms | 978 | 968 |
+| compiled rules | 2614 | 2594 |
+| build time (ms, min) | 58.528 | 50.507 |
+| build peak memory (MB) | 3.374 | 3.344 |
+| matcher latency p50 (us) | 5.78 | 5.37 |
+| full pipeline p50 (us) | 45.78 | 46.76 |
 
 Per stage (exact-match accuracy):
 

@@ -594,6 +594,7 @@ async def main() -> int:
     effective_domain = resolve_domain(args.language, args.domain, args.model)
 
     result = None
+    session_failed = False
     injected_segments: list[dict] = []
 
     print("=" * 72)
@@ -771,6 +772,8 @@ async def main() -> int:
                 injector.arm_target()
             try:
                 result = await stt.run(audio, on_partial, on_final)
+                if result.error:
+                    session_failed = True
             except KeyboardInterrupt:
                 # Defensive: keep whatever the session already captured.
                 print("\n[session] Ctrl+C received - stopping.")
@@ -778,8 +781,11 @@ async def main() -> int:
             except Exception as exc:
                 # A network/SDK failure must not discard an already dictated
                 # transcript; report the error and continue to the report.
+                session_failed = True
                 print(f"\n[session error] {type(exc).__name__}: {exc}")
                 result = stt.result
+                if not result.error:
+                    result.error = f"{type(exc).__name__}: {exc}"
             finally:
                 await audio.aclose()
                 # Flush the buffered canonical tail even when the session

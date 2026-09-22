@@ -277,6 +277,30 @@ def test_accumulator_empty_adds_are_ignored():
     assert acc.canonical_text == ""
 
 
+@pytest.mark.parametrize("segments, expected", [
+    (("سی و", "پنج"), "35"),
+    (("ساعت ده", "و سی دقیقه"), "ساعت 10:30"),
+    (("ساعت ده", "سی دقیقه"), "ساعت 10:30"),
+    (("صد و چهل روی", "هشتاد و پنج"), "140/85"),
+])
+def test_accumulator_keeps_cross_final_nursing_constructs(segments, expected):
+    from speechmatics_test.text import normalize_text
+    acc = make_accumulator()
+    emissions = [acc.add(normalize_text(segment), []) for segment in segments]
+    emissions.append(acc.flush())
+    assert " ".join(item for item in emissions if item) == expected
+    assert make_accumulator().add(normalize_text(" ".join(segments)), []) is None
+
+
+def test_accumulator_collapses_cross_final_stutter_before_matching():
+    from speechmatics_test.text import normalize_text
+    acc = make_accumulator()
+    assert acc.add(normalize_text("نمره"), []) is None
+    emitted = acc.add(normalize_text("نمره درد"), [])
+    tail = acc.flush()
+    assert " ".join(item for item in (emitted, tail) if item) == "pain score"
+
+
 # ---------------------------------------------- InjectionWorker (H2 fix)
 
 class FakeInjector:

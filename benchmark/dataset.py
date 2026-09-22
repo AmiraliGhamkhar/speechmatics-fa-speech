@@ -240,10 +240,10 @@ NUMBER_CASES: tuple[Case, ...] = (
          "number_time_unit", "numbers_integer", ("mg",), ("500",)),
     Case("num_decimal", "دمای بدن 36.7 درجه سانتی گراد بود",
          "Temp: 36.7 °C بود",
-         "number_time_unit", "numbers_decimal", ("°C",), ("36.7",)),
+         "number_time_unit", "numbers_decimal", ("Temp", "°C"), ("36.7",)),
     Case("num_persian_digits", "فشار خون ۱۴۰/۸۵ میلی متر جیوه بود",
          "BP: 140/85 mmHg بود",
-         "number_time_unit", "numbers_persian_digits", ("mmHg",), ("140/85",)),
+         "number_time_unit", "numbers_persian_digits", ("BP", "mmHg"), ("140/85",)),
     Case("num_arabic_indic", "علائم حیاتی ٨٨ و ٩٧ ثبت شد",
          "vital signs 88 و 97 ثبت شد",
          "generic_normalization", "numbers_arabic_indic",
@@ -285,7 +285,7 @@ NUMBER_CASES: tuple[Case, ...] = (
               "the standard 'LABEL: value' punctuation"),
     Case("num_dose_ml", "500 میلی لیتر سرم انفوزیون شد",
          "500 mL سرم infusion شد",
-         "number_time_unit", "numbers_dose", ("mL",), ("500",)),
+         "number_time_unit", "numbers_dose", ("mL", "infusion"), ("500",)),
     Case("num_age_spoken", "مددجو آقای سی و پنج ساله",
          "مددجو آقای 35 ساله",
          "number_time_unit", "numbers_spoken", (), ("35",)),
@@ -333,7 +333,7 @@ UNIT_CASES: tuple[Case, ...] = (
          "number_time_unit", "units", ("mmHg",), ("140/85",)),
     Case("unit_percent_fa", "اشباع اکسیژن 97 درصد",
          "SpO2: 97%",
-         "number_time_unit", "units", ("SpO2",), ("97",),
+         "number_time_unit", "units", ("SpO2", "%"), ("97",),
          note="'اشباع' on its own is the ordinary word 'saturation' and is "
               "deliberately NOT an SpO2 alias; the full phrase is"),
     Case("unit_celsius_fa", "36.7 درجه سانتی گراد",
@@ -429,7 +429,7 @@ PARAGRAPH_CASES: tuple[Case, ...] = (
         "vital signs شامل BP: 140/85 mmHg و HR: 88 و "
         "SpO2: 97% و Temp: 36.7 °C می\u200cباشد.",
         "paragraph", "vital_signs",
-        ("mmHg", "°C"), ("140/85", "88", "97", "36.7"),
+        ("vital signs", "mmHg", "°C"), ("140/85", "88", "97", "36.7"),
     ),
     Case(
         "para_allergy",
@@ -529,7 +529,7 @@ PARAGRAPH_CASES: tuple[Case, ...] = (
         "بیمار NPO است و IV line برقرار می\u200cباشد و vital signs every "
         "four hours کنترل می\u200cگردد.",
         "paragraph", "mixed_language",
-        ("NPO", "IV line", "vital signs"),
+        ("NPO", "IV line", "vital signs", "every four hours"),
     ),
 )
 
@@ -547,7 +547,7 @@ BIDI_CASES: tuple[Case, ...] = (
          "HR: 88 می\u200cباشد.",
          "vital signs شامل BP: 140/85 mmHg، SpO2: 97%، Temp: 36.7 °C و "
          "HR: 88 می\u200cباشد.",
-         "paragraph", "bidi", ("mmHg", "°C"), ("140/85", "97", "36.7", "88")),
+         "paragraph", "bidi", ("vital signs", "mmHg", "°C"), ("140/85", "97", "36.7", "88")),
 )
 
 

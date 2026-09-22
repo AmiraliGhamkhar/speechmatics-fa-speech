@@ -6,6 +6,29 @@ Verification commands in this file are PowerShell. Run them from the repo root.
 
 ---
 
+# Session 3 — Streaming, focus safety, benchmark validity
+
+- Added a bounded nursing pending tail to `FinalStreamCanonicalizer`, including
+  spoken numbers, clock expressions, ratios, and cross-final exact stutter.
+  The existing nursing parser and repetition-safe matcher forms remain the
+  source of truth; regression tests cover all reported boundary examples.
+- Armed the injection focus target immediately before realtime starts and
+  revalidated it immediately before Ctrl+V, closing both focus races.
+- Made automatic medical-domain selection conditional on the Enhanced model;
+  explicit domain selection remains unchanged.
+- Realtime failures now preserve partial reports but return a non-zero status.
+- Added production-accumulator streaming benchmark variants and multiset
+  terminology TP/FP/FN accounting. Provenance now marks dirty worktrees.
+- Merged three semantically equivalent case-only dictionary canonical groups;
+  retained the clinically distinct `Mg`/`mg` pair intentionally.
+- Pinned the validated `speechmatics-rt==1.1.1` SDK and made the PowerShell
+  bootstrap select a compatible interpreter instead of requiring only 3.11.
+- Dictionary `source_file` values are historical references; the active source
+  of truth is `medical_knowledge/medical_dictionary.json`, and the vocabulary
+  artifact is generated with `export-vocab`.
+
+---
+
 # Session 2 — Benchmark, tooling, dictionary, nursing text
 
 ## Starting state

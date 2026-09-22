@@ -91,6 +91,8 @@ def resolve_domain(
         return None
     if setting == "medical":
         return "medical"
+    if str(model or DEFAULT_MODEL).strip().lower() != "enhanced":
+        return None
     base = str(language or "").strip().lower().split("-")[0]
     if base not in MEDICAL_DOMAIN_LANGUAGES:
         return None

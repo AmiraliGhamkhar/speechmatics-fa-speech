@@ -59,6 +59,7 @@ from benchmark.dataset import (  # noqa: E402
 )
 from speechmatics_test.evaluation import numbers  # noqa: E402
 from speechmatics_test.matcher import MedicalMatcher  # noqa: E402
+from speechmatics_test.medical_layer import MedicalLayer  # noqa: E402
 from speechmatics_test.nursing_text import (  # noqa: E402
     PolishReport,
     polish_document,
@@ -82,7 +83,12 @@ def _git_sha() -> str | None:
             ["git", "rev-parse", "HEAD"], cwd=str(ROOT),
             capture_output=True, text=True, timeout=10,
         )
-        return out.stdout.strip() or None
+        sha = out.stdout.strip() or None
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=str(ROOT),
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip()
+        return f"{sha}-dirty" if sha and dirty else sha
     except Exception:  # pragma: no cover - git may be unavailable
         return None
 
@@ -132,6 +138,52 @@ def run_pipeline(matcher: MedicalMatcher, spoken: str) -> tuple[str, list, Polis
     canonical, hits = matcher.canonicalize(normalized)
     polished = polish_document(canonical, report)
     return polished, hits, report
+
+
+def _stream_splits(text: str) -> list[list[str]]:
+    """Deterministic final-segment strategies, including a one-final control."""
+    tokens = text.split()
+    if len(tokens) < 2:
+        return [[text]]
+    cuts = {1, len(tokens) - 1, len(tokens) // 2}
+    return [[text]] + [
+        [" ".join(tokens[:cut]), " ".join(tokens[cut:])]
+        for cut in sorted(cuts) if 0 < cut < len(tokens)
+    ]
+
+
+def evaluate_streaming_cases() -> dict:
+    """Exercise fixtures through the production FinalStreamCanonicalizer."""
+    # Local import avoids making app startup part of matcher-only imports.
+    from app import FinalStreamCanonicalizer
+
+    variants = []
+    for case in ALL_CASES:
+        for segments in _stream_splits(case.spoken):
+            accumulator = FinalStreamCanonicalizer(MedicalLayer(ROOT))
+            emissions = [
+                accumulator.add(normalize_text(segment), [])
+                for segment in segments
+            ]
+            emissions.append(accumulator.flush())
+            produced = " ".join(part for part in emissions if part).strip()
+            exact = produced == case.expected or \
+                produced.rstrip(".") == case.expected.rstrip(".")
+            variants.append({
+                "id": case.id,
+                "segments": segments,
+                "produced": produced,
+                "expected": case.expected,
+                "exact_match": exact,
+            })
+    exact_count = sum(item["exact_match"] for item in variants)
+    return {
+        "case_count": len(ALL_CASES),
+        "variant_count": len(variants),
+        "exact_match": exact_count,
+        "exact_match_accuracy": round(exact_count / len(variants), 4),
+        "failures": [item for item in variants if not item["exact_match"]],
+    }
 
 
 # ---------------------------------------------------------------- scoring
@@ -506,10 +558,18 @@ def render_markdown(payload: dict) -> str:
         f"* dataset version: {payload['dataset']['dataset_version']} "
         f"({payload['dataset']['case_count']} cases)",
         "",
-        "## Accuracy",
+        "## Post-processing accuracy (not ASR accuracy)",
         "",
-        f"* exact-match accuracy: **{agg['exact_match']}/{agg['total_cases']}"
+        "These fixtures contain text, not audio. Whole-text and streaming "
+        "scores measure deterministic post-processing only.",
+        "",
+        f"* whole-text exact-match accuracy: **{agg['exact_match']}/{agg['total_cases']}"
         f" ({agg['exact_match_accuracy']:.1%})**",
+        f"* streaming-boundary exact-match: **"
+        f"{payload['streaming']['exact_match']}/"
+        f"{payload['streaming']['variant_count']} "
+        f"({payload['streaming']['exact_match_accuracy']:.1%})** "
+        f"across {payload['streaming']['case_count']} fixtures",
         f"* terminology F1: {agg['terminology']['f1']} "
         f"(P {agg['terminology']['precision']}, "
         f"R {agg['terminology']['recall']}, "

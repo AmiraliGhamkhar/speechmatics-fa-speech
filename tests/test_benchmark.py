@@ -22,7 +22,7 @@ from benchmark.dataset import (
     STAGES,
     dataset_summary,
 )
-from benchmark.run_benchmark import evaluate_cases, run_pipeline
+from benchmark.run_benchmark import _term_metrics, evaluate_cases, run_pipeline
 from scripts.swiftmedics_tools import audit_dictionary
 from speechmatics_test.matcher import MedicalMatcher
 from speechmatics_test.presentation import BIDI_CONTROLS
@@ -171,6 +171,18 @@ def test_references_carry_no_bidi_controls():
     for case in ALL_CASES:
         assert not any(ch in BIDI_CONTROLS for ch in case.expected), case.id
         assert not any(ch in BIDI_CONTROLS for ch in case.spoken), case.id
+
+
+def test_terminology_metrics_count_expected_extra_missing_and_duplicates():
+    from benchmark.dataset import Case
+    case = Case("metric", "", "", "medical_canonicalization", "metrics",
+                ("HTN", "HTN"))
+    metrics = _term_metrics(
+        case, "HTN COPD", ["HTN", "COPD"], ["HTN", "HTN"]
+    )
+    assert (metrics["tp"], metrics["fp"], metrics["fn"]) == (1, 1, 1)
+    exact = _term_metrics(case, "HTN HTN", ["HTN", "HTN"], ["HTN", "HTN"])
+    assert (exact["tp"], exact["fp"], exact["fn"]) == (2, 0, 0)
 
 
 # --------------------------------------------------------- reproducibility
