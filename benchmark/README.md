@@ -10,7 +10,7 @@ Every number below is measured by that run - nothing is hardcoded.
 
 ## Environment
 
-* commit: `a5d731fb81f3284fb66e2e71afa66a1b34a9e001`
+* commit: `266508fd44c3d16295e13e9358109d8acb7c9dde`
 * python: 3.11.2
 * platform: Linux-6.1.158+-x86_64-with-glibc2.36
 * matcher backend: aho-corasick (pyahocorasick)
@@ -21,10 +21,10 @@ Every number below is measured by that run - nothing is hardcoded.
 
 ## Post-processing accuracy (not ASR accuracy)
 
-These fixtures contain text, not audio. Whole-text and streaming scores measure deterministic post-processing only.
+These fixtures contain text, not audio. Whole-text and streaming scores measure deterministic post-processing only - nothing here is a Speechmatics recognition/ASR accuracy claim.
 
 * whole-text exact-match accuracy: **107/107 (100.0%)**
-* streaming-boundary exact-match: **363/405 (89.6%)** across 107 fixtures
+* streaming-boundary exact-match: **397/405 (98.0%)** across 107 fixtures, replayed through the production `FinalStreamCanonicalizer` (the same accumulator that feeds automatic injection) at synthetic final-segment boundaries: after token 1, mid-way, before the last token, plus a one-final control. A divergent variant keeps all clinical content but may differ cosmetically - typically a formatting join (unit spacing, a stutter/echo) whose left half was already emitted for automatic injection and cannot be rewritten. The divergent variants are listed verbatim in the JSON artifact.
 * terminology F1: 1.0 (P 1.0, R 1.0, FP 0, FN 0)
 * number F1: 1.0 (P 1.0, R 1.0)
 * false-number rate: 0.0 | dropped-number rate: 0.0
@@ -94,12 +94,12 @@ Stages are reported separately on purpose: a lexical canonicalization, a numeric
 
 ## Performance (real dictionary)
 
-* dictionary build (load + validate + automaton): 50.507 ms min, 51.586 ms median
-* build peak traced memory: 3.344 MB
-* matcher-only latency: 6.62 us mean, 5.37 us p50
-* full pipeline (matcher + polish): 54.79 us mean, 46.76 us p50
-* per-character: 1.8365 us
-* long paragraph (3298 chars): 3.99 ms mean, 4.247 ms max
+* dictionary build (load + validate + automaton): 55.912 ms min, 58.426 ms median
+* build peak traced memory: 3.345 MB
+* matcher-only latency: 8.65 us mean, 7.13 us p50
+* full pipeline (matcher + polish): 65.85 us mean, 59.31 us p50
+* per-character: 2.2074 us
+* long paragraph (3298 chars): 4.093 ms mean, 4.325 ms max
 
 ## Baseline comparison
 
