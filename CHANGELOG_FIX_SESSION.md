@@ -6,6 +6,137 @@ Verification commands in this file are PowerShell. Run them from the repo root.
 
 ---
 
+# Session 4 — Auto-injection hardening, streaming parity, provenance
+
+Focus of this session: prove and harden the mandatory automatic injection
+behaviour, close the remaining streaming/whole-text divergence, and repair
+benchmark/report provenance. **No architectural changes**: the
+`FinalStreamCanonicalizer → InjectionWorker → injector → target window`
+pipeline is unchanged, injection stays FIFO, no hotkey exists anywhere in
+the normal flow, and `--no-focus-guard` keeps its meaning.
+
+Verification at the end of the session:
+
+```powershell
+.\\.venv\\Scripts\\python.exe -m pytest -q                            # 538 passed
+.\\.venv\\Scripts\\python.exe -m compileall -q .                      # OK
+.\\.venv\\Scripts\\python.exe app.py --help                           # OK
+.\\.venv\\Scripts\\python.exe scripts\\swiftmedics_tools.py check-vocab        # OK
+.\\.venv\\Scripts\\python.exe scripts\\swiftmedics_tools.py audit-dictionary   # OK
+.\\.venv\\Scripts\\python.exe scripts\\swiftmedics_tools.py benchmark          # artifacts regenerated
+```
+
+## 1. Streaming benchmark exposed formatting joins lost across boundaries
+
+- **FILES**: `speechmatics_test/nursing_text.py`, `app.py`
+- **BUG**: The streaming variant benchmark measured 89.6% (363/405) vs 100%
+  whole-text. Real examples from the measured failures: `10 و` + `30 دقیقه`
+  stayed `10 و 30 دقیقه` instead of `10:30`; `blood pressure` + `140/85 mmHg`
+  froze as `blood pressure 140/85 mmHg` instead of `BP: 140/85 mmHg`;
+  `... ذکر می` + `کند` kept the space instead of the ZWNJ `می‌کند`;
+  `نمره` + `نمره درد ثبت شد` produced a duplicated clinical phrase.
+- **FIX**: Extended the existing *bounded* pending-tail mechanism (no parser
+  rewrite, deterministic, latency capped at one final): digit tails with an
+  explicit connector (`10 و`, `140 روی`, `140 over`), a vital-sign label or
+  chart pair (`label` + values/units only) at the buffer end, a trailing
+  `می`/`نمی`, and the `ساعت` clock lead-in. The safe cut now also honors a
+  pending nursing tail for a complete, non-extendable medical rule, and the
+  accumulator prepolishes the FIRST segment too, so an in-segment stutter
+  collapses before the emission cut can split inside it.
+- **WHY SAFE**: Every hold is bounded (next final or end-of-session flush),
+  content is never rewritten retroactively, prose (`heart rate was 88`,
+  `پانسمان روی زخم`) never qualifies, and bare numbers still emit
+  immediately. Streaming-boundary accuracy is now 98.0% (397/405); the 8
+  remaining divergent variants are documented, content-preserving cosmetic
+  joins whose left half was already injected (e.g. `97` + `%`).
+- **TEST**: `tests/test_app.py::test_accumulator_keeps_cross_final_boundary_constructs`
+  (8 boundary cases), `::test_accumulator_bare_digits_still_emit_immediately`,
+  `::test_accumulator_collapses_stutter_inside_one_final_before_cutting`,
+  `tests/test_nursing_text.py::test_pending_nursing_suffix_holds`,
+  `::test_pending_nursing_suffix_does_not_hold`, and the benchmark's own
+  streaming section.
+
+## 2. Injection failures were only visible in the end-of-session summary
+
+- **FILE**: `app.py`
+- **BUG**: A failed paste was recorded, but the clinician saw nothing until
+  the session ended - a lost segment looked exactly like a delivered one mid
+  -dictation.
+- **FIX**: The `InjectionWorker` prints an immediate, self-contained
+  `AUTO-INJECTION FAILED` warning naming the segment, and the session
+  summary lists every undelivered segment. Success accounting is untouched:
+  a segment counts as delivered only when the injector actually injected it.
+- **WHY SAFE**: No control-flow change; FIFO order, the report schema and
+  the existing records are identical.
+- **TEST**: `tests/test_app.py::test_injection_worker_records_failed_pastes_and_keeps_going`
+  (now asserts the immediate warning),
+  `tests/test_e2e.py::test_injection_failure_is_surfaced_and_not_silent`.
+
+## 3. Auto-injection E2E coverage gaps
+
+- **FILE**: `tests/test_e2e.py`
+- **MISSING**: (a) three-segment FIFO auto-injection with zero user
+  interaction; (b) a first final deliberately buffered (`سی و`) still being
+  auto-injected once the next final completes it (`35`), no hotkey; (c) a
+  realtime failure exiting non-zero while preserving the partial report;
+  (d) failure surfacing (see fix 2). Added all four.
+- Existing coverage kept green: arm-before-start, no-hotkey per-final
+  injection, buffered medical phrase parity between injected text and
+  report, `--no-focus-guard`, final focus re-check immediately before
+  Ctrl+V (injector tests).
+
+## 4. Benchmark provenance was stale
+
+- **FILES**: `benchmark/results_current.json`, `benchmark/README.md`
+- **BUG**: The committed artifact advertised commit `a5d731fb` while HEAD
+  had moved on.
+- **FIX**: Regenerated both from the measured run at the current HEAD
+  (clean tree, so no `-dirty` marker). The artifact also documents the
+  dataset version (`nursing-2026.09.22.4`), Python, platform and measured
+  package versions. Baseline/comparison files are historical references and
+  intentionally untouched.
+- **ALSO**: the streaming benchmark now shares one `MedicalLayer` across
+  variants (a fresh 968-term automaton build per variant multiplied runtime
+  for no measurement gain), and the generated README spells out what a
+  divergent streaming variant means.
+
+## 5. Audit could not see case-only canonical duplicates
+
+- **FILES**: `scripts/swiftmedics_tools.py`, `tests/test_scripts.py`
+- **BUG**: `audit-dictionary` checked exact duplicate canonicals only, so a
+  data bug like `CT` vs `Ct` canonicals (silently competing under the
+  case-insensitive matcher) was invisible.
+- **FIX**: The audit now reports case-folded duplicate canonical groups and
+  fails on any group outside the explicit
+  `INTENTIONAL_CASE_DUPLICATES = {{Mg, mg}}` allow-list (magnesium vs
+  milligram: case is clinically load-bearing). The current dictionary
+  contains exactly that one intentional group.
+- **TEST**: `tests/test_scripts.py::test_audit_detects_only_the_intentional_case_duplicate`,
+  `::test_audit_blocks_a_synthetic_case_only_duplicate`.
+
+## 6. Report/evaluation terminology
+
+- **FILES**: `app.py`, `speechmatics_test/evaluation.py`, `tests/test_core.py`
+- **BUG**: The complete final stage (medical canonicalization AND nursing
+  normalization) was still labelled `fst_canonical` in the benchmark
+  evaluation output.
+- **FIX**: Stage renamed to `canonical`; module docs clarified that the
+  canonical stage includes nursing normalization.
+  `medical_canonicalization.changed` already described the lexical
+  (medical) stage only - unchanged.
+- **TEST**: `tests/test_core.py::test_evaluate_stages`.
+
+## 7. README documentation
+
+- `README.md` now states up front that normal mode is **automatic
+  finalized-text injection into the armed target cursor/window without a
+  hotkey**, documents the click → arm → dictate → finalize → inject flow,
+  the focus guard and its `--no-focus-guard` opt-out, injection/overlay
+  separation, failure reporting, streaming benchmark methodology and
+  provenance, and the current test count.
+
+---
+
 # Session 3 — Streaming, focus safety, benchmark validity
 
 - Added a bounded nursing pending tail to `FinalStreamCanonicalizer`, including

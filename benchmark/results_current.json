@@ -1,6 +1,6 @@
 {
   "label": "current",
-  "git_commit": "a5d731fb81f3284fb66e2e71afa66a1b34a9e001",
+  "git_commit": "266508fd44c3d16295e13e9358109d8acb7c9dde",
   "python_version": "3.11.2",
   "platform": "Linux-6.1.158+-x86_64-with-glibc2.36",
   "packages": {
@@ -74,26 +74,26 @@
     "repeats_per_sentence": 50,
     "sentences": 107,
     "build_time_ms": {
-      "min": 50.507,
-      "median": 51.586
+      "min": 55.912,
+      "median": 58.426
     },
-    "build_peak_traced_memory_mb": 3.344,
+    "build_peak_traced_memory_mb": 3.345,
     "matcher_latency_us": {
-      "mean": 6.62,
-      "p50": 5.37,
-      "max": 54.29
+      "mean": 8.65,
+      "p50": 7.13,
+      "max": 119.54
     },
     "full_pipeline_latency_us": {
-      "mean": 54.79,
-      "p50": 46.76,
-      "max": 274.65
+      "mean": 65.85,
+      "p50": 59.31,
+      "max": 263.14
     },
-    "mean_latency_us_per_character": 1.8365,
+    "mean_latency_us_per_character": 2.2074,
     "longest_sentence_characters": 134,
     "long_paragraph": {
       "characters": 3298,
-      "mean_ms": 3.99,
-      "max_ms": 4.247
+      "mean_ms": 4.093,
+      "max_ms": 4.325
     }
   },
   "aggregates": {
@@ -423,87 +423,9 @@
   "streaming": {
     "case_count": 107,
     "variant_count": 405,
-    "exact_match": 363,
-    "exact_match_accuracy": 0.8963,
+    "exact_match": 397,
+    "exact_match_accuracy": 0.9802,
     "failures": [
-      {
-        "id": "vital_spo2_fa",
-        "segments": [
-          "اس پی او دو بیمار پایش می",
-          "شود"
-        ],
-        "produced": "SpO2 بیمار پایش می شود",
-        "expected": "SpO2 بیمار پایش می‌شود",
-        "exact_match": false
-      },
-      {
-        "id": "num_ratio",
-        "segments": [
-          "blood pressure",
-          "120/80 mmHg"
-        ],
-        "produced": "blood pressure 120/80 mmHg",
-        "expected": "BP: 120/80 mmHg",
-        "exact_match": false
-      },
-      {
-        "id": "num_ratio_spoken_fa",
-        "segments": [
-          "فشار خون صد و چهل روی هشتاد و پنج"
-        ],
-        "produced": "BP 140/85",
-        "expected": "BP: 140/85",
-        "exact_match": false
-      },
-      {
-        "id": "num_ratio_spoken_fa",
-        "segments": [
-          "فشار",
-          "خون صد و چهل روی هشتاد و پنج"
-        ],
-        "produced": "BP 140/85",
-        "expected": "BP: 140/85",
-        "exact_match": false
-      },
-      {
-        "id": "num_ratio_spoken_fa",
-        "segments": [
-          "فشار خون صد و",
-          "چهل روی هشتاد و پنج"
-        ],
-        "produced": "BP 140/85",
-        "expected": "BP: 140/85",
-        "exact_match": false
-      },
-      {
-        "id": "num_ratio_spoken_fa",
-        "segments": [
-          "فشار خون صد و چهل روی هشتاد و",
-          "پنج"
-        ],
-        "produced": "BP 140/85",
-        "expected": "BP: 140/85",
-        "exact_match": false
-      },
-      {
-        "id": "num_ratio_spoken_en",
-        "segments": [
-          "blood pressure 140",
-          "over 85 mmHg"
-        ],
-        "produced": "BP: 140 over 85 mmHg",
-        "expected": "BP: 140/85 mmHg",
-        "exact_match": false
-      },
-      {
-        "id": "num_percent",
-        "segments": [
-          "oxygen saturation 97 درصد"
-        ],
-        "produced": "SpO2: 97 %",
-        "expected": "SpO2: 97%",
-        "exact_match": false
-      },
       {
         "id": "num_percent",
         "segments": [
@@ -511,135 +433,6 @@
           "saturation 97 درصد"
         ],
         "produced": "oxygen saturation 97 %",
-        "expected": "SpO2: 97%",
-        "exact_match": false
-      },
-      {
-        "id": "num_percent",
-        "segments": [
-          "oxygen saturation",
-          "97 درصد"
-        ],
-        "produced": "oxygen saturation 97 %",
-        "expected": "SpO2: 97%",
-        "exact_match": false
-      },
-      {
-        "id": "num_percent",
-        "segments": [
-          "oxygen saturation 97",
-          "درصد"
-        ],
-        "produced": "SpO2: 97 %",
-        "expected": "SpO2: 97%",
-        "exact_match": false
-      },
-      {
-        "id": "num_score",
-        "segments": [
-          "نمره درد 4",
-          "از 10 گزارش شد"
-        ],
-        "produced": "pain score 4 از 10 گزارش شد",
-        "expected": "pain score: 4 از 10 گزارش شد",
-        "exact_match": false
-      },
-      {
-        "id": "time_digits_word",
-        "segments": [
-          "10 و",
-          "30 دقیقه"
-        ],
-        "produced": "10 و 30 دقیقه",
-        "expected": "10:30",
-        "exact_match": false
-      },
-      {
-        "id": "time_digits_word",
-        "segments": [
-          "10 و 30",
-          "دقیقه"
-        ],
-        "produced": "10 و 30 دقیقه",
-        "expected": "10:30",
-        "exact_match": false
-      },
-      {
-        "id": "time_persian_digits",
-        "segments": [
-          "۱۰ و",
-          "۳۰ دقیقه"
-        ],
-        "produced": "10 و 30 دقیقه",
-        "expected": "10:30",
-        "exact_match": false
-      },
-      {
-        "id": "time_persian_digits",
-        "segments": [
-          "۱۰ و ۳۰",
-          "دقیقه"
-        ],
-        "produced": "10 و 30 دقیقه",
-        "expected": "10:30",
-        "exact_match": false
-      },
-      {
-        "id": "time_bare_pair",
-        "segments": [
-          "ساعت",
-          "ده سی"
-        ],
-        "produced": "ساعت 10 سی",
-        "expected": "ساعت 10:30",
-        "exact_match": false
-      },
-      {
-        "id": "time_unbound_number",
-        "segments": [
-          "10 و",
-          "30 دقیقه 90"
-        ],
-        "produced": "10 و 30 دقیقه 90",
-        "expected": "10:30 90",
-        "exact_match": false
-      },
-      {
-        "id": "unit_percent_fa",
-        "segments": [
-          "اشباع اکسیژن 97 درصد"
-        ],
-        "produced": "SpO2: 97 %",
-        "expected": "SpO2: 97%",
-        "exact_match": false
-      },
-      {
-        "id": "unit_percent_fa",
-        "segments": [
-          "اشباع",
-          "اکسیژن 97 درصد"
-        ],
-        "produced": "SpO2: 97 %",
-        "expected": "SpO2: 97%",
-        "exact_match": false
-      },
-      {
-        "id": "unit_percent_fa",
-        "segments": [
-          "اشباع اکسیژن",
-          "97 درصد"
-        ],
-        "produced": "SpO2: 97 %",
-        "expected": "SpO2: 97%",
-        "exact_match": false
-      },
-      {
-        "id": "unit_percent_fa",
-        "segments": [
-          "اشباع اکسیژن 97",
-          "درصد"
-        ],
-        "produced": "SpO2: 97 %",
         "expected": "SpO2: 97%",
         "exact_match": false
       },
@@ -661,16 +454,6 @@
         ],
         "produced": "140/85 mmhg",
         "expected": "140/85 mmHg",
-        "exact_match": false
-      },
-      {
-        "id": "gram_repeated_word",
-        "segments": [
-          "نمره نمره",
-          "درد ثبت شد"
-        ],
-        "produced": "نمره pain score ثبت شد",
-        "expected": "pain score ثبت شد",
         "exact_match": false
       },
       {
@@ -704,46 +487,6 @@
         "exact_match": false
       },
       {
-        "id": "gram_vital_period",
-        "segments": [
-          "Temp",
-          ". 36.7. °C"
-        ],
-        "produced": "Temp . 36.7 °C",
-        "expected": "Temp: 36.7 °C",
-        "exact_match": false
-      },
-      {
-        "id": "gram_vital_period",
-        "segments": [
-          "Temp .",
-          "36.7. °C"
-        ],
-        "produced": "Temp. 36.7 °C",
-        "expected": "Temp: 36.7 °C",
-        "exact_match": false
-      },
-      {
-        "id": "gram_vital_period",
-        "segments": [
-          "Temp . 36.7.",
-          "°C"
-        ],
-        "produced": "Temp: 36.7. °C",
-        "expected": "Temp: 36.7 °C",
-        "exact_match": false
-      },
-      {
-        "id": "gram_vital_bp",
-        "segments": [
-          "blood pressure.",
-          "140/85 mmHg"
-        ],
-        "produced": "blood pressure. 140/85 mmHg",
-        "expected": "BP: 140/85 mmHg",
-        "exact_match": false
-      },
-      {
         "id": "gram_vital_spo2",
         "segments": [
           "oxygen",
@@ -751,76 +494,6 @@
         ],
         "produced": "oxygen saturation و 97%",
         "expected": "SpO2: 97%",
-        "exact_match": false
-      },
-      {
-        "id": "gram_vital_spo2",
-        "segments": [
-          "oxygen saturation",
-          "و 97%"
-        ],
-        "produced": "oxygen saturation و 97%",
-        "expected": "SpO2: 97%",
-        "exact_match": false
-      },
-      {
-        "id": "gram_vital_spo2",
-        "segments": [
-          "oxygen saturation و",
-          "97%"
-        ],
-        "produced": "oxygen saturation و 97%",
-        "expected": "SpO2: 97%",
-        "exact_match": false
-      },
-      {
-        "id": "gram_vital_hr",
-        "segments": [
-          "heart rate.",
-          "88"
-        ],
-        "produced": "heart rate. 88",
-        "expected": "HR: 88",
-        "exact_match": false
-      },
-      {
-        "id": "gram_zwnj_prefix",
-        "segments": [
-          "بیمار درد را ذکر می",
-          "کند"
-        ],
-        "produced": "بیمار درد را ذکر می کند",
-        "expected": "بیمار درد را ذکر می‌کند",
-        "exact_match": false
-      },
-      {
-        "id": "para_vitals",
-        "segments": [
-          "علائم حیاتی شامل blood pressure. 140/85 mmHg و heart rate. 88 و oxygen saturation و 97% و Temp . 36.7. °C می",
-          "باشد"
-        ],
-        "produced": "vital signs شامل BP: 140/85 mmHg و HR: 88 و SpO2: 97% و Temp: 36.7 °C می باشد",
-        "expected": "vital signs شامل BP: 140/85 mmHg و HR: 88 و SpO2: 97% و Temp: 36.7 °C می‌باشد.",
-        "exact_match": false
-      },
-      {
-        "id": "para_allergy",
-        "segments": [
-          "مددجو سابقه آلرژی دارویی را ذکر می",
-          "کند. کنند و سابقه جراحی قبلی ندارد"
-        ],
-        "produced": "مددجو سابقه آلرژی دارویی را ذکر می کند و سابقه جراحی قبلی ندارد",
-        "expected": "مددجو سابقه آلرژی دارویی را ذکر می‌کند و سابقه جراحی قبلی ندارد.",
-        "exact_match": false
-      },
-      {
-        "id": "para_morse",
-        "segments": [
-          "مقیاس مورس تکمیل و نمره 45 ثبت گردید و بیمار در معرض خطر سقوط می",
-          "باشد"
-        ],
-        "produced": "Morse Fall Scale تکمیل و نمره 45 ثبت گردید و بیمار در معرض خطر سقوط می باشد",
-        "expected": "Morse Fall Scale تکمیل و نمره 45 ثبت گردید و بیمار در معرض خطر سقوط می‌باشد.",
         "exact_match": false
       },
       {
@@ -832,18 +505,9 @@
         "produced": "آزمایشات روتین شامل سی بی سی و U/A و FBS ارسال شد",
         "expected": "آزمایشات روتین شامل CBC و U/A و FBS ارسال شد.",
         "exact_match": false
-      },
-      {
-        "id": "para_mixed_language",
-        "segments": [
-          "بیمار NPO است و IV line برقرار می باشد و vital signs هر چهار ساعت کنترل می",
-          "گردد"
-        ],
-        "produced": "بیمار NPO است و IV line برقرار می‌باشد و vital signs every four hours کنترل می گردد",
-        "expected": "بیمار NPO است و IV line برقرار می‌باشد و vital signs every four hours کنترل می‌گردد.",
-        "exact_match": false
       }
-    ]
+    ],
+    "note": "Deterministic post-processing only (no ASR). A divergent variant is almost always a FORMATTING join whose left half was already emitted for automatic injection and cannot be rewritten (a unit glued to its number, a stutter/echo whose first copy was injected). No variant fabricates or drops clinical content."
   },
   "cases": [
     {

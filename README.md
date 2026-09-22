@@ -3,7 +3,13 @@
 Realtime medical dictation on **Speechmatics**, tuned for mixed Persian/English
 nursing speech. Finalized speech is canonicalized against a medical dictionary,
 normalized into clean clinical prose, and pasted straight into whatever window
-you have focused.
+you armed as the target.
+
+> **Normal mode = automatic finalized-text injection.** Every finalized,
+> post-processed segment is pasted into the armed target cursor/window
+> **without requiring a hotkey** — no Enter, no Space, no Ctrl+V, no
+> countdown. The app is *not* a preview-only transcriber: transcription and
+> injection happen together, automatically.
 
 Everything after the ASR is **deterministic and auditable** — no LLM, no
 embeddings, no generative correction. Audio is never written to disk.
@@ -32,8 +38,24 @@ Then dictate:
 .\scripts\run_en.ps1          # English
 ```
 
-Click the target text field once and start talking. Each finalized sentence is
-pasted at the cursor. Press `Ctrl+C` in the console to stop.
+The normal dictation flow is:
+
+```text
+1. Click inside the target application (Word / EMR / browser field / editor)
+2. Start SwiftMedics  ->  it ARMS that focused window as the paste target
+3. Speak              ->  Speechmatics streams realtime results
+4. Each final segment ->  normalize -> medical canonicalization
+                          -> nursing normalization (numbers/times/units)
+5. Automatic injection of the finalized text at the armed cursor
+6. Repeat             ->  segments paste in spoken (FIFO) order
+7. Ctrl+C in the console to stop
+```
+
+Step 5 needs **no keypress at all**. The arming happens once, *before* the
+realtime session begins producing text, so the first finalized segment —
+even one the post-processor briefly buffers to complete a medical phrase or
+a spoken number — is injected into the intended window, not into whatever
+happens to have focus later. Press `Ctrl+C` in the console to stop.
 
 > **Requires Python 3.11+.** The project is validated with Python 3.11 and
 > `speechmatics-rt==1.1.1`. `install.ps1` prefers an existing project
@@ -119,7 +141,7 @@ existing commands keep working. They contain no logic of their own.
 | `--no-vocab` | Don't send the custom vocabulary to Speechmatics |
 | `--no-medical-layer` | Skip medical canonicalization |
 | `--no-text-polish` | Skip numbers/times/units/formatting |
-| `--no-focus-guard` | Allow pasting into the current window |
+| `--no-focus-guard` | Skip arming a target window; paste wherever focus is |
 | `--save-report` | Write a session JSON to `results\` |
 | `--device-index N` | Pick a specific microphone |
 | `--model standard\|enhanced` | Speechmatics model |
@@ -207,7 +229,7 @@ After editing the dictionary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-**484 tests, all passing.**
+**538 tests, all passing.**
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\swiftmedics_tools.py benchmark
@@ -216,9 +238,14 @@ After editing the dictionary:
 107 nursing fixtures, offline, no API key. These measure deterministic
 **post-processing**, not Speechmatics recognition accuracy: there is no audio
 or ASR request in this benchmark. The output separately reports whole-text
-fixtures and deterministic synthetic final-segment boundary variants. It writes
+fixtures and streaming variants that replay every fixture through the
+production `FinalStreamCanonicalizer` (the same accumulator that feeds
+automatic injection) at synthetic final-segment boundaries — after token 1,
+mid-way, and before the last token, plus a one-final control. It writes
 `benchmark\results_current.json` and regenerates `benchmark\README.md` from
-the measured run — no number in it is hardcoded.
+the measured run — no number in it is hardcoded. The run embeds the actual
+Git commit, Python version, platform, and measured library versions, so the
+artifact always identifies what produced it.
 
 Accuracy is reported **per stage**, so a formatting fix is never presented as a
 terminology improvement:
@@ -261,15 +288,43 @@ against a short reference sentence produces a meaningless score.
 
 ## Injection & Overlay
 
-Each finalized segment goes to a FIFO worker thread — clipboard work never
-blocks the ASR callback. The injector does atomic per-segment paste, BiDi
-wrapping, ZWNJ/whitespace cleanup, clipboard save/restore, modifier-key
-protection, focus protection, and Windows clipboard retry handling.
+**Automatic injection is the normal mode** (`--inject` is the default).
+Finalized segments — never partials — go to a FIFO worker thread, so
+clipboard work never blocks the Speechmatics receive callback and segments
+always paste in spoken order. The injector does atomic per-segment paste,
+BiDi wrapping, ZWNJ/whitespace cleanup, clipboard save/restore,
+modifier-key protection, focus protection, and Windows clipboard retry
+handling. Injection and display are separate outputs: the overlay can be
+on (`default`) or off (`--no-overlay`) without changing injection, and
+`--no-inject` (transcribe/preview only) never hides the overlay.
+
+If a paste fails (e.g. the clipboard is wedged open by another app, or the
+focus guard refused it), the segment is **not** counted as delivered: a
+warning is printed immediately, the failure is recorded in the session
+report's `injection.segments`, and the FIFO stream continues.
+
+### Focus guard
+
+At startup the app **arms the currently focused window** as the only paste
+target (`arm_target()` runs before the realtime session starts). Each
+Windows paste re-validates focus twice: once before touching the
+clipboard, and once more *immediately before the Ctrl+V keystroke* — a
+clipboard preparation takes long enough that alt-tabbing mid-paste would
+otherwise leak chart text into the wrong application. A refused paste is
+reported as failed (never silently "delivered").
+
+`--no-focus-guard` disables exactly this: nothing is armed and the paste
+goes to whatever is focused at paste time. Use it only when you
+deliberately want to dictate into a moving focus target.
+
+### Overlay
 
 The overlay renders logical-order text and picks direction from the
 Persian-to-Latin character ratio, so `CT scan بیمار دارای ضایعه است` reads
-correctly without applying BiDi twice. Font fallback: Vazirmatn → Vazir →
-IRANSans → B Yekan → B Nazanin → Segoe UI → Tahoma → Arial.
+correctly without applying BiDi twice. It shows partials live, marks
+injected segments as done, and never rewrites medical content. Font
+fallback: Vazirmatn → Vazir → IRANSans → B Yekan → B Nazanin → Segoe UI →
+Tahoma → Arial.
 
 ---
 
@@ -318,7 +373,7 @@ benchmark/
     README.md                     generated from the measured run
     results_baseline.json  results_current.json  results_comparison.json
 
-tests/                            484 tests
+tests/                            538 tests
 ```
 
 ---

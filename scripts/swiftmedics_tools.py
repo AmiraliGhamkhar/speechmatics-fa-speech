@@ -146,6 +146,16 @@ def cmd_check_vocab(args: argparse.Namespace) -> int:
 # ------------------------------------------------------ dictionary audit
 
 
+#: Canonical pairs that differ ONLY by capitalization yet are clinically
+#: distinct and therefore intentional. ``Mg`` (magnesium, the element) and
+#: ``mg`` (milligram, the dosage unit) both rely on their case: merging them
+#: would make a dosage indistinguishable from a Chemistry value. Every other
+#: case-only duplicate group is a data bug and must be repaired.
+INTENTIONAL_CASE_DUPLICATES = frozenset({
+    frozenset({"Mg", "mg"}),
+})
+
+
 def audit_dictionary(path: Path = DICTIONARY_PATH) -> dict:
     """Structural health report for the medical dictionary.
 
@@ -165,6 +175,25 @@ def audit_dictionary(path: Path = DICTIONARY_PATH) -> dict:
     canonicals = collections.Counter(
         (t.get("canonical") or "").strip() for t in terms
     )
+
+    # Case-INSENSITIVE canonical duplicate check: two terms whose canonicals
+    # differ only by capitalization ("CT" vs "Ct") confuse the whole
+    # downstream pipeline (the matcher is case-insensitive, so their forms
+    # silently compete). Groups on INTENTIONAL_CASE_DUPLICATES are reported
+    # but allowed; anything else blocks the audit.
+    folded_canonicals: dict[str, set[str]] = collections.defaultdict(set)
+    for term in terms:
+        canonical = (term.get("canonical") or "").strip()
+        if canonical:
+            folded_canonicals[casefold_preserving(canonical)].add(canonical)
+    casefold_groups = sorted(
+        sorted(variants)
+        for variants in folded_canonicals.values() if len(variants) > 1
+    )
+    unexpected_casefold_groups = [
+        group for group in casefold_groups
+        if frozenset(group) not in INTENTIONAL_CASE_DUPLICATES
+    ]
 
     by_form: dict[str, set[str]] = collections.defaultdict(set)
     empty_forms = []
@@ -203,6 +232,8 @@ def audit_dictionary(path: Path = DICTIONARY_PATH) -> dict:
         "metadata_matches_actual": metadata_count == len(terms),
         "duplicate_ids": sorted(k for k, v in ids.items() if v > 1),
         "duplicate_canonicals": sorted(k for k, v in canonicals.items() if v > 1),
+        "casefold_duplicate_canonicals": casefold_groups,
+        "unexpected_casefold_duplicates": unexpected_casefold_groups,
         "conflicting_alias_forms": len(conflicting),
         "conflicting_alias_examples": conflicting[:20],
         "empty_forms": empty_forms,
@@ -228,12 +259,16 @@ def cmd_audit_dictionary(args: argparse.Namespace) -> int:
         print(f"vocabulary artifact entries  : {report['vocabulary_entries']}")
         print(f"duplicate IDs                : {len(report['duplicate_ids'])}")
         print(f"duplicate canonicals         : {len(report['duplicate_canonicals'])}")
+        print(f"case-only canonical groups   : {len(report['casefold_duplicate_canonicals'])}"
+              f" (allowed: {len(report['casefold_duplicate_canonicals']) - len(report['unexpected_casefold_duplicates'])},"
+              f" must fix: {len(report['unexpected_casefold_duplicates'])})")
         print(f"conflicting alias forms      : {report['conflicting_alias_forms']}")
         print(f"invalid entries              : {len(report['invalid_entries'])}")
         print(f"empty forms                  : {len(report['empty_forms'])}")
     blocking = (
         report["duplicate_ids"]
         or report["duplicate_canonicals"]
+        or report["unexpected_casefold_duplicates"]
         or report["invalid_entries"]
         or not report["metadata_matches_actual"]
     )

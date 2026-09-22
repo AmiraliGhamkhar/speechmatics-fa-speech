@@ -282,6 +282,11 @@ def test_accumulator_empty_adds_are_ignored():
     (("ساعت ده", "و سی دقیقه"), "ساعت 10:30"),
     (("ساعت ده", "سی دقیقه"), "ساعت 10:30"),
     (("صد و چهل روی", "هشتاد و پنج"), "140/85"),
+    # Already-digit clock/ratio forms split at the connector: only the
+    # trailing connector marks them as unfinished (bare digits still emit).
+    (("10 و", "30 دقیقه"), "10:30"),
+    (("10 و 30", "دقیقه"), "10:30"),
+    (("فشار خون 140 روی", "85"), "BP: 140/85"),
 ])
 def test_accumulator_keeps_cross_final_nursing_constructs(segments, expected):
     from speechmatics_test.text import normalize_text
@@ -292,6 +297,52 @@ def test_accumulator_keeps_cross_final_nursing_constructs(segments, expected):
     assert make_accumulator().add(normalize_text(" ".join(segments)), []) is None
 
 
+@pytest.mark.parametrize("segments, expected", [
+    # Vital-sign label/value/chart-pair constructs crossed by a final
+    # boundary: emitting the label alone would freeze the "LABEL: value"
+    # punctuation and unit spacing of text that can no longer be rewritten.
+    (("blood pressure 140", "over 85 mmHg"), "BP: 140/85 mmHg"),
+    (("oxygen saturation 97", "درصد"), "SpO2: 97%"),
+    (("oxygen saturation و", "97%"), "SpO2: 97%"),
+    (("Temp . 36.7.", "°C"), "Temp: 36.7 °C"),
+    (("نمره درد 4", "از 10 گزارش شد"), "pain score: 4 از 10 گزارش شد"),
+    # Clock lead-in split from its hour.
+    (("ساعت", "ده سی"), "ساعت 10:30"),
+    # می/نمی verb prefixes bind their ZWNJ to the stem in the next final.
+    (("بیمار درد را ذکر می", "کند"), "بیمار درد را ذکر می‌کند"),
+    (("SpO2 بیمار پایش می", "شود"), "SpO2 بیمار پایش می‌شود"),
+])
+def test_accumulator_keeps_cross_final_boundary_constructs(segments, expected):
+    from speechmatics_test.text import normalize_text
+    acc = make_accumulator()
+    emissions = [acc.add(normalize_text(segment), []) for segment in segments]
+    emissions.append(acc.flush())
+    assert " ".join(item for item in emissions if item) == expected
+
+
+def test_accumulator_prose_with_vital_words_is_not_held_back():
+    """A prose mention of a vital-sign word must not over-hold: the label
+    hold exists for chart pairs, not for narrative text."""
+    from speechmatics_test.text import normalize_text
+    acc = make_accumulator()
+    # "was" is not a chart token, so no chart-pair tail is pending here.
+    assert acc.add(normalize_text("heart rate was 88"), []) == "heart rate was 88"
+    acc2 = make_accumulator()
+    # only the label itself is held; the prose around it emits immediately,
+    # and joined with non-value text the label releases on the next final
+    assert acc2.add(normalize_text("the blood pressure"), []) == "the"
+    assert acc2.add(normalize_text("was reviewed"), []) == \
+        "blood pressure was reviewed"
+
+
+def test_accumulator_bare_digits_still_emit_immediately():
+    """The digit hold requires an explicit connector: a bare trailing number
+    is emitted without waiting (injection latency matters)."""
+    from speechmatics_test.text import normalize_text
+    acc = make_accumulator()
+    assert acc.add(normalize_text("بیمار 35 ساله"), []) == "بیمار 35 ساله"
+
+
 def test_accumulator_collapses_cross_final_stutter_before_matching():
     from speechmatics_test.text import normalize_text
     acc = make_accumulator()
@@ -299,6 +350,33 @@ def test_accumulator_collapses_cross_final_stutter_before_matching():
     emitted = acc.add(normalize_text("نمره درد"), [])
     tail = acc.flush()
     assert " ".join(item for item in (emitted, tail) if item) == "pain score"
+
+
+def test_accumulator_collapses_stutter_inside_one_final_before_cutting():
+    """In-segment stutter must collapse BEFORE the safe cut runs: "نمره نمره"
+    uncollapsed let the cut emit "نمره" and then re-match the tail into
+    "نمره درد" - a term built from two emissions the speaker never said."""
+    from speechmatics_test.text import normalize_text
+    acc = make_accumulator()
+    assert acc.add(normalize_text("نمره نمره"), []) is None  # collapsed, held
+    emitted = acc.add(normalize_text("درد ثبت شد"), [])
+    tail = acc.flush()
+    assert " ".join(item for item in (emitted, tail) if item) == "pain score ثبت شد"
+
+
+def test_accumulator_protects_repetition_safe_forms_across_finals():
+    """"سی" + "سی یو" is NOT a stutter: سی سی یو spells CCU."""
+    from speechmatics_test.text import normalize_text
+    acc = make_accumulator()
+    first = acc.add(normalize_text("سی"), [])
+    emitted = acc.add(normalize_text("سی یو"), [])
+    tail = acc.flush()
+    assert " ".join(item for item in (first, emitted, tail) if item) == "CCU"
+    # and inside one segment
+    single = make_accumulator()
+    one = single.add(normalize_text("بیمار در سی سی یو است"), [])
+    tail2 = single.flush()
+    assert " ".join(item for item in (one, tail2) if item) == "بیمار در CCU است"
 
 
 # ---------------------------------------------- InjectionWorker (H2 fix)
@@ -340,7 +418,7 @@ def test_injection_worker_preserves_final_order_and_records_results():
     ]
 
 
-def test_injection_worker_records_failed_pastes_and_keeps_going():
+def test_injection_worker_records_failed_pastes_and_keeps_going(capsys):
     injector = FakeInjector(fail_on="bad ")
     results = []
     worker = app_module.InjectionWorker(injector, on_result=results.append)
@@ -350,6 +428,11 @@ def test_injection_worker_records_failed_pastes_and_keeps_going():
     assert [r["success"] for r in worker.records] == [False, True]
     assert [r["text"] for r in worker.records] == ["bad", "good"]
     assert results == worker.records
+    # the failure is surfaced immediately, never silently treated as
+    # delivered; the successful segment is not called a failure either
+    out = capsys.readouterr().out
+    assert out.count("AUTO-INJECTION FAILED") == 1
+    assert "NOT delivered" in out
 
 
 def test_injection_worker_shutdown_is_safe_without_jobs():
