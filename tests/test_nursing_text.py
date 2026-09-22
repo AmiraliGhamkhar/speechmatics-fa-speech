@@ -487,3 +487,41 @@ def test_pending_nursing_suffix_holds(text, expected_start):
 ])
 def test_pending_nursing_suffix_does_not_hold(text):
     assert pending_nursing_suffix_start(text) is None
+
+
+# ------------------------------------------- compound spoken hours (21:30)
+
+def test_compound_spoken_hour_with_minutes():
+    """``ساعت بیست و یک و سی دقیقه`` is 21:30.
+
+    The hour used to be read as the single word ``بیست`` (20), leaving
+    ``یک و سی دقیقه`` to match as a SECOND time: the result was
+    ``ساعت 20 و 01:30`` - a clinical timestamp assembled from values the
+    nurse never dictated.
+    """
+    assert polish_nursing_text("ساعت بیست و یک و سی دقیقه") == "ساعت 21:30"
+    assert polish_nursing_text("ساعت بیست و سه و چهل و پنج دقیقه") == "ساعت 23:45"
+    assert polish_nursing_text("ساعت بیست و دو و پانزده دقیقه") == "ساعت 22:15"
+    assert polish_nursing_text("ساعت بیست و یک و نیم") == "ساعت 21:30"
+    assert polish_nursing_text("بیست و یک و ربع") == "21:15"
+
+
+def test_compound_hour_does_not_fabricate_a_time():
+    """A compound cardinal with no minute part stays a plain number."""
+    assert polish_nursing_text("ساعت بیست و یک") == "ساعت 21"
+    assert polish_nursing_text("بیست و یک") == "21"
+    assert polish_nursing_text("سی و پنج ساله") == "35 ساله"
+
+
+def test_simple_spoken_times_are_unchanged():
+    """The previously correct readings must not regress."""
+    assert polish_nursing_text("ساعت ده و سی دقیقه") == "ساعت 10:30"
+    assert polish_nursing_text("ده و نیم") == "10:30"
+    assert polish_nursing_text("ده و ربع") == "10:15"
+    assert polish_nursing_text("ساعت ده سی") == "ساعت 10:30"
+    assert polish_nursing_text("ساعت دوازده و پنج دقیقه") == "ساعت 12:05"
+
+
+def test_compound_hour_normalization_is_idempotent():
+    once = polish_nursing_text("ساعت بیست و یک و سی دقیقه")
+    assert polish_nursing_text(once) == once

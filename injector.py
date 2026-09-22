@@ -196,6 +196,11 @@ if _SYSTEM == "windows":
     user32.IsClipboardFormatAvailable.argtypes = [wintypes.UINT]
     user32.IsClipboardFormatAvailable.restype = wintypes.BOOL
 
+    # Used only to tell "clipboard holds non-text data" (image/files, which
+    # cannot be restored) apart from "clipboard is empty" (nothing to lose).
+    user32.CountClipboardFormats.argtypes = []
+    user32.CountClipboardFormats.restype = ctypes.c_int
+
     user32.GetClipboardSequenceNumber.argtypes = []
     user32.GetClipboardSequenceNumber.restype = wintypes.DWORD
 
@@ -256,6 +261,14 @@ class TextInjector:
         #: Focus guard (see ``arm_target``): when armed, pastes are refused
         #: unless this exact foreground window handle is still focused.
         self._armed_hwnd: Optional[int] = None
+        #: Set after warning that non-text clipboard data cannot be restored
+        #: (warn once per session, not once per pasted segment).
+        self._nontext_clipboard_warned: bool = False
+        #: True once the focus guard has been switched on for this session,
+        #: even while ``_armed_hwnd`` is still None (target not acquired yet).
+        #: Without this an arming FAILURE silently downgraded the guard to
+        #: "inactive", i.e. paste-anywhere - the opposite of the safe default.
+        self._focus_guard_armed: bool = False
         #: Set by ``_set_windows_clipboard`` the instant ``EmptyClipboard()``
         #: succeeds, independent of that call's own return value - see
         #: ``_paste_windows`` for why this (not the return value) must gate
@@ -349,9 +362,23 @@ class TextInjector:
         paste time. Without a guard, alt-tabbing during dictation silently
         pasted medical text into the wrong application. After arming, every
         Windows paste verifies that the armed window is STILL focused and
-        refuses to paste anywhere else. Returns False when the platform
-        cannot identify the foreground window (non-Windows).
+        refuses to paste anywhere else.
+
+        NOTE: this arms whatever is focused *right now*. Calling it while
+        the SwiftMedics console itself is in the foreground arms the
+        console, and every later paste is then refused because the user has
+        meanwhile clicked their editor - the production failure this module
+        had ("focus changed - paste skipped", 0/34 segments injected). The
+        application flow must use :meth:`await_target` instead; this method
+        stays for explicit re-arming and for callers that already know the
+        correct window is focused.
+
+        Returns False when the platform cannot identify the foreground
+        window (non-Windows). The guard itself is still switched ON in that
+        case, so an unusable platform cannot silently downgrade to
+        paste-anywhere.
         """
+        self._focus_guard_armed = True
         info = self.get_foreground_window_info()
         hwnd = info.get("hwnd")
         if not hwnd:
@@ -361,15 +388,89 @@ class TextInjector:
         self._armed_hwnd = int(hwnd)
         return True
 
+    def await_target(
+        self,
+        timeout: float = 60.0,
+        poll_interval: float = 0.15,
+        on_wait=None,
+        should_stop=None,
+    ) -> Optional[int]:
+        """Arm the window the user switches focus TO, and return its handle.
+
+        This is the normal, hotkey-free target acquisition:
+
+            SwiftMedics window is foreground
+                -> user clicks Word / EMR / browser input field
+                -> the foreground window changes
+                -> that new window becomes the armed paste target
+
+        Only a transition AWAY from the window(s) that were already focused
+        when this call started counts, so the application never arms its own
+        console. The guard is switched on immediately (before the target is
+        known), so nothing can be pasted anywhere until the user has made
+        that choice.
+
+        ``on_wait`` is called once with the starting window info so the
+        caller can prompt the user. ``should_stop`` is polled (e.g. Ctrl+C)
+        and aborts the wait. Returns the armed handle, or ``None`` when the
+        target could not be acquired (timeout, abort, or non-Windows).
+        """
+        self._focus_guard_armed = True
+        self._armed_hwnd = None
+
+        origin = self.get_foreground_window_info()
+        if on_wait is not None:
+            on_wait(origin)
+        origin_hwnd = origin.get("hwnd")
+        if not origin_hwnd:
+            # No foreground-window API (non-Windows): a transition cannot be
+            # observed. The guard stays ON with no target, so the caller
+            # decides what to do rather than pasting into the void.
+            print("  [injector] focus guard unavailable on this platform")
+            return None
+
+        # Windows that were already focused when the wait began: switching
+        # back to any of them is NOT a target selection.
+        ignored = {int(origin_hwnd)}
+        deadline = time.monotonic() + max(0.0, timeout)
+        while time.monotonic() < deadline:
+            if should_stop is not None and should_stop():
+                return None
+            current = self.get_foreground_window_info()
+            hwnd = current.get("hwnd")
+            if hwnd and int(hwnd) not in ignored:
+                self._armed_hwnd = int(hwnd)
+                return self._armed_hwnd
+            time.sleep(poll_interval)
+        return None
+
     @property
     def armed_target(self) -> Optional[int]:
-        """The armed foreground-window handle (``None`` = guard inactive)."""
+        """The armed foreground-window handle (``None`` = no target yet)."""
         return self._armed_hwnd
+
+    @property
+    def focus_guard_active(self) -> bool:
+        """True when the focus guard governs pastes for this session.
+
+        Distinct from ``armed_target``: the guard can be active while no
+        target has been acquired yet, and in that state every paste is
+        refused (fail-closed).
+        """
+        return self._focus_guard_armed
 
     def _focus_guard_ok(self) -> bool:
         """True when injection may proceed w.r.t. the armed target."""
-        if self._armed_hwnd is None:
+        if not self._focus_guard_armed and self._armed_hwnd is None:
             return True
+        if self._armed_hwnd is None:
+            # Guard on, target never acquired: refuse rather than paste
+            # medical text into whatever happens to be focused.
+            print(
+                "  [injector] no target window armed - paste refused "
+                "(click the target field to arm it)"
+            )
+            return False
         current = self.get_foreground_window_info().get("hwnd")
         if current == self._armed_hwnd:
             return True
@@ -638,6 +739,14 @@ class TextInjector:
         previous: Optional[str] = None
         if self.restore_clipboard:
             previous = self._get_windows_clipboard()
+            if previous is None:
+                # Non-text clipboard (image, files, Excel range). Only
+                # CF_UNICODETEXT is captured, so that content cannot be put
+                # back after the paste. Restoring arbitrary formats would
+                # need a full multi-format clipboard subsystem; warning once
+                # is the honest, minimal behaviour - losing a clinician's
+                # copied X-ray silently is not acceptable.
+                self._warn_nontext_clipboard_once()
 
         # ``clipboard_changed`` tracks whether the clipboard's PREVIOUS
         # content was actually destroyed. A successful ``_set_windows_
@@ -754,16 +863,42 @@ class TextInjector:
         """
         OpenClipboard fails while another process holds it open. A single try
         meant a whole dictated sentence vanished, so retry briefly.
+
+        The clipboard is always opened with ``NULL`` (the current task), never
+        with the FOREGROUND window handle: ``OpenClipboard(hwnd)`` makes that
+        window the clipboard OWNER, and the foreground window belongs to the
+        target application (Word/the EMR). Handing it ownership meant the
+        subsequent ``EmptyClipboard()`` destroyed the clipboard on behalf of
+        another process, and that process then received the
+        ``WM_DESTROYCLIPBOARD``/render messages for data it never produced.
         """
-        hwnd = user32.GetForegroundWindow()
         for i in range(attempts):
-            if user32.OpenClipboard(hwnd):
-                return True
             if user32.OpenClipboard(None):
                 return True
             time.sleep(delay * (1 + i * 0.25))
         print("  [clipboard] busy — another application is holding it open")
         return False
+
+    def _warn_nontext_clipboard_once(self) -> None:
+        """Warn (once per session) that non-text clipboard data is lost.
+
+        Only fires when the clipboard actually holds something that is not
+        CF_UNICODETEXT; an empty clipboard has nothing to lose.
+        """
+        if self._nontext_clipboard_warned:
+            return
+        try:
+            occupied = bool(user32.CountClipboardFormats())
+        except Exception:
+            occupied = False
+        if not occupied:
+            return
+        self._nontext_clipboard_warned = True
+        print(
+            "  [clipboard] note: the clipboard holds non-text content "
+            "(image/files); it cannot be restored after pasting and will be "
+            "replaced by the transcript."
+        )
 
     def _get_windows_clipboard(self) -> Optional[str]:
         """Read CF_UNICODETEXT, or None when unavailable/non-text."""

@@ -6,6 +6,7 @@ payload preparation (spacing/ZWNJ cleanup + RLE/PDF/RLM BiDi wrap), and
 thread-safety plumbing.
 """
 
+import types
 import threading
 
 import injector as injector_module
@@ -463,3 +464,248 @@ def test_unarmed_injector_is_never_blocked(monkeypatch):
     inj, state = make_mock_windows_injector(monkeypatch, previous="user data")
     assert inj.armed_target is None
     assert inj._paste_windows("سلام") is True
+
+
+# ============================================================================
+# Target acquisition: the production failure this suite must never let back in
+#
+#   Auto-injection : ON
+#   focus changed - paste skipped to protect the armed window
+#     (armed hwnd=1377604, current=3081194)
+#   auto-injected 0/34 finalized segments.
+#
+# Root cause: arm_target() ran while the SwiftMedics CONSOLE was foreground,
+# so the console handle was armed and every later paste (into the editor the
+# user had meanwhile clicked) was refused. The fix is await_target(): arm the
+# window the user switches focus TO.
+# ============================================================================
+
+
+class FakeWindows:
+    """Scriptable foreground-window sequence (stands in for the Win32 API)."""
+
+    def __init__(self, sequence):
+        #: (hwnd, title) tuples; the last one repeats forever.
+        self.sequence = list(sequence)
+        self.reads = 0
+
+    def __call__(self):
+        index = min(self.reads, len(self.sequence) - 1)
+        self.reads += 1
+        hwnd, title = self.sequence[index]
+        return {"hwnd": hwnd, "title": title, "pid": 1}
+
+
+def make_focus_injector(monkeypatch, sequence):
+    inj = TextInjector(paste_settle_seconds=0)
+    windows = FakeWindows(sequence)
+    monkeypatch.setattr(inj, "get_foreground_window_info", windows)
+    monkeypatch.setattr(injector_module.time, "sleep", lambda s: None)
+    return inj, windows
+
+
+CONSOLE = (1377604, "SwiftMedics")
+EDITOR = (3081194, "Patient chart - Word")
+OTHER = (999111, "Web browser")
+
+
+def test_await_target_arms_the_window_the_user_selects(monkeypatch):
+    """The real startup sequence: console foreground -> user clicks the
+    editor -> the EDITOR becomes armed (never the console)."""
+    inj, _ = make_focus_injector(monkeypatch, [CONSOLE, CONSOLE, EDITOR])
+    assert inj.await_target(timeout=5.0) == EDITOR[0]
+    assert inj.armed_target == EDITOR[0]
+    assert inj.focus_guard_active is True
+
+
+def test_await_target_never_arms_the_application_console(monkeypatch):
+    """Regression for `armed hwnd != current hwnd`: the console that is
+    foreground at startup must never be armed, no matter how long it stays
+    focused."""
+    inj, _ = make_focus_injector(monkeypatch, [CONSOLE])
+    assert inj.await_target(timeout=0.3, poll_interval=0.01) is None
+    assert inj.armed_target is None
+    # ... and with no target the guard refuses to paste (fail-closed).
+    assert inj._focus_guard_ok() is False
+
+
+def test_first_final_injects_into_the_selected_target(monkeypatch, capsys):
+    """Full workflow: select target, then the FIRST finalized segment is
+    pasted successfully - the exact case that produced 0/34 before."""
+    inj, _ = make_focus_injector(monkeypatch, [CONSOLE, EDITOR])
+    assert inj.await_target(timeout=5.0) == EDITOR[0]
+
+    state = {"sets": [], "keystrokes": 0, "current": "user data"}
+
+    def fake_set(text):
+        state["sets"].append(text)
+        state["current"] = text
+        return True
+
+    monkeypatch.setattr(inj, "_get_windows_clipboard", lambda: state["current"])
+    monkeypatch.setattr(inj, "_set_windows_clipboard", fake_set)
+    monkeypatch.setattr(
+        inj, "_send_paste_keystroke",
+        lambda: state.__setitem__("keystrokes", state["keystrokes"] + 1) or True,
+    )
+
+    assert inj._paste_windows("بیمار در CCU است ") is True
+    assert state["keystrokes"] == 1
+    assert "focus changed" not in capsys.readouterr().out
+
+
+def test_injection_rejected_when_target_changes_after_arming(monkeypatch, capsys):
+    """Safety is preserved: switching to an unrelated application after
+    arming must reject the paste loudly, not leak chart text into it."""
+    inj, _ = make_focus_injector(monkeypatch, [CONSOLE, EDITOR, OTHER])
+    assert inj.await_target(timeout=5.0) == EDITOR[0]
+
+    state = {"sets": [], "keystrokes": 0, "current": "user data"}
+    monkeypatch.setattr(inj, "_get_windows_clipboard", lambda: state["current"])
+    monkeypatch.setattr(
+        inj, "_set_windows_clipboard",
+        lambda text: state["sets"].append(text) or True,
+    )
+    monkeypatch.setattr(
+        inj, "_send_paste_keystroke",
+        lambda: state.__setitem__("keystrokes", state["keystrokes"] + 1) or True,
+    )
+
+    assert inj._paste_windows("HTN دارد ") is False
+    assert state["sets"] == []        # clipboard never touched
+    assert state["keystrokes"] == 0   # nothing pasted anywhere
+    assert "focus changed" in capsys.readouterr().out
+
+
+def test_no_target_selected_never_pastes(monkeypatch, capsys):
+    """No target selected => the injector must not paste into whatever
+    happens to be focused (fail-closed, not fail-open)."""
+    inj, _ = make_focus_injector(monkeypatch, [CONSOLE])
+    assert inj.await_target(timeout=0.2, poll_interval=0.01) is None
+
+    state = {"sets": [], "keystrokes": 0}
+    monkeypatch.setattr(inj, "_get_windows_clipboard", lambda: "user data")
+    monkeypatch.setattr(
+        inj, "_set_windows_clipboard",
+        lambda text: state["sets"].append(text) or True,
+    )
+    monkeypatch.setattr(
+        inj, "_send_paste_keystroke",
+        lambda: state.__setitem__("keystrokes", state["keystrokes"] + 1) or True,
+    )
+
+    assert inj._paste_windows("سلام") is False
+    assert state["sets"] == [] and state["keystrokes"] == 0
+    assert "no target window armed" in capsys.readouterr().out
+
+
+def test_await_target_can_be_aborted(monkeypatch):
+    """Ctrl+C during target selection aborts the wait instead of blocking."""
+    inj, _ = make_focus_injector(monkeypatch, [CONSOLE])
+    assert inj.await_target(timeout=30.0, poll_interval=0.01,
+                            should_stop=lambda: True) is None
+    assert inj.armed_target is None
+
+
+def test_await_target_prompts_the_user_once(monkeypatch):
+    inj, _ = make_focus_injector(monkeypatch, [CONSOLE, EDITOR])
+    prompts = []
+    inj.await_target(timeout=5.0, on_wait=prompts.append)
+    assert len(prompts) == 1
+    assert prompts[0]["title"] == "SwiftMedics"
+
+
+def test_failed_arm_target_leaves_the_guard_closed(monkeypatch):
+    """A platform without a foreground-window API must NOT silently
+    downgrade the guard to paste-anywhere."""
+    inj = TextInjector(paste_settle_seconds=0)
+    monkeypatch.setattr(
+        inj, "get_foreground_window_info",
+        lambda: {"hwnd": None, "title": "", "pid": None},
+    )
+    assert inj.arm_target() is False
+    assert inj.focus_guard_active is True
+    assert inj._focus_guard_ok() is False
+
+
+def test_guard_untouched_injector_still_pastes(monkeypatch):
+    """Backward compatibility: an injector whose guard was never engaged
+    (e.g. --no-focus-guard) keeps pasting wherever focus is."""
+    inj, state = make_mock_windows_injector(monkeypatch, previous="user data")
+    assert inj.focus_guard_active is False
+    assert inj.armed_target is None
+    assert inj._paste_windows("سلام") is True
+
+
+# ---------------------------------------- clipboard ownership & non-text data
+
+def test_open_clipboard_never_claims_the_target_window(monkeypatch):
+    """OpenClipboard(hwnd) makes THAT window the clipboard owner. Passing
+    the foreground window handed ownership (and the resulting
+    WM_DESTROYCLIPBOARD) to the target application. Must always open with
+    NULL = the current task."""
+    inj = TextInjector(paste_settle_seconds=0)
+    handles = []
+
+    fake_user32 = types.SimpleNamespace(
+        OpenClipboard=lambda hwnd: handles.append(hwnd) or True,
+        GetForegroundWindow=lambda: 3081194,
+    )
+    # ``user32`` only exists when the module is imported on Windows.
+    monkeypatch.setattr(injector_module, "user32", fake_user32, raising=False)
+
+    assert inj._open_clipboard() is True
+    assert handles == [None]
+
+
+def test_non_text_clipboard_is_reported_not_silently_destroyed(
+    monkeypatch, capsys
+):
+    """An image/file clipboard cannot be restored (only CF_UNICODETEXT is
+    captured). Destroying it silently is unacceptable: warn once."""
+    inj = TextInjector(restore_clipboard=True, paste_settle_seconds=0)
+    # None = clipboard holds something that is NOT Unicode text (an image).
+    state = {"sets": [], "keystrokes": 0, "current": None}
+
+    monkeypatch.setattr(injector_module, "user32",
+                        types.SimpleNamespace(CountClipboardFormats=lambda: 3),
+                        raising=False)
+    monkeypatch.setattr(inj, "_focus_guard_ok", lambda: True)
+    monkeypatch.setattr(inj, "_get_windows_clipboard", lambda: state["current"])
+
+    def fake_set(text):
+        state["sets"].append(text)
+        state["current"] = text
+        return True
+
+    monkeypatch.setattr(inj, "_set_windows_clipboard", fake_set)
+    monkeypatch.setattr(
+        inj, "_send_paste_keystroke",
+        lambda: state.__setitem__("keystrokes", state["keystrokes"] + 1) or True)
+
+    assert inj._paste_windows("سلام") is True
+    out = capsys.readouterr().out
+    assert "non-text content" in out
+    assert state["keystrokes"] == 1
+
+    # Warned once per session, not once per finalized segment.
+    state["current"] = None
+    assert inj._paste_windows("خداحافظ") is True
+    assert capsys.readouterr().out.count("non-text content") == 0
+
+
+def test_empty_clipboard_does_not_warn(monkeypatch, capsys):
+    """Nothing to lose when the clipboard is empty - stay quiet."""
+    inj = TextInjector(restore_clipboard=True, paste_settle_seconds=0)
+    monkeypatch.setattr(injector_module, "user32",
+                        types.SimpleNamespace(CountClipboardFormats=lambda: 0),
+                        raising=False)
+    state = {"current": None}
+    monkeypatch.setattr(inj, "_focus_guard_ok", lambda: True)
+    monkeypatch.setattr(inj, "_get_windows_clipboard", lambda: state["current"])
+    monkeypatch.setattr(inj, "_set_windows_clipboard",
+                        lambda text: state.__setitem__("current", text) or True)
+    monkeypatch.setattr(inj, "_send_paste_keystroke", lambda: True)
+
+    assert inj._paste_windows("سلام") is True
+    assert "non-text content" not in capsys.readouterr().out

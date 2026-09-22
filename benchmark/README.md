@@ -10,7 +10,7 @@ Every number below is measured by that run - nothing is hardcoded.
 
 ## Environment
 
-* commit: `266508fd44c3d16295e13e9358109d8acb7c9dde`
+* commit: `8a4d47cb30d5a9c9b8321253672fe02b91420903-dirty`
 * python: 3.11.2
 * platform: Linux-6.1.158+-x86_64-with-glibc2.36
 * matcher backend: aho-corasick (pyahocorasick)
@@ -94,12 +94,12 @@ Stages are reported separately on purpose: a lexical canonicalization, a numeric
 
 ## Performance (real dictionary)
 
-* dictionary build (load + validate + automaton): 55.912 ms min, 58.426 ms median
+* dictionary build (load + validate + automaton): 53.63 ms min, 54.157 ms median
 * build peak traced memory: 3.345 MB
-* matcher-only latency: 8.65 us mean, 7.13 us p50
-* full pipeline (matcher + polish): 65.85 us mean, 59.31 us p50
-* per-character: 2.2074 us
-* long paragraph (3298 chars): 4.093 ms mean, 4.325 ms max
+* matcher-only latency: 6.9 us mean, 5.6 us p50
+* full pipeline (matcher + polish): 57.23 us mean, 48.53 us p50
+* per-character: 1.9186 us
+* long paragraph (3298 chars): 4.065 ms mean, 4.465 ms max
 
 ## Baseline comparison
 

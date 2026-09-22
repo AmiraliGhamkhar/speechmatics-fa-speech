@@ -574,60 +574,72 @@ def _normalize_spoken_times(
         start = i + 1 if lead else i
 
         # --- hour: a one- or two-word cardinal run
-        hour = _spoken_run_value([tok(start)])
-        hour_end = start
-        if hour is None:
+        #
+        # "بیست و یک و سی دقیقه" (21:30) must read the COMPOUND hour first.
+        # Taking only "بیست" left "یک و سی دقیقه" behind, which then matched
+        # as a separate time and produced "20 و 01:30" - a corrupted clinical
+        # value built from numbers the nurse never said. The compound is only
+        # preferred when it is a well-formed cardinal <= 23; malformed runs
+        # ("ده و سی") stay None, so "ده و سی دقیقه" still reads as 10:30.
+        hour_candidates: list[tuple[int, int]] = []
+        if clean_sep(start) and tok(start + 1) == "و" and clean_sep(start + 1):
+            compound = _spoken_run_value([tok(start), "و", tok(start + 2)])
+            if compound is not None and compound <= 23:
+                hour_candidates.append((compound, start + 2))
+        single = _spoken_run_value([tok(start)])
+        if single is not None and single <= 23:
+            hour_candidates.append((single, start))
+        if not hour_candidates:
             i += 1
             continue
-        if (clean_sep(start) and tok(start + 1) == "و" and clean_sep(start + 1)
-                and _spoken_run_value([tok(start + 2)]) is not None
-                and tok(start + 3) not in (_MINUTE_WORD,)):
-            # "بیست و یک" style compound hour, only when no minute follows it
-            combined = _spoken_run_value([tok(start), "و", tok(start + 2)])
-            if combined is not None and combined <= 23 and (
-                tok(start + 3) == _MINUTE_WORD or tok(start + 3) == ""
-            ):
-                pass  # ambiguous, handled by the minute branch below
-        if hour > 23:
-            i += 1
-            continue
 
-        matched_end = None
-        minute = None
+        def match_minute(hour_end: int):
+            """Minute part following ``hour_end``: (minute, last index)."""
+            # --- "<hour> و نیم|ربع"
+            if (clean_sep(hour_end) and tok(hour_end + 1) == "و"
+                    and clean_sep(hour_end + 1)
+                    and tok(hour_end + 2) in (_HALF, _QUARTER)):
+                return (30 if tok(hour_end + 2) == _HALF else 15, hour_end + 2)
 
-        # --- "<hour> و نیم|ربع"
-        if (clean_sep(hour_end) and tok(hour_end + 1) == "و"
-                and clean_sep(hour_end + 1)
-                and tok(hour_end + 2) in (_HALF, _QUARTER)):
-            minute = 30 if tok(hour_end + 2) == _HALF else 15
-            matched_end = hour_end + 2
+            # --- "<hour> و <minute> [دقیقه]"
+            if (clean_sep(hour_end) and tok(hour_end + 1) == "و"
+                    and clean_sep(hour_end + 1)):
+                m_words = [tok(hour_end + 2)]
+                m_end = hour_end + 2
+                if (clean_sep(m_end) and tok(m_end + 1) == "و"
+                        and clean_sep(m_end + 1)
+                        and _spoken_run_value([tok(m_end + 2)]) is not None):
+                    m_words += ["و", tok(m_end + 2)]
+                    m_end += 2
+                value = _spoken_run_value(m_words)
+                has_minute_word = (clean_sep(m_end)
+                                   and tok(m_end + 1) == _MINUTE_WORD)
+                if value is not None and 0 <= value <= 59 and has_minute_word:
+                    return (value, m_end + 1)
+                return None
 
-        # --- "<hour> و <minute> [دقیقه]"
-        elif (clean_sep(hour_end) and tok(hour_end + 1) == "و"
-                and clean_sep(hour_end + 1)):
-            m_words = [tok(hour_end + 2)]
-            m_end = hour_end + 2
-            if (clean_sep(m_end) and tok(m_end + 1) == "و"
-                    and clean_sep(m_end + 1)
-                    and _spoken_run_value([tok(m_end + 2)]) is not None):
-                m_words += ["و", tok(m_end + 2)]
-                m_end += 2
-            value = _spoken_run_value(m_words)
-            has_minute_word = clean_sep(m_end) and tok(m_end + 1) == _MINUTE_WORD
-            if value is not None and 0 <= value <= 59 and has_minute_word:
-                minute = value
-                matched_end = m_end + 1
+            # --- "ساعت <hour> <minute>" (no "و", requires the explicit lead)
+            if lead and clean_sep(hour_end):
+                value = _spoken_run_value([tok(hour_end + 1)])
+                if value is not None and 10 <= value <= 59:
+                    m_end = hour_end + 1
+                    if clean_sep(m_end) and tok(m_end + 1) == _MINUTE_WORD:
+                        m_end += 1
+                    return (value, m_end)
+            return None
 
-        # --- "ساعت <hour> <minute>"  (no "و", requires the explicit lead)
-        elif lead and clean_sep(hour_end):
-            value = _spoken_run_value([tok(hour_end + 1)])
-            if value is not None and 0 <= value <= 59 and value >= 10:
-                minute = value
-                matched_end = hour_end + 1
-                if clean_sep(matched_end) and tok(matched_end + 1) == _MINUTE_WORD:
-                    matched_end += 1
+        # Longest hour first: a compound hour ("بیست و یک") is only used
+        # when the rest still parses as a minute, so "بیست و یک" alone or
+        # "ده و سی دقیقه" keep their previous readings.
+        hour = minute = matched_end = None
+        for candidate_hour, candidate_end in hour_candidates:
+            found = match_minute(candidate_end)
+            if found is not None:
+                hour = candidate_hour
+                minute, matched_end = found
+                break
 
-        if minute is None or matched_end is None:
+        if hour is None or minute is None or matched_end is None:
             i += 1
             continue
 

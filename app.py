@@ -136,6 +136,60 @@ def create_injector(enabled: bool):
         return None
 
 
+#: How long the app waits for the clinician to click the target field.
+TARGET_SELECTION_TIMEOUT = 60.0
+
+
+async def acquire_injection_target(
+    injector, stop_event=None, timeout: float = TARGET_SELECTION_TIMEOUT
+) -> bool:
+    """Arm the field the clinician selects, before dictation starts.
+
+    The interaction is hotkey-free and has exactly one step for the user:
+
+        app starts  ->  "click the target field"  ->  the app observes the
+        foreground window change  ->  that window becomes the armed target
+        ->  realtime dictation starts  ->  every final is pasted there.
+
+    Arming whatever is focused at startup (the previous behaviour) armed
+    the SwiftMedics console itself, so the focus guard refused every single
+    paste afterwards. The blocking poll runs in a worker thread so the
+    event loop (and Ctrl+C) stays responsive.
+
+    Returns True when a target was armed.
+    """
+    def announce(origin: dict) -> None:
+        title = (origin.get("title") or "").strip()
+        where = f' (currently: "{title}")' if title else ""
+        print(
+            f"[injector] Click the text field where the transcript must go"
+            f"{where}."
+        )
+        print(
+            "[injector] Waiting for you to select it — dictation starts as "
+            "soon as that window has focus. (Ctrl+C aborts.)"
+        )
+
+    hwnd = await asyncio.to_thread(
+        injector.await_target,
+        timeout,
+        0.15,
+        announce,
+        (lambda: stop_event.is_set()) if stop_event is not None else None,
+    )
+    if hwnd is None:
+        print(
+            "[injector] No target window was selected — automatic injection "
+            "is DISABLED for this session (the focus guard refuses to paste "
+            "medical text into an unknown window). Transcription and the "
+            "report continue normally; use --no-focus-guard to paste into "
+            "whatever is focused."
+        )
+        return False
+    print(f"[injector] Target armed (hwnd={hwnd}). Speak now.")
+    return True
+
+
 class FinalStreamCanonicalizer:
     """One canonicalization state shared by injection AND the final report.
 
@@ -348,9 +402,23 @@ class InjectionWorker:
             item = self._queue.get()
             if item is None:
                 return
-            self._injector.reset_partial()
-            ok = self._injector.paste_text(item + " ", add_rtl_mark=True)
-            record = {"text": item, "success": bool(ok)}
+            # Every step is guarded: an exception from the injector (a
+            # ctypes/clipboard failure) or from a result callback (a dying
+            # overlay) used to kill this thread outright, after which every
+            # later finalized segment was silently never pasted AND never
+            # recorded - the worst possible failure mode for a medical
+            # dictation tool. A failing job is now reported as a failed
+            # paste and the FIFO stream continues.
+            try:
+                self._injector.reset_partial()
+                ok = bool(self._injector.paste_text(item + " ", add_rtl_mark=True))
+                error = None
+            except Exception as exc:
+                ok = False
+                error = f"{type(exc).__name__}: {exc}"
+            record = {"text": item, "success": ok}
+            if error:
+                record["error"] = error
             self.records.append(record)
             if not ok:
                 # A failed paste must never be silent: say so at once (the
@@ -363,8 +431,13 @@ class InjectionWorker:
                     f"segment {item[:60]!r} was NOT delivered to the target "
                     "window. Re-arm the target (click the field) if focus "
                     "changed."
+                    + (f" [{error}]" if error else "")
                 )
-            self._on_result(record)
+            try:
+                self._on_result(record)
+            except Exception as exc:
+                print(f"\n[injector] result callback failed: "
+                      f"{type(exc).__name__}: {exc}")
 
     def shutdown(self) -> None:
         """Stop after draining everything submitted so far."""
@@ -374,6 +447,34 @@ class InjectionWorker:
             print(
                 "[injector] warning: injection worker did not finish in time; "
                 "injection results in the report may be incomplete"
+            )
+        self._record_undrained()
+
+    def _record_undrained(self) -> None:
+        """Account for jobs that were queued but never processed.
+
+        A worker that stopped early (timeout, or a thread that died before
+        the exception guards existed) leaves segments in the queue. They
+        were NOT injected, so they must appear in the report as failures
+        rather than vanishing: under-reporting a lost medical segment is
+        exactly what the injection record exists to prevent.
+        """
+        while True:
+            try:
+                item = self._queue.get_nowait()
+            except queue.Empty:
+                return
+            if item is None:
+                continue
+            record = {
+                "text": item,
+                "success": False,
+                "error": "injection worker stopped before this segment was pasted",
+            }
+            self.records.append(record)
+            print(
+                "\n[injector] AUTO-INJECTION FAILED: the finalized segment "
+                f"{item[:60]!r} was never delivered (worker stopped)."
             )
 
 
@@ -441,6 +542,9 @@ async def main() -> int:
     result = None
     session_failed = False
     injected_segments: list[dict] = []
+    #: True when the focus guard is on but the user never selected a target
+    #: (the injector then refuses every paste - reported, never silent).
+    injection_target_missing = False
 
     print("=" * 72)
     print(" SwiftMedics / Speechmatics Mixed Medical ASR v4")
@@ -461,6 +565,9 @@ async def main() -> int:
     print(f"Report          : {json_path.name if json_path else 'not saved (use --save-report)'}")
     print(f"Max duration    : {args.max_seconds:.1f} sec")
     print(f"Auto-injection  : {'ON — every finalized segment is pasted at the cursor' if injector else 'OFF'}")
+    if injector:
+        print(f"Focus guard     : "
+              f"{'ON (paste only into the target you select)' if not args.no_focus_guard else 'OFF (--no-focus-guard: pastes wherever focus is)'}")
     print("=" * 72)
     if args.domain == "auto" and effective_domain is None:
         print(
@@ -589,6 +696,10 @@ async def main() -> int:
                 "is connected and PyAudio is installed "
                 "(Linux: sudo apt install portaudio19-dev python3-dev first)."
             )
+            # The injection worker thread was started before this point;
+            # stop it here so the early return does not leak it.
+            if worker is not None:
+                worker.shutdown()
             return 1
         with recorder:
             stt = SpeechmaticsRealtime(
@@ -601,11 +712,14 @@ async def main() -> int:
                 domain=args.domain,
             )
             audio = audio_source(recorder, args.max_seconds, stop_event)
-            # Capture the intended field before the realtime session starts.
-            # Waiting for the first emitted final is unsafe because that final
-            # may itself be buffered while focus changes.
+            # Acquire the intended field BEFORE the realtime session starts
+            # (the first final may be buffered while focus changes, so
+            # arming later is unsafe). The target is the window the user
+            # switches focus TO - never the SwiftMedics console that is
+            # foreground at this moment.
             if injector is not None and not args.no_focus_guard:
-                injector.arm_target()
+                if not await acquire_injection_target(injector, stop_event):
+                    injection_target_missing = True
             try:
                 result = await stt.run(audio, on_partial, on_final)
                 if result.error:
@@ -733,6 +847,14 @@ async def main() -> int:
             "injection": {
                 "auto": True,
                 "enabled": bool(injector),
+                # Focus-guard state for this session: whether the guard was
+                # requested, and whether a target was actually acquired.
+                # A segment counts as delivered only when the injector
+                # itself reported a successful paste attempt.
+                "focus_guard": bool(injector) and not args.no_focus_guard,
+                "target_acquired": bool(injector) and (
+                    args.no_focus_guard or not injection_target_missing
+                ),
                 "segments": injected_segments,
             },
             "benchmark_expected": benchmark["expected"] if benchmark else None,
@@ -742,6 +864,14 @@ async def main() -> int:
         json_path.write_text(
             json.dumps(report, ensure_ascii=False, indent=2),
             encoding="utf-8",
+        )
+
+    if injector and injection_target_missing:
+        print()
+        print(
+            "[injector] No target window was armed, so NOTHING was pasted. "
+            "The transcript above is complete — copy it from here or from "
+            "the report."
         )
 
     if injector and injected_segments:

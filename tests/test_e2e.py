@@ -43,6 +43,45 @@ async def fake_audio_source(recorder, max_seconds, stop_event=None):
         yield b"\x00" * 6400
 
 
+class TargetSelectingInjector:
+    """Fake injector modelling the REAL target-acquisition contract.
+
+    ``await_target`` is what the app calls: it stands for the user clicking
+    the destination field, after which that window is the armed target.
+    Subclasses override ``paste_text``.
+    """
+
+    #: Class-level call trace (arm/reset/paste), reset per test.
+    calls: list = []
+    #: Handle ``await_target`` reports as selected (None = user selected none).
+    target_hwnd = 4321
+
+    def __init__(self):
+        self.armed_target = None
+
+    def await_target(self, timeout=60.0, poll_interval=0.15,
+                     on_wait=None, should_stop=None):
+        if on_wait is not None:
+            on_wait({"hwnd": 1377604, "title": "SwiftMedics", "pid": 1})
+        type(self).calls.append("arm")
+        if self.target_hwnd is None:
+            return None
+        self.armed_target = self.target_hwnd
+        return self.armed_target
+
+    def arm_target(self):
+        type(self).calls.append("arm")
+        self.armed_target = self.target_hwnd
+        return self.target_hwnd is not None
+
+    def reset_partial(self):
+        type(self).calls.append("reset")
+
+    def paste_text(self, text, add_rtl_mark=False):
+        type(self).calls.append("paste")
+        return True
+
+
 def test_end_to_end_session(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
@@ -260,15 +299,8 @@ def test_auto_injection_fires_per_final_segment(tmp_path, monkeypatch):
     """No hotkeys/countdown: every finalized segment is pasted immediately."""
     pasted = []
 
-    class FakeInjector:
+    class FakeInjector(TargetSelectingInjector):
         calls = []
-
-        def arm_target(self):
-            FakeInjector.calls.append("arm")
-            return True
-
-        def reset_partial(self):
-            FakeInjector.calls.append("reset")
 
         def paste_text(self, text, add_rtl_mark=False):
             FakeInjector.calls.append("paste")
@@ -420,12 +452,8 @@ def test_cross_segment_medical_phrase_injects_and_reports_identically(
     injecting "BP بالا" while the report claimed "HTN دارد"."""
     pasted = []
 
-    class FakeInjector:
-        def arm_target(self):
-            return True
-
-        def reset_partial(self):
-            pass
+    class FakeInjector(TargetSelectingInjector):
+        calls = []
 
         def paste_text(self, text, add_rtl_mark=False):
             pasted.append(text)
@@ -473,13 +501,16 @@ def test_cross_segment_medical_phrase_injects_and_reports_identically(
 def test_no_focus_guard_skips_arming(tmp_path, monkeypatch):
     armed = []
 
-    class FakeInjector:
-        def arm_target(self):
-            armed.append(True)
-            return True
+    class FakeInjector(TargetSelectingInjector):
+        calls = []
 
-        def reset_partial(self):
-            pass
+        def await_target(self, *args, **kwargs):
+            armed.append("await_target")
+            return super().await_target(*args, **kwargs)
+
+        def arm_target(self):
+            armed.append("arm_target")
+            return super().arm_target()
 
         def paste_text(self, text, add_rtl_mark=False):
             return True
@@ -543,12 +574,8 @@ def test_auto_injection_fifo_three_segments_no_hotkey(tmp_path, monkeypatch):
     keypress, Enter/Space, Ctrl+V by the user, or manual trigger."""
     pasted = []
 
-    class FakeInjector:
+    class FakeInjector(TargetSelectingInjector):
         calls = []
-
-        def arm_target(self):
-            FakeInjector.calls.append("arm")
-            return True
 
         def reset_partial(self):
             pass
@@ -594,12 +621,8 @@ def test_buffered_first_final_is_auto_injected_once_completed(
     text is automatically injected - still with no hotkey at any stage."""
     pasted = []
 
-    class FakeInjector:
-        def arm_target(self):
-            return True
-
-        def reset_partial(self):
-            pass
+    class FakeInjector(TargetSelectingInjector):
+        calls = []
 
         def paste_text(self, text, add_rtl_mark=False):
             pasted.append(text)
@@ -669,12 +692,8 @@ def test_injection_failure_is_surfaced_and_not_silent(tmp_path, monkeypatch,
     counted as delivered, and must not corrupt the FIFO stream after it."""
     pasted = []
 
-    class FlakyInjector:
-        def arm_target(self):
-            return True
-
-        def reset_partial(self):
-            pass
+    class FlakyInjector(TargetSelectingInjector):
+        calls = []
 
         def paste_text(self, text, add_rtl_mark=False):
             pasted.append(text)
@@ -719,6 +738,196 @@ def test_injection_failure_is_surfaced_and_not_silent(tmp_path, monkeypatch,
             {"text": "HTN دارد", "success": False},
             {"text": "وضعیت پایدار است", "success": True},
         ]
+    finally:
+        for p in reports:
+            p.unlink(missing_ok=True)
+
+
+# ============================================================================
+# Startup target acquisition (production bug: 0/34 segments injected)
+#
+# Runtime log that must never reappear:
+#     Auto-injection : ON
+#     focus changed - paste skipped to protect the armed window
+#       (armed hwnd=1377604, current=3081194)
+#     auto-injected 0/34 finalized segments.
+#
+# The app used to arm whatever was foreground at startup - its OWN console -
+# and the focus guard then refused every paste into the editor the user
+# clicked afterwards. These tests drive app.main() through a fake injector
+# that enforces the real focus-guard semantics.
+# ============================================================================
+
+
+class FocusGuardedInjector:
+    """Fake injector with the REAL focus-guard semantics.
+
+    A paste succeeds only when the armed handle is the current foreground
+    window. ``foreground`` starts as the SwiftMedics console and flips to
+    the editor as soon as the app waits for the user's selection - exactly
+    what happens when the clinician clicks the target field.
+    """
+
+    CONSOLE = 1377604
+    EDITOR = 3081194
+
+    def __init__(self, select_target=True):
+        self.foreground = self.CONSOLE
+        self.armed_target = None
+        self.select_target = select_target
+        self.pasted = []
+        self.refused = []
+        self.events = []
+
+    # -- the USER, acting independently of what the app does ------------
+    def user_clicks_target(self) -> None:
+        """The clinician clicks the editor: the foreground window changes.
+
+        This happens whether or not the application is watching for it -
+        which is precisely why arming at startup was wrong.
+        """
+        if self.select_target:
+            self.foreground = self.EDITOR
+
+    # -- target acquisition --------------------------------------------
+    def await_target(self, timeout=60.0, poll_interval=0.15,
+                     on_wait=None, should_stop=None):
+        self.events.append("await_target")
+        if on_wait is not None:
+            on_wait({"hwnd": self.foreground, "title": "SwiftMedics", "pid": 1})
+        origin = self.foreground
+        # The user clicks while the app is waiting (the real interaction).
+        self.user_clicks_target()
+        if self.foreground == origin:
+            return None          # nothing was selected
+        self.armed_target = self.foreground
+        return self.armed_target
+
+    def arm_target(self):
+        """Legacy behaviour: arm whatever is focused right now."""
+        self.events.append("arm_target")
+        self.armed_target = self.foreground
+        return True
+
+    # -- injection ------------------------------------------------------
+    def reset_partial(self):
+        pass
+
+    def paste_text(self, text, add_rtl_mark=False):
+        if self.armed_target is None or self.armed_target != self.foreground:
+            self.refused.append(text)
+            return False
+        self.pasted.append(text)
+        return True
+
+
+def _run_injection_session(monkeypatch, tmp_path, injector, argv_extra=()):
+    async def audio_with_user_click(recorder, max_seconds, stop_event=None):
+        # Dictation starts only once the clinician is in the target field:
+        # if the app never observed that click, it armed the wrong window.
+        injector.user_clicks_target()
+        async for chunk in fake_audio_source(recorder, max_seconds, stop_event):
+            yield chunk
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", audio_with_user_click)
+    monkeypatch.setattr(app_module, "create_injector", lambda enabled: injector)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", *argv_extra,
+    ])
+    install_fake_sdk(monkeypatch, {
+        "script": [
+            ("final", "بیمار در سی سی یو است"),
+            ("final", "فشار خون بالا دارد"),
+            ("final", "وضعیت پایدار است"),
+        ],
+    })
+    return asyncio.run(app_module.main())
+
+
+def test_startup_arms_the_user_selected_field_not_the_console(
+    tmp_path, monkeypatch, capsys
+):
+    """THE regression test for `armed hwnd != current hwnd`.
+
+    The app must acquire the window the user switches focus TO, so every
+    finalized segment is injected - not 0 of them.
+    """
+    injector = FocusGuardedInjector()
+    assert _run_injection_session(monkeypatch, tmp_path, injector) == 0
+
+    assert injector.events == ["await_target"]
+    assert injector.armed_target == FocusGuardedInjector.EDITOR
+    assert injector.armed_target != FocusGuardedInjector.CONSOLE
+    # Every segment landed, in order, with no hotkey anywhere.
+    assert injector.pasted == [
+        "بیمار در CCU است ",
+        "HTN دارد ",
+        "وضعیت پایدار است ",
+    ]
+    assert injector.refused == []
+
+    out = capsys.readouterr().out
+    assert "auto-injected 3/3 finalized segments." in out
+    assert "focus changed" not in out
+
+
+def test_first_finalized_segment_is_injected_automatically(
+    tmp_path, monkeypatch
+):
+    """The FIRST final must already reach the target: the old flow refused
+    it (the console was armed), producing the 0/N report."""
+    injector = FocusGuardedInjector()
+    assert _run_injection_session(monkeypatch, tmp_path, injector) == 0
+    assert injector.pasted[0] == "بیمار در CCU است "
+
+
+def test_focus_change_during_dictation_is_still_refused(
+    tmp_path, monkeypatch, capsys
+):
+    """Safety unchanged: if the user moves to another application mid
+    session, the pastes are rejected and reported, never leaked."""
+    class WanderingInjector(FocusGuardedInjector):
+        def paste_text(self, text, add_rtl_mark=False):
+            ok = super().paste_text(text, add_rtl_mark)
+            # After the first successful paste the user alt-tabs away.
+            self.foreground = 555000
+            return ok
+
+    injector = WanderingInjector()
+    assert _run_injection_session(monkeypatch, tmp_path, injector) == 0
+    assert injector.pasted == ["بیمار در CCU است "]
+    assert injector.refused == ["HTN دارد ", "وضعیت پایدار است "]
+
+    out = capsys.readouterr().out
+    assert "AUTO-INJECTION FAILED" in out
+    assert "auto-injected 1/3 finalized segments." in out
+
+
+def test_no_target_selected_does_not_paste_anywhere(
+    tmp_path, monkeypatch, capsys
+):
+    """If the clinician never selects a field, the app must transcribe
+    without pasting medical text into an unknown window."""
+    injector = FocusGuardedInjector(select_target=False)
+    assert _run_injection_session(
+        monkeypatch, tmp_path, injector, ["--save-report"]) == 0
+
+    assert injector.pasted == []
+    assert injector.armed_target is None
+    out = capsys.readouterr().out
+    assert "No target window was selected" in out
+    # The transcript itself is intact and still reported.
+    assert "CCU" in out.split("FINAL CANONICAL:")[1]
+
+    reports = sorted((app_module.ROOT / "results").glob("session_*.json"))
+    try:
+        report = json.loads(reports[-1].read_text(encoding="utf-8"))
+        assert report["injection"]["focus_guard"] is True
+        assert report["injection"]["target_acquired"] is False
+        assert "HTN" in report["final_transcript_canonical"]
     finally:
         for p in reports:
             p.unlink(missing_ok=True)

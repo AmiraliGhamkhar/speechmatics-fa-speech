@@ -6,6 +6,108 @@ Verification commands in this file are PowerShell. Run them from the repo root.
 
 ---
 
+# Session 5 — Target acquisition, worker resilience, clipboard ownership
+
+The blocking defect: automatic injection never fired. `arm_target()` ran
+while the SwiftMedics console was still foreground, so the console handle
+was armed and every paste into the editor the user clicked afterwards was
+refused (`focus changed - paste skipped ... armed hwnd=1377604,
+current=3081194`, `auto-injected 0/34 finalized segments`). No
+architectural change: FIFO injection, the focus guard, and
+`--no-focus-guard` all keep their meaning.
+
+Verification at the end of the session:
+
+```powershell
+.\\.venv\\Scripts\\python.exe -m pytest -q                            # 561 passed
+.\\.venv\\Scripts\\python.exe scripts\\swiftmedics_tools.py benchmark          # 107/107, unchanged
+```
+
+## 1. The app armed its own console instead of the user's target
+
+**Wrong:** `arm_target()` armed whatever was foreground at startup — the
+console — so the focus guard rejected 100% of pastes.
+**Changed:** new `TextInjector.await_target()` arms the first window that
+takes focus *away* from the startup window; `app.acquire_injection_target()`
+runs it off the event loop before `stt.run(...)`, prompts the user, and is
+abortable with Ctrl+C. `arm_target()` is kept for explicit re-arming.
+**Safe:** the guard is unchanged and still rejects a focus change after
+arming; only *which* window gets armed changed.
+**Tests:** `test_injector.py` (7 target-acquisition tests),
+`test_e2e.py::test_startup_arms_the_user_selected_field_not_the_console`
+and 3 more — all fail against the old flow.
+
+## 2. Focus guard failed OPEN when arming failed
+
+**Wrong:** `_armed_hwnd is None` meant "guard inactive", so a failed arm
+silently allowed pasting into any window.
+**Changed:** added `focus_guard_active`; guard-on-without-target now
+refuses every paste and says why. An injector whose guard was never
+engaged (`--no-focus-guard`) is unaffected.
+**Tests:** `test_no_target_selected_never_pastes`,
+`test_failed_arm_target_leaves_the_guard_closed`,
+`test_guard_untouched_injector_still_pastes`.
+
+## 3. One exception killed the injection worker permanently
+
+**Wrong:** `InjectionWorker._run` had no `try/except`; a raise from
+`paste_text` or from the result callback ended the thread, and every later
+finalized segment was silently never pasted *and* never recorded.
+**Changed:** both calls are guarded; a failing paste is recorded as
+`success: False` with an `error` field and the FIFO stream continues.
+`shutdown()` now also records jobs left undrained instead of dropping them.
+**Tests:** `test_app.py::test_injection_worker_survives_an_injector_exception`,
+`..._survives_a_failing_result_callback`, `..._records_jobs_left_in_the_queue`.
+
+## 4. Clipboard was opened with the target application's window handle
+
+**Wrong:** `OpenClipboard(foreground_hwnd)` made the *target* app the
+clipboard owner, so `EmptyClipboard()` destroyed the clipboard on another
+process's behalf.
+**Changed:** always open with `NULL` (the current task). No other clipboard
+logic touched.
+**Test:** `test_open_clipboard_never_claims_the_target_window`.
+
+## 5. Non-text clipboard content was destroyed silently
+
+**Wrong:** only `CF_UNICODETEXT` is captured, so a copied image/file/Excel
+range was overwritten with no warning and no restore.
+**Changed:** warn once per session when the clipboard holds non-text data.
+Restoration is still not attempted — that would need a multi-format
+clipboard subsystem — but the loss is no longer silent.
+**Tests:** `test_non_text_clipboard_is_reported_not_silently_destroyed`,
+`test_empty_clipboard_does_not_warn`.
+
+## 6. Compound spoken hours produced a fabricated timestamp
+
+**Wrong:** `ساعت بیست و یک و سی دقیقه` (21:30) read the hour as `بیست`
+alone, leaving `یک و سی دقیقه` to match as a second time:
+`ساعت 20 و 01:30`. A dead `combined = ...; pass` block showed the case had
+been noticed but never handled.
+**Changed:** `_normalize_spoken_times` now tries the well-formed compound
+hour (≤ 23) before the single-word hour, and only accepts it when the
+remainder still parses as a minute. Malformed runs (`ده و سی`) are
+unaffected, so `ده و سی دقیقه` is still 10:30 and `سی و پنج ساله` is still
+an age.
+**Tests:** 4 new tests in `test_nursing_text.py`; benchmark unchanged at
+107/107.
+
+## 7. Smaller fixes
+
+* Microphone-init failure returned without stopping the injection worker
+  thread — now shut down on that path.
+* `benchmark/results_current.json` recorded commit
+  `266508fd44c3d16295e13e9358109d8acb7c9dde`, which does not exist in this
+  repository; artifacts regenerated with real provenance.
+* Removed an unused `os` import in `scripts/swiftmedics_tools.py`.
+
+**Not verified on real hardware:** the Windows injection path is exercised
+only through mocked Win32 APIs (this session ran on Linux). Interactive
+verification on a real Windows desktop is still required — see the
+limitations note in the session report.
+
+---
+
 # Session 4 — Auto-injection hardening, streaming parity, provenance
 
 Focus of this session: prove and harden the mandatory automatic injection

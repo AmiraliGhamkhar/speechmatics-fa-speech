@@ -462,3 +462,73 @@ def test_overlay_abort_destroys_root_created_after_shutdown():
     overlay._closed = False
     assert overlay._abort_if_closed(Root()) is False
     assert destroyed == [True]  # live overlay: nothing destroyed
+
+
+# ---------------------------------- InjectionWorker robustness (this session)
+
+class ExplodingInjector(FakeInjector):
+    """Raises instead of returning False (a ctypes/clipboard blow-up)."""
+
+    def __init__(self, raise_on):
+        super().__init__()
+        self.raise_on = raise_on
+
+    def paste_text(self, text, add_rtl_mark=False):
+        if self.raise_on in text:
+            raise RuntimeError("ctypes exploded")
+        return super().paste_text(text, add_rtl_mark)
+
+
+def test_injection_worker_survives_an_injector_exception(capsys):
+    """An exception inside paste_text used to KILL the worker thread: every
+    later finalized segment was then silently never pasted and never
+    recorded. It must be recorded as a failed paste, and the FIFO stream
+    must continue."""
+    injector = ExplodingInjector(raise_on="دو")
+    worker = app_module.InjectionWorker(injector)
+    worker.submit("یک")
+    worker.submit("دو")
+    worker.submit("سه")
+    worker.shutdown()
+
+    assert [t for t, _ in injector.pasted] == ["یک ", "سه "]
+    assert [r["success"] for r in worker.records] == [True, False, True]
+    assert [r["text"] for r in worker.records] == ["یک", "دو", "سه"]
+    assert "ctypes exploded" in worker.records[1]["error"]
+    out = capsys.readouterr().out
+    assert out.count("AUTO-INJECTION FAILED") == 1
+
+
+def test_injection_worker_survives_a_failing_result_callback(capsys):
+    """A dying overlay callback must not take the injection worker with it
+    (later segments would never be pasted)."""
+    injector = FakeInjector()
+
+    def broken_callback(record):
+        raise RuntimeError("overlay is gone")
+
+    worker = app_module.InjectionWorker(injector, on_result=broken_callback)
+    worker.submit("یک")
+    worker.submit("دو")
+    worker.shutdown()
+
+    assert [t for t, _ in injector.pasted] == ["یک ", "دو "]
+    assert [r["success"] for r in worker.records] == [True, True]
+    assert "result callback failed" in capsys.readouterr().out
+
+
+def test_injection_worker_records_jobs_left_in_the_queue(capsys):
+    """A segment that was queued but never processed must be reported as a
+    failure, never silently dropped from the injection record."""
+    worker = app_module.InjectionWorker(FakeInjector())
+    worker.shutdown()                      # the worker thread exits here
+    assert worker._thread.is_alive() is False
+
+    # A segment submitted to a stopped worker can never be pasted.
+    worker.submit("never processed")
+    worker.shutdown()
+
+    undrained = [r for r in worker.records if not r["success"]]
+    assert [r["text"] for r in undrained] == ["never processed"]
+    assert "worker stopped" in undrained[0]["error"]
+    assert "AUTO-INJECTION FAILED" in capsys.readouterr().out
