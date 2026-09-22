@@ -47,16 +47,16 @@
   },
   "current": {
     "label": "current",
-    "git_commit": "4017279ce8968ad70b467e3e6c27755ed5d5a9f0",
-    "dictionary_terms": 971,
-    "matcher_rules": 2593,
+    "git_commit": "a5d731fb81f3284fb66e2e71afa66a1b34a9e001",
+    "dictionary_terms": 968,
+    "matcher_rules": 2594,
     "exact_match": 107,
     "exact_match_accuracy": 1.0,
     "terminology": {
       "precision": 1.0,
       "recall": 1.0,
       "f1": 1.0,
-      "true_positives": 88,
+      "true_positives": 95,
       "false_positives": 0,
       "false_negatives": 0
     },
@@ -79,11 +79,11 @@
       "paragraph": 1.0
     },
     "performance": {
-      "build_time_ms_min": 55.601,
-      "build_peak_traced_memory_mb": 3.348,
-      "matcher_latency_us_p50": 5.72,
-      "full_pipeline_latency_us_p50": 46.72,
-      "long_paragraph_mean_ms": 4.148
+      "build_time_ms_min": 50.507,
+      "build_peak_traced_memory_mb": 3.344,
+      "matcher_latency_us_p50": 5.37,
+      "full_pipeline_latency_us_p50": 46.76,
+      "long_paragraph_mean_ms": 3.99
     }
   },
   "delta": {

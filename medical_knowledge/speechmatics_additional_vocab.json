@@ -933,7 +933,13 @@
       "ام‌جی"
     ]
   },
-  "Magnesium",
+  {
+    "content": "Magnesium",
+    "sounds_like": [
+      "منیزیم خون",
+      "magnesium"
+    ]
+  },
   {
     "content": "O2",
     "sounds_like": [

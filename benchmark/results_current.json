@@ -1,17 +1,17 @@
 {
   "label": "current",
-  "git_commit": "aa56481834a3a59b45160b8a680b57eedfdc0b68",
+  "git_commit": "a5d731fb81f3284fb66e2e71afa66a1b34a9e001",
   "python_version": "3.11.2",
   "platform": "Linux-6.1.158+-x86_64-with-glibc2.36",
   "packages": {
     "pyahocorasick": "2.3.1",
     "pytest": "9.1.1",
-    "speechmatics-rt": null
+    "speechmatics-rt": "1.1.1"
   },
   "matcher_backend": "aho-corasick (pyahocorasick)",
   "uses_ahocorasick": true,
-  "dictionary_terms": 971,
-  "matcher_rules": 2593,
+  "dictionary_terms": 968,
+  "matcher_rules": 2594,
   "vocabulary_entries": 136,
   "dataset": {
     "dataset_version": "nursing-2026.09.22.4",
@@ -74,26 +74,26 @@
     "repeats_per_sentence": 50,
     "sentences": 107,
     "build_time_ms": {
-      "min": 59.405,
-      "median": 70.572
+      "min": 50.507,
+      "median": 51.586
     },
-    "build_peak_traced_memory_mb": 3.348,
+    "build_peak_traced_memory_mb": 3.344,
     "matcher_latency_us": {
-      "mean": 7.87,
-      "p50": 5.98,
-      "max": 98.81
+      "mean": 6.62,
+      "p50": 5.37,
+      "max": 54.29
     },
     "full_pipeline_latency_us": {
-      "mean": 58.83,
-      "p50": 49.71,
-      "max": 412.2
+      "mean": 54.79,
+      "p50": 46.76,
+      "max": 274.65
     },
-    "mean_latency_us_per_character": 1.9719,
+    "mean_latency_us_per_character": 1.8365,
     "longest_sentence_characters": 134,
     "long_paragraph": {
       "characters": 3298,
-      "mean_ms": 4.426,
-      "max_ms": 4.702
+      "mean_ms": 3.99,
+      "max_ms": 4.247
     }
   },
   "aggregates": {
@@ -104,7 +104,7 @@
       "precision": 1.0,
       "recall": 1.0,
       "f1": 1.0,
-      "true_positives": 88,
+      "true_positives": 95,
       "false_positives": 0,
       "false_negatives": 0
     },
@@ -420,6 +420,431 @@
       }
     }
   },
+  "streaming": {
+    "case_count": 107,
+    "variant_count": 405,
+    "exact_match": 363,
+    "exact_match_accuracy": 0.8963,
+    "failures": [
+      {
+        "id": "vital_spo2_fa",
+        "segments": [
+          "اس پی او دو بیمار پایش می",
+          "شود"
+        ],
+        "produced": "SpO2 بیمار پایش می شود",
+        "expected": "SpO2 بیمار پایش می‌شود",
+        "exact_match": false
+      },
+      {
+        "id": "num_ratio",
+        "segments": [
+          "blood pressure",
+          "120/80 mmHg"
+        ],
+        "produced": "blood pressure 120/80 mmHg",
+        "expected": "BP: 120/80 mmHg",
+        "exact_match": false
+      },
+      {
+        "id": "num_ratio_spoken_fa",
+        "segments": [
+          "فشار خون صد و چهل روی هشتاد و پنج"
+        ],
+        "produced": "BP 140/85",
+        "expected": "BP: 140/85",
+        "exact_match": false
+      },
+      {
+        "id": "num_ratio_spoken_fa",
+        "segments": [
+          "فشار",
+          "خون صد و چهل روی هشتاد و پنج"
+        ],
+        "produced": "BP 140/85",
+        "expected": "BP: 140/85",
+        "exact_match": false
+      },
+      {
+        "id": "num_ratio_spoken_fa",
+        "segments": [
+          "فشار خون صد و",
+          "چهل روی هشتاد و پنج"
+        ],
+        "produced": "BP 140/85",
+        "expected": "BP: 140/85",
+        "exact_match": false
+      },
+      {
+        "id": "num_ratio_spoken_fa",
+        "segments": [
+          "فشار خون صد و چهل روی هشتاد و",
+          "پنج"
+        ],
+        "produced": "BP 140/85",
+        "expected": "BP: 140/85",
+        "exact_match": false
+      },
+      {
+        "id": "num_ratio_spoken_en",
+        "segments": [
+          "blood pressure 140",
+          "over 85 mmHg"
+        ],
+        "produced": "BP: 140 over 85 mmHg",
+        "expected": "BP: 140/85 mmHg",
+        "exact_match": false
+      },
+      {
+        "id": "num_percent",
+        "segments": [
+          "oxygen saturation 97 درصد"
+        ],
+        "produced": "SpO2: 97 %",
+        "expected": "SpO2: 97%",
+        "exact_match": false
+      },
+      {
+        "id": "num_percent",
+        "segments": [
+          "oxygen",
+          "saturation 97 درصد"
+        ],
+        "produced": "oxygen saturation 97 %",
+        "expected": "SpO2: 97%",
+        "exact_match": false
+      },
+      {
+        "id": "num_percent",
+        "segments": [
+          "oxygen saturation",
+          "97 درصد"
+        ],
+        "produced": "oxygen saturation 97 %",
+        "expected": "SpO2: 97%",
+        "exact_match": false
+      },
+      {
+        "id": "num_percent",
+        "segments": [
+          "oxygen saturation 97",
+          "درصد"
+        ],
+        "produced": "SpO2: 97 %",
+        "expected": "SpO2: 97%",
+        "exact_match": false
+      },
+      {
+        "id": "num_score",
+        "segments": [
+          "نمره درد 4",
+          "از 10 گزارش شد"
+        ],
+        "produced": "pain score 4 از 10 گزارش شد",
+        "expected": "pain score: 4 از 10 گزارش شد",
+        "exact_match": false
+      },
+      {
+        "id": "time_digits_word",
+        "segments": [
+          "10 و",
+          "30 دقیقه"
+        ],
+        "produced": "10 و 30 دقیقه",
+        "expected": "10:30",
+        "exact_match": false
+      },
+      {
+        "id": "time_digits_word",
+        "segments": [
+          "10 و 30",
+          "دقیقه"
+        ],
+        "produced": "10 و 30 دقیقه",
+        "expected": "10:30",
+        "exact_match": false
+      },
+      {
+        "id": "time_persian_digits",
+        "segments": [
+          "۱۰ و",
+          "۳۰ دقیقه"
+        ],
+        "produced": "10 و 30 دقیقه",
+        "expected": "10:30",
+        "exact_match": false
+      },
+      {
+        "id": "time_persian_digits",
+        "segments": [
+          "۱۰ و ۳۰",
+          "دقیقه"
+        ],
+        "produced": "10 و 30 دقیقه",
+        "expected": "10:30",
+        "exact_match": false
+      },
+      {
+        "id": "time_bare_pair",
+        "segments": [
+          "ساعت",
+          "ده سی"
+        ],
+        "produced": "ساعت 10 سی",
+        "expected": "ساعت 10:30",
+        "exact_match": false
+      },
+      {
+        "id": "time_unbound_number",
+        "segments": [
+          "10 و",
+          "30 دقیقه 90"
+        ],
+        "produced": "10 و 30 دقیقه 90",
+        "expected": "10:30 90",
+        "exact_match": false
+      },
+      {
+        "id": "unit_percent_fa",
+        "segments": [
+          "اشباع اکسیژن 97 درصد"
+        ],
+        "produced": "SpO2: 97 %",
+        "expected": "SpO2: 97%",
+        "exact_match": false
+      },
+      {
+        "id": "unit_percent_fa",
+        "segments": [
+          "اشباع",
+          "اکسیژن 97 درصد"
+        ],
+        "produced": "SpO2: 97 %",
+        "expected": "SpO2: 97%",
+        "exact_match": false
+      },
+      {
+        "id": "unit_percent_fa",
+        "segments": [
+          "اشباع اکسیژن",
+          "97 درصد"
+        ],
+        "produced": "SpO2: 97 %",
+        "expected": "SpO2: 97%",
+        "exact_match": false
+      },
+      {
+        "id": "unit_percent_fa",
+        "segments": [
+          "اشباع اکسیژن 97",
+          "درصد"
+        ],
+        "produced": "SpO2: 97 %",
+        "expected": "SpO2: 97%",
+        "exact_match": false
+      },
+      {
+        "id": "unit_separated_en",
+        "segments": [
+          "97",
+          "%"
+        ],
+        "produced": "97 %",
+        "expected": "97%",
+        "exact_match": false
+      },
+      {
+        "id": "unit_mmhg_en",
+        "segments": [
+          "140/85",
+          "mmhg"
+        ],
+        "produced": "140/85 mmhg",
+        "expected": "140/85 mmHg",
+        "exact_match": false
+      },
+      {
+        "id": "gram_repeated_word",
+        "segments": [
+          "نمره نمره",
+          "درد ثبت شد"
+        ],
+        "produced": "نمره pain score ثبت شد",
+        "expected": "pain score ثبت شد",
+        "exact_match": false
+      },
+      {
+        "id": "gram_repeated_word_plain",
+        "segments": [
+          "بیمار",
+          "بیمار در بخش بستری شد"
+        ],
+        "produced": "بیمار بیمار در بخش بستری شد",
+        "expected": "بیمار در بخش بستری شد",
+        "exact_match": false
+      },
+      {
+        "id": "gram_echoed_verb",
+        "segments": [
+          "بیمار هوشیار می باشد.",
+          "باشد."
+        ],
+        "produced": "بیمار هوشیار می‌باشد. باشد.",
+        "expected": "بیمار هوشیار می‌باشد.",
+        "exact_match": false
+      },
+      {
+        "id": "gram_echoed_inflection",
+        "segments": [
+          "درد را ذکر می کند.",
+          "کنند"
+        ],
+        "produced": "درد را ذکر می‌کند. کنند",
+        "expected": "درد را ذکر می‌کند",
+        "exact_match": false
+      },
+      {
+        "id": "gram_vital_period",
+        "segments": [
+          "Temp",
+          ". 36.7. °C"
+        ],
+        "produced": "Temp . 36.7 °C",
+        "expected": "Temp: 36.7 °C",
+        "exact_match": false
+      },
+      {
+        "id": "gram_vital_period",
+        "segments": [
+          "Temp .",
+          "36.7. °C"
+        ],
+        "produced": "Temp. 36.7 °C",
+        "expected": "Temp: 36.7 °C",
+        "exact_match": false
+      },
+      {
+        "id": "gram_vital_period",
+        "segments": [
+          "Temp . 36.7.",
+          "°C"
+        ],
+        "produced": "Temp: 36.7. °C",
+        "expected": "Temp: 36.7 °C",
+        "exact_match": false
+      },
+      {
+        "id": "gram_vital_bp",
+        "segments": [
+          "blood pressure.",
+          "140/85 mmHg"
+        ],
+        "produced": "blood pressure. 140/85 mmHg",
+        "expected": "BP: 140/85 mmHg",
+        "exact_match": false
+      },
+      {
+        "id": "gram_vital_spo2",
+        "segments": [
+          "oxygen",
+          "saturation و 97%"
+        ],
+        "produced": "oxygen saturation و 97%",
+        "expected": "SpO2: 97%",
+        "exact_match": false
+      },
+      {
+        "id": "gram_vital_spo2",
+        "segments": [
+          "oxygen saturation",
+          "و 97%"
+        ],
+        "produced": "oxygen saturation و 97%",
+        "expected": "SpO2: 97%",
+        "exact_match": false
+      },
+      {
+        "id": "gram_vital_spo2",
+        "segments": [
+          "oxygen saturation و",
+          "97%"
+        ],
+        "produced": "oxygen saturation و 97%",
+        "expected": "SpO2: 97%",
+        "exact_match": false
+      },
+      {
+        "id": "gram_vital_hr",
+        "segments": [
+          "heart rate.",
+          "88"
+        ],
+        "produced": "heart rate. 88",
+        "expected": "HR: 88",
+        "exact_match": false
+      },
+      {
+        "id": "gram_zwnj_prefix",
+        "segments": [
+          "بیمار درد را ذکر می",
+          "کند"
+        ],
+        "produced": "بیمار درد را ذکر می کند",
+        "expected": "بیمار درد را ذکر می‌کند",
+        "exact_match": false
+      },
+      {
+        "id": "para_vitals",
+        "segments": [
+          "علائم حیاتی شامل blood pressure. 140/85 mmHg و heart rate. 88 و oxygen saturation و 97% و Temp . 36.7. °C می",
+          "باشد"
+        ],
+        "produced": "vital signs شامل BP: 140/85 mmHg و HR: 88 و SpO2: 97% و Temp: 36.7 °C می باشد",
+        "expected": "vital signs شامل BP: 140/85 mmHg و HR: 88 و SpO2: 97% و Temp: 36.7 °C می‌باشد.",
+        "exact_match": false
+      },
+      {
+        "id": "para_allergy",
+        "segments": [
+          "مددجو سابقه آلرژی دارویی را ذکر می",
+          "کند. کنند و سابقه جراحی قبلی ندارد"
+        ],
+        "produced": "مددجو سابقه آلرژی دارویی را ذکر می کند و سابقه جراحی قبلی ندارد",
+        "expected": "مددجو سابقه آلرژی دارویی را ذکر می‌کند و سابقه جراحی قبلی ندارد.",
+        "exact_match": false
+      },
+      {
+        "id": "para_morse",
+        "segments": [
+          "مقیاس مورس تکمیل و نمره 45 ثبت گردید و بیمار در معرض خطر سقوط می",
+          "باشد"
+        ],
+        "produced": "Morse Fall Scale تکمیل و نمره 45 ثبت گردید و بیمار در معرض خطر سقوط می باشد",
+        "expected": "Morse Fall Scale تکمیل و نمره 45 ثبت گردید و بیمار در معرض خطر سقوط می‌باشد.",
+        "exact_match": false
+      },
+      {
+        "id": "para_labs",
+        "segments": [
+          "آزمایشات روتین شامل سی بی سی و",
+          "آزمایش ادرار و اف بی اس ارسال شد"
+        ],
+        "produced": "آزمایشات روتین شامل سی بی سی و U/A و FBS ارسال شد",
+        "expected": "آزمایشات روتین شامل CBC و U/A و FBS ارسال شد.",
+        "exact_match": false
+      },
+      {
+        "id": "para_mixed_language",
+        "segments": [
+          "بیمار NPO است و IV line برقرار می باشد و vital signs هر چهار ساعت کنترل می",
+          "گردد"
+        ],
+        "produced": "بیمار NPO است و IV line برقرار می‌باشد و vital signs every four hours کنترل می گردد",
+        "expected": "بیمار NPO است و IV line برقرار می‌باشد و vital signs every four hours کنترل می‌گردد.",
+        "exact_match": false
+      }
+    ]
+  },
   "cases": [
     {
       "id": "abbr_ccu",
@@ -434,8 +859,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -464,8 +891,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -494,8 +923,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -524,8 +955,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -554,8 +987,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -584,8 +1019,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -614,8 +1051,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -644,8 +1083,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -674,8 +1115,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -704,8 +1147,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -734,8 +1179,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -764,8 +1211,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -794,8 +1243,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -824,8 +1275,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -854,8 +1307,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -884,8 +1339,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -914,8 +1371,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -944,8 +1403,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -974,8 +1435,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1004,8 +1467,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1034,8 +1499,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1064,8 +1531,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1094,8 +1563,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1124,8 +1595,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1154,8 +1627,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1184,8 +1659,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1214,8 +1691,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1244,8 +1723,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1274,8 +1755,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1304,8 +1787,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1334,8 +1819,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1364,8 +1851,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1394,8 +1883,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1424,8 +1915,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1452,8 +1945,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1480,8 +1975,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1508,8 +2005,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1536,8 +2035,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1564,8 +2065,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1592,8 +2095,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1622,8 +2127,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1652,8 +2159,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -1688,9 +2197,11 @@
         "°C"
       ],
       "terms": {
-        "tp": 1,
+        "tp": 2,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -1725,9 +2236,11 @@
         "mmHg"
       ],
       "terms": {
-        "tp": 1,
+        "tp": 2,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -1762,8 +2275,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -1799,8 +2314,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -1835,8 +2352,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -1869,8 +2388,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -1903,8 +2424,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1933,8 +2456,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -1965,8 +2490,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2001,8 +2528,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2040,9 +2569,11 @@
         "infusion"
       ],
       "terms": {
-        "tp": 1,
+        "tp": 2,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2075,8 +2606,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2109,8 +2642,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2143,8 +2678,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2179,8 +2716,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2215,8 +2754,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2251,8 +2792,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2287,8 +2830,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2323,8 +2868,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2359,8 +2906,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2395,8 +2944,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2431,8 +2982,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2467,8 +3020,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2503,8 +3058,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2546,8 +3103,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2582,9 +3141,11 @@
         "%"
       ],
       "terms": {
-        "tp": 1,
+        "tp": 2,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2619,8 +3180,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2655,8 +3218,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2691,8 +3256,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2727,8 +3294,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2763,8 +3332,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2799,8 +3370,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2833,8 +3406,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2867,8 +3442,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2901,8 +3478,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2935,8 +3514,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -2971,8 +3552,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -2999,8 +3582,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3029,8 +3614,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3057,8 +3644,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3085,8 +3674,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3113,8 +3704,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -3147,8 +3740,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -3181,8 +3776,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -3215,8 +3812,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -3249,8 +3848,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3277,8 +3878,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3305,8 +3908,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3335,8 +3940,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -3375,9 +3982,11 @@
         "vital signs"
       ],
       "terms": {
-        "tp": 2,
+        "tp": 3,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -3419,8 +4028,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3451,8 +4062,10 @@
       ],
       "terms": {
         "tp": 3,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3483,8 +4096,10 @@
       ],
       "terms": {
         "tp": 3,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3513,8 +4128,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -3549,8 +4166,10 @@
       ],
       "terms": {
         "tp": 1,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -3583,8 +4202,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3611,8 +4232,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -3647,8 +4270,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 0,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3679,8 +4304,10 @@
       ],
       "terms": {
         "tp": 3,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3711,8 +4338,10 @@
       ],
       "terms": {
         "tp": 3,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3743,8 +4372,10 @@
       ],
       "terms": {
         "tp": 3,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3774,8 +4405,10 @@
       ],
       "terms": {
         "tp": 2,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3803,9 +4436,11 @@
         "every four hours"
       ],
       "terms": {
-        "tp": 3,
+        "tp": 4,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [],
@@ -3832,8 +4467,10 @@
       "medical_hits": [],
       "terms": {
         "tp": 2,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [
@@ -3867,9 +4504,11 @@
         "vital signs"
       ],
       "terms": {
-        "tp": 2,
+        "tp": 3,
+        "fp": 0,
         "fn": 0,
-        "missing": []
+        "missing": [],
+        "extra": []
       },
       "numbers": {
         "expected_declared": [

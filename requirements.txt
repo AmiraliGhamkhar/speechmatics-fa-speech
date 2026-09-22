@@ -1,4 +1,5 @@
-speechmatics-rt
+# Realtime SDK version validated by the test suite and documented runtime.
+speechmatics-rt==1.1.1
 PyAudio
 python-dotenv
 pytest

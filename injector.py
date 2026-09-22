@@ -676,6 +676,11 @@ class TextInjector:
                     print("  [paste warn] clipboard verification failed")
                     return False
 
+            # Clipboard work and verification can take long enough for focus
+            # to change.  Revalidate at the last possible moment before the
+            # Ctrl+V events; the initial check alone leaves a race window.
+            if not self._focus_guard_ok():
+                return False
             ok = self._send_paste_keystroke()
 
             # Let the target application actually read the clipboard. Pasting

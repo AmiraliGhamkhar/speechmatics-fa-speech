@@ -25,6 +25,7 @@ from typing import Any
 from .matcher import MedicalMatcher
 from .nursing_text import (
     PolishReport,
+    pending_nursing_suffix_start,
     polish_nursing_text,
     prepolish_asr_artifacts,
 )
@@ -66,6 +67,20 @@ class MedicalLayer:
     def additional_vocab(self) -> list:
         """Bounded Speechmatics vocabulary from speechmatics-eligible terms."""
         return self.fst.additional_vocab
+
+    def pending_nursing_suffix_start(self, text: str) -> int | None:
+        """Start token of a bounded nursing construct pending continuation."""
+        if not self.polish:
+            return None
+        return pending_nursing_suffix_start(text)
+
+    def prepolish(self, text: str) -> str:
+        """Apply the matcher's protected ASR-stutter cleanup only."""
+        if not self.polish:
+            return text
+        return prepolish_asr_artifacts(
+            text, protected=self.fst.repetition_safe_forms
+        )
 
     def is_rule_token_prefix(self, tokens: list[str]) -> bool:
         """Whether ``tokens`` start some rule form (see MedicalMatcher)."""

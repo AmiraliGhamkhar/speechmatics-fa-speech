@@ -449,6 +449,16 @@ def test_paste_windows_aborts_before_touching_the_clipboard(monkeypatch):
     assert state["keystrokes"] == 0
 
 
+def test_paste_windows_rechecks_focus_immediately_before_keystroke(monkeypatch):
+    inj, state = make_mock_windows_injector(monkeypatch, previous="user data")
+    decisions = iter([True, False])
+    monkeypatch.setattr(inj, "_focus_guard_ok", lambda: next(decisions))
+    assert inj._paste_windows("سلام") is False
+    assert state["keystrokes"] == 0
+    # Clipboard was touched but the user's value was restored on refusal.
+    assert state["sets"][-1] == "user data"
+
+
 def test_unarmed_injector_is_never_blocked(monkeypatch):
     inj, state = make_mock_windows_injector(monkeypatch, previous="user data")
     assert inj.armed_target is None

@@ -37,6 +37,7 @@ import subprocess
 import sys
 import time
 import tracemalloc
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -53,6 +54,7 @@ from benchmark.dataset import (  # noqa: E402
 )
 from speechmatics_test.evaluation import numbers  # noqa: E402
 from speechmatics_test.matcher import MedicalMatcher  # noqa: E402
+from speechmatics_test.medical_layer import MedicalLayer  # noqa: E402
 from speechmatics_test.nursing_text import (  # noqa: E402
     PolishReport,
     polish_document,
@@ -71,7 +73,12 @@ def _git_sha() -> str | None:
             ["git", "rev-parse", "HEAD"], cwd=str(ROOT),
             capture_output=True, text=True, timeout=10,
         )
-        return out.stdout.strip() or None
+        sha = out.stdout.strip() or None
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=str(ROOT),
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip()
+        return f"{sha}-dirty" if sha and dirty else sha
     except Exception:  # pragma: no cover - git may be unavailable
         return None
 
@@ -104,19 +111,84 @@ def run_pipeline(matcher: MedicalMatcher, spoken: str) -> tuple[str, list, Polis
     return polished, hits, report
 
 
+def _stream_splits(text: str) -> list[list[str]]:
+    """Deterministic final-segment strategies, including a one-final control."""
+    tokens = text.split()
+    if len(tokens) < 2:
+        return [[text]]
+    cuts = {1, len(tokens) - 1, len(tokens) // 2}
+    return [[text]] + [
+        [" ".join(tokens[:cut]), " ".join(tokens[cut:])]
+        for cut in sorted(cuts) if 0 < cut < len(tokens)
+    ]
+
+
+def evaluate_streaming_cases() -> dict:
+    """Exercise fixtures through the production FinalStreamCanonicalizer."""
+    # Local import avoids making app startup part of matcher-only imports.
+    from app import FinalStreamCanonicalizer
+
+    variants = []
+    for case in ALL_CASES:
+        for segments in _stream_splits(case.spoken):
+            accumulator = FinalStreamCanonicalizer(MedicalLayer(ROOT))
+            emissions = [
+                accumulator.add(normalize_text(segment), [])
+                for segment in segments
+            ]
+            emissions.append(accumulator.flush())
+            produced = " ".join(part for part in emissions if part).strip()
+            exact = produced == case.expected or \
+                produced.rstrip(".") == case.expected.rstrip(".")
+            variants.append({
+                "id": case.id,
+                "segments": segments,
+                "produced": produced,
+                "expected": case.expected,
+                "exact_match": exact,
+            })
+    exact_count = sum(item["exact_match"] for item in variants)
+    return {
+        "case_count": len(ALL_CASES),
+        "variant_count": len(variants),
+        "exact_match": exact_count,
+        "exact_match_accuracy": round(exact_count / len(variants), 4),
+        "failures": [item for item in variants if not item["exact_match"]],
+    }
+
+
 # ---------------------------------------------------------------- scoring
 
 
-def _term_metrics(case: Case, produced: str) -> dict:
-    """Medical-term presence against the case's declared expectations."""
-    expected = set(case.expected_terms)
-    if not expected:
-        return {"tp": 0, "fn": 0, "missing": []}
-    missing = [term for term in sorted(expected) if term not in produced]
+def _term_metrics(
+    case: Case,
+    produced: str,
+    produced_terms: list[str] | None = None,
+    expected_terms: list[str] | None = None,
+) -> dict:
+    """Multiset terminology metrics for all expected and produced terms.
+
+    TP is the multiset intersection; FP and FN are respectively produced and
+    expected remainders.  Thus ``HTN COPD`` against ``HTN`` is TP=1, FP=1.
+    """
+    expected = Counter(
+        case.expected_terms if expected_terms is None else expected_terms
+    )
+    produced_counter = Counter(produced_terms or [])
+    # A fixture may contain an already-canonical expected term without a
+    # rewrite hit; count its textual presence once when absent from hits.
+    for term, count in expected.items():
+        if term in produced and produced_counter[term] == 0:
+            produced_counter[term] = min(count, produced.count(term))
+    common = expected & produced_counter
+    missing_counter = expected - produced_counter
+    extra_counter = produced_counter - expected
     return {
-        "tp": len(expected) - len(missing),
-        "fn": len(missing),
-        "missing": missing,
+        "tp": sum(common.values()),
+        "fp": sum(extra_counter.values()),
+        "fn": sum(missing_counter.values()),
+        "missing": sorted(missing_counter.elements()),
+        "extra": sorted(extra_counter.elements()),
     }
 
 
@@ -180,7 +252,16 @@ def evaluate_cases(matcher: MedicalMatcher) -> dict:
         # to hand-maintain punctuation that the rule generates.
         exact = produced == expected or produced.rstrip(".") == expected.rstrip(".")
 
-        term_metrics = _term_metrics(case, produced)
+        _, expected_hits = matcher.canonicalize(normalize_text(expected))
+        term_metrics = _term_metrics(
+            case,
+            produced,
+            [hit["canonical"] for hit in hits if hit["canonical"] in produced],
+            list(dict.fromkeys(
+                [*case.expected_terms,
+                 *[hit["canonical"] for hit in expected_hits]]
+            )),
+        )
         number_metrics = _number_metrics(case, produced)
         has_warning = bool(report.warnings)
 
@@ -213,13 +294,7 @@ def _aggregate(results: list[dict]) -> dict:
 
     term_tp = sum(r["terms"]["tp"] for r in results)
     term_fn = sum(r["terms"]["fn"] for r in results)
-    # A false positive here is a medical rewrite in a case that declared no
-    # expected terms and whose output diverged from the reference: the
-    # matcher changed clinical wording it should have left alone.
-    term_fp = sum(
-        len(r["medical_hits"]) for r in results
-        if not r["terms"]["tp"] and not r["terms"]["fn"] and not r["exact_match"]
-    )
+    term_fp = sum(r["terms"]["fp"] for r in results)
 
     number_ref = sum(len(r["numbers"]["reference_numbers"]) for r in results)
     number_false = sum(len(r["numbers"]["false_numbers"]) for r in results)
@@ -357,6 +432,7 @@ def build_payload(label: str, repeats: int) -> dict:
     matcher = MedicalMatcher(ROOT)
     vocab_path = ROOT / "medical_knowledge" / "speechmatics_additional_vocab.json"
     evaluation = evaluate_cases(matcher)
+    streaming = evaluate_streaming_cases()
     performance = measure_performance(matcher, repeats)
     return {
         "label": label,
@@ -375,6 +451,7 @@ def build_payload(label: str, repeats: int) -> dict:
         "dataset": dataset_summary(),
         "performance": performance,
         "aggregates": evaluation["aggregates"],
+        "streaming": streaming,
         "cases": evaluation["cases"],
     }
 
@@ -405,10 +482,18 @@ def render_markdown(payload: dict) -> str:
         f"* dataset version: {payload['dataset']['dataset_version']} "
         f"({payload['dataset']['case_count']} cases)",
         "",
-        "## Accuracy",
+        "## Post-processing accuracy (not ASR accuracy)",
         "",
-        f"* exact-match accuracy: **{agg['exact_match']}/{agg['total_cases']}"
+        "These fixtures contain text, not audio. Whole-text and streaming "
+        "scores measure deterministic post-processing only.",
+        "",
+        f"* whole-text exact-match accuracy: **{agg['exact_match']}/{agg['total_cases']}"
         f" ({agg['exact_match_accuracy']:.1%})**",
+        f"* streaming-boundary exact-match: **"
+        f"{payload['streaming']['exact_match']}/"
+        f"{payload['streaming']['variant_count']} "
+        f"({payload['streaming']['exact_match_accuracy']:.1%})** "
+        f"across {payload['streaming']['case_count']} fixtures",
         f"* terminology F1: {agg['terminology']['f1']} "
         f"(P {agg['terminology']['precision']}, "
         f"R {agg['terminology']['recall']}, "
