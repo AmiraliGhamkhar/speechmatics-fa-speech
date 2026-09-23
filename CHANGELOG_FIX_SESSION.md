@@ -253,8 +253,8 @@ Sections 5-8 below follow the same **FILE / BUG / FIX / WHY SAFE / TEST ADDED** 
   a note describing the pass. 979 -> 960 entries, 2609 -> 2592 rules.
 - **WHY SAFE**: every conflict the loader had to arbitrate before still
   resolves to the same canonical; the compiled rule table was diffed
-  entry-by-entry against the pre-change dictionary (`/tmp/verify_rules.py`) and
-  the only REMOVED/ADDED/CHANGED rules are the ones listed above. The
+  entry-by-entry against the pre-change dictionary (an ad-hoc script, not
+  committed) and the only REMOVED/ADDED/CHANGED rules are the ones listed above. The
   432-case pre-migration parity fixture passes unchanged, tier order,
   `_compile_rules` punctuation skipping, the ambiguity guard, the `^\d+$` vocab
   skip and `load_dictionary`'s validation are untouched, and no *number*
