@@ -40,9 +40,13 @@ Partials are UI-only. Only finalized Speechmatics segments enter the medical pos
 
 ## Medical Canonicalization
 
-The medical layer is intentionally conservative.
+The live dictation path is intentionally conservative.
 
-It performs **deterministic lexical normalization only**. It does not infer diagnosis, severity, negation, dosage correctness, or clinical intent.
+**Ordinary Persian clinical narrative is preserved.** Deterministic normalization is limited to explicitly dictated abbreviations, units, numeric expressions, and bounded chart notation. For example, `نرس کال`, `فلبیت`, `مقیاس مورس`, `مقیاس برادن`, and `دکتر احمدی` remain exactly those Persian phrases; `ای سی جی` may become `ECG`, and a measured `فشار خون صد و چهل روی هشتاد` may become `BP 140/80`.
+
+The system does **not** generate or fill nursing templates. It does not reconstruct sentences, translate ordinary Persian narrative, infer diagnosis/severity/negation, repair uncertain ASR numbers, or invent missing clinical information. If Speechmatics recognizes the wrong word or number, the post-processor leaves it alone unless an explicit bounded lexical/numeric rule applies.
+
+The compatibility matcher API still supports its established dictionary-wide canonicalization by default. The application enables the conservative narrative-preserving mode for final transcript injection.
 
 Rules are:
 
@@ -82,6 +86,9 @@ Deliberate limits:
   `یک ضایعه در ریه` are left untouched.
 * A number group is all-or-nothing: `پنج و شش ساله` or `صد و بیست و هشتاد` stay
   spoken rather than being half-converted, and `هزار` is not in the lexicon.
+  The connector `روی` only anchors a right-hand number when a numeric left
+  side exists, so a corrupt ASR fragment such as `MRI روی هشتاد و پنج` is not
+  silently reinterpreted as a measurement.
 * Durations are not clock readings: `دو و نیم ساعت` and `ساعت هشت و نیم ساعت`
   stay as spoken; `دقیقه` alone never anchors a number.
 * Existing charting notation is never reformatted: `08:30`, `120/80`, `20 mg`,
@@ -92,7 +99,7 @@ Deliberate limits:
 
 Clinical abbreviations that collide with common English words require stronger evidence, such as uppercase charting forms.
 
-Cross-segment matching is supported for phrases that span multiple finalized ASR segments.
+Cross-segment matching is supported for phrases and numeric expressions that span finalized ASR segments. Only a bounded, potentially extendable suffix is retained (for example `پنجاه` + `و هشت` + `ساله`); ordinary text is emitted immediately, and the tail is always flushed at session end.
 
 ## Aho-Corasick Matcher
 
@@ -276,6 +283,7 @@ The injector provides:
 * Clipboard restoration.
 * Modifier-key protection.
 * Focus protection.
+* Honest per-segment `success: false` reporting when focus protection or paste fails.
 * Windows clipboard retry/ownership handling.
 
 Disable it with:
@@ -435,6 +443,7 @@ This project intentionally avoids:
 * Embeddings
 * Vector databases
 * Generative correction
+* Nursing-template filling or automatic report generation
 * Audio recording/persistence
 * Accumulating partial transcripts
 

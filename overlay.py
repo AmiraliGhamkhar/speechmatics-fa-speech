@@ -129,14 +129,26 @@ class TranscriptOverlay:
             # leaking an invisible always-on-top Tk root.
             self.close()
 
-    def _abort_if_closed(self, root: "tk.Tk") -> bool:
-        """Destroy a root created after shutdown and report whether to abort."""
-        if not self._closed:
-            return False
+    def _destroy_root(self, root: "tk.Tk") -> None:
+        """Release every Tk object on the UI thread that created it."""
+        # Widgets retain the Tcl interpreter.  Dropping these references here,
+        # before the UI thread exits, prevents Tkapp.__del__ from running later
+        # on the ASR/main thread (the source of Tcl's leaked-interpreter warning).
+        self._label = None
+        self._status = None
         try:
             root.destroy()
         except Exception:
             pass
+        finally:
+            if getattr(self, "_root", None) is root:
+                self._root = None
+
+    def _abort_if_closed(self, root: "tk.Tk") -> bool:
+        """Destroy a root created after shutdown and report whether to abort."""
+        if not self._closed:
+            return False
+        self._destroy_root(root)
         return True
 
     def _run(self) -> None:
@@ -205,17 +217,27 @@ class TranscriptOverlay:
             log.warning("Failed to initialize overlay window: %s", e)
             self.enabled = False
             self._ready.set()
+        finally:
+            # _run owns the Tcl interpreter, so normal shutdown and every
+            # startup failure release it here rather than during later GC on
+            # whichever thread happens to drop the overlay object.
             root = self._root
-            self._root = None
             if root is not None:
-                try:
-                    root.destroy()
-                except Exception:
-                    pass
+                self._destroy_root(root)
+            else:
+                self._label = None
+                self._status = None
 
     def _tick_follow(self) -> None:
         """Keep the overlay hovering near the mouse pointer with screen edge clamping."""
-        if self._closed or self._root is None:
+        if self._closed:
+            # close() may be unable to enqueue a Tk callback while shutdown is
+            # racing.  This already-scheduled UI-thread tick is the safe
+            # fallback; never call root.destroy() directly from the main thread.
+            if self._root is not None:
+                self._destroy_root(self._root)
+            return
+        if self._root is None:
             return
         try:
             pointer_x = self._root.winfo_pointerx()
@@ -337,12 +359,7 @@ class TranscriptOverlay:
 
         if root is not None:
             def destroy() -> None:
-                try:
-                    root.destroy()
-                except Exception:
-                    pass
-                finally:
-                    self._root = None
+                self._destroy_root(root)
 
             # Do not use _ui() here: it correctly rejects callbacks once the
             # overlay is closed.  Tk's queued callback makes destruction occur
@@ -350,7 +367,10 @@ class TranscriptOverlay:
             try:
                 root.after(0, destroy)
             except Exception:
-                destroy()
+                # Never destroy a Tcl interpreter from this caller thread.
+                # _tick_follow() is already scheduled on the UI thread and
+                # observes _closed within 40 ms.
+                pass
 
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=1.0)

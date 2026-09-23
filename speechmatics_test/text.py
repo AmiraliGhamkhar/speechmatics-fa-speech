@@ -305,9 +305,19 @@ def fold_spoken_numbers(text: str, context: NumericContext) -> str:
                 break
             group_end = group_end + 1 + following[0]
         incomplete = group_end > end
-        anchored = _anchor(tokens[index - 1] if index else None, context.before) \
-            or _anchor(tokens[group_end] if group_end < len(tokens) else None,
-                       context.after)
+        before_token = tokens[index - 1] if index else None
+        anchored_before = _anchor(before_token, context.before)
+        if (anchored_before and context.ratio_connector
+                and _bare(before_token or "") == context.ratio_connector):
+            # "روی" only anchors the RIGHT side of a real numeric ratio.  It
+            # must not digitize corrupt prose such as "MRI روی هشتاد و پنج".
+            anchored_before = (
+                index >= 2 and _is_plain_number(_bare(tokens[index - 2]))
+            )
+        anchored = anchored_before or _anchor(
+            tokens[group_end] if group_end < len(tokens) else None,
+            context.after,
+        )
         if _meridiem_restated(tokens, group_end, context):
             anchored = False
         if not incomplete and anchored:
@@ -405,9 +415,9 @@ def _clock_minutes(tokens: list[str], index: int, context: NumericContext, *,
         return None
     if after + 1 < len(tokens) and tokens[after + 1] == SPOKEN_NUMERAL_JOINER:
         return None
-    # "و" + the minute tokens + the unit token; the unit is re-emitted by the
-    # caller so the spoken wording survives with the colon notation added.
-    return value, used + 2, f" {context.minute_unit}"
+    # "و" + the minute tokens + the unit token.  The unit is consumed because
+    # the colon notation already states that the second field is minutes.
+    return value, used + 2, ""
 
 
 def _meridiem_restated(tokens: list[str], index: int,
@@ -461,5 +471,9 @@ def fold_numeric_expressions(text: str, context: NumericContext) -> str:
     if not text:
         return text
     text = fold_clock_times(text, context)
+    # Two bounded passes let the left side of a spoken ratio become digits
+    # before "روی" is considered as context for the right side.  This avoids
+    # treating an arbitrary "X روی eighty" fragment as a measurement.
+    text = fold_spoken_numbers(text, context)
     text = fold_spoken_numbers(text, context)
     return fold_spoken_ratio(text, context)

@@ -307,3 +307,69 @@ benchmark/benchmark_matcher.py                    -> OK (see below)
   -> `every day` on a second pass) are untouched: they are legacy `time_*`
   data outside this pass, and repairing them means re-canonicalizing dozens of
   unrelated entries.
+
+---
+
+# Conservative Persian dictation pass (2026-09-23)
+
+## Failure classification
+
+- **Post-processing policy errors:** Persian dictionary aliases such as `نرس کال`,
+  `فلبیت`, `مقیاس مورس`, `مقیاس برادن`, `علائم حیاتی`, and narrative blood-pressure
+  mentions were translated/canonicalized even though the live app requested narrative
+  preservation. The flag existed, but `MedicalMatcher.canonicalize()` did not pass it
+  to either scanner.
+- **Segmentation/buffering errors:** the stream buffer considered rules that the
+  conservative app path would never apply, retained complete non-extendable rules,
+  and did not retain fragmented spoken-number suffixes (`پنجاه` + `و هشت` + `ساله`).
+- **Numeric safety errors:** `نمره` was not a bounded numeric anchor, clock notation
+  retained a redundant `دقیقه`, and bare `روی` could digitize a corrupt non-ratio
+  fragment such as `MRI روی هشتاد و پنج`.
+- **Injection behavior:** FIFO ordering and the focus guard were already correct.
+  Failed pastes were already represented honestly as `success: false`; an end-to-end
+  regression test now pins that report contract.
+- **Shutdown/UI lifecycle error:** Tk widget/interpreter references could survive the
+  overlay UI thread, and one callback-failure branch called `destroy()` from the
+  caller thread. Cleanup now remains on the UI thread and releases widget references
+  before it exits.
+- **ASR recognition errors (not post-processed):** wrong recognized words, a wrong
+  number such as `20` versus `25`, or an English final emitted directly by
+  Speechmatics cannot be safely reconstructed. No guessing or reverse translation
+  was added.
+
+## Small deterministic fixes
+
+- **`speechmatics_test/matcher.py` / `medical_layer.py`:** propagate the existing
+  `preserve_narrative` mode through Aho-Corasick and fallback scanners; permit only
+  immediate value-backed measurement notation, units, and explicitly spoken chart
+  abbreviations in that mode; expose conservative prefix checks for the stream.
+  The default matcher API and dictionary-wide benchmark semantics remain unchanged.
+- **`app.py`:** use only strict conservative lexical prefixes and retain only a
+  bounded numeric suffix, preserving order and allowing fragmented ages/vitals to
+  normalize without session-wide accumulation.
+- **`speechmatics_test/text.py`:** add the score anchor, consume `دقیقه` when emitting
+  `H:MM`, and require a numeric left side before `روی` can anchor the right side.
+- **`overlay.py`:** destroy Tk resources and drop widget references on their creator
+  thread; never use caller-thread destruction as a shutdown fallback.
+- **Tests/docs:** added exact narrative, notation, no-guessing, fragmentation,
+  injection-report, realistic end-to-end nursing paragraph, and overlay lifecycle
+  regressions. README now states that ordinary Persian is preserved and that no
+  nursing template is generated.
+
+## Validation
+
+```text
+python -m pytest -q
+  -> 595 passed
+python -m compileall -q app.py injector.py overlay.py speechmatics_test tests benchmark scripts
+  -> OK
+python scripts/export_additional_vocab.py --check
+  -> OK (952 terms, 135 eligible entries; committed artifact unchanged/in sync)
+python benchmark/benchmark_matcher.py --sizes 100 500 1000 2000 --repeats 50
+  -> OK (Aho-Corasick; 100-2000 rules; output written outside the repository)
+python -m pip check
+  -> No broken requirements found
+app.py --help and missing-key startup for fa/en, --no-vocab,
+--no-medical-layer, and --no-inject
+  -> options present; startup exits cleanly with the expected key error
+```

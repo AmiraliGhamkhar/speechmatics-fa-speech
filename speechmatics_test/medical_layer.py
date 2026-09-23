@@ -51,18 +51,26 @@ class MedicalLayer:
         """Bounded Speechmatics vocabulary from speechmatics-eligible terms."""
         return self.fst.additional_vocab
 
-    def is_rule_token_prefix(self, tokens: list[str]) -> bool:
+    def is_rule_token_prefix(
+        self, tokens: list[str], *, preserve_narrative: bool = False
+    ) -> bool:
         """Whether ``tokens`` start some rule form (see MedicalMatcher)."""
-        return self.fst.is_rule_token_prefix(tokens)
+        return self.fst.is_rule_token_prefix(
+            tokens, preserve_narrative=preserve_narrative
+        )
 
-    def is_strict_rule_token_prefix(self, tokens: list[str]) -> bool:
+    def is_strict_rule_token_prefix(
+        self, tokens: list[str], *, preserve_narrative: bool = False
+    ) -> bool:
         """Whether ``tokens`` are a PROPER prefix of a longer rule form.
 
         See ``MedicalMatcher.is_strict_rule_token_prefix``: unlike
         ``is_rule_token_prefix``, a tuple that only equals a complete,
         non-extendable rule's own full form returns False here.
         """
-        return self.fst.is_strict_rule_token_prefix(tokens)
+        return self.fst.is_strict_rule_token_prefix(
+            tokens, preserve_narrative=preserve_narrative
+        )
 
     def canonicalize(
         self,

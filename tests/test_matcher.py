@@ -658,6 +658,21 @@ def test_is_strict_rule_token_prefix_excludes_standalone_complete_rules(fst):
     assert fst.is_strict_rule_token_prefix([]) is False
 
 
+def test_conservative_prefixes_buffer_only_rules_that_can_fire(fst):
+    assert fst.is_strict_rule_token_prefix(
+        ["فشار", "خون"], preserve_narrative=True
+    ) is True
+    assert fst.is_strict_rule_token_prefix(
+        ["ای", "سی"], preserve_narrative=True
+    ) is True
+    assert fst.is_rule_token_prefix(
+        ["مقیاس", "مورس"], preserve_narrative=True
+    ) is False
+    assert fst.is_rule_token_prefix(
+        ["ارزیابی"], preserve_narrative=True
+    ) is False
+
+
 # ----------------------------------------------- privacy of engine warning
 
 def test_engine_failure_warning_does_not_leak_transcript(fst, monkeypatch):
@@ -679,6 +694,18 @@ def test_engine_failure_warning_does_not_leak_transcript(fst, monkeypatch):
         assert "محرمانه" not in warning
         assert "بیمار" not in warning
         assert "chars (sha256:" in warning
+
+
+def test_engine_fallback_retains_conservative_narrative_policy(fst, monkeypatch):
+    def boom(text, word_results=None, *, preserve_narrative=False):
+        raise RuntimeError("engine exploded")
+
+    monkeypatch.setattr(fst, "_scan", boom)
+    out, hits = fst.canonicalize(
+        normalize_text("مقیاس مورس نمره بیست"), preserve_narrative=True
+    )
+    assert out == "مقیاس مورس نمره 20"
+    assert not any(hit["canonical"] == "Morse Fall Scale" for hit in hits)
 
 
 # ------------------------------------------------- MedicalFST alias (§0)
@@ -768,8 +795,8 @@ NUMERIC_CASES = [
     ("23:15", "23:15"),
     ("ساعت هشت و نیم", "ساعت 8:30"),
     ("ساعت هشت وربع", "ساعت 8:15"),
-    ("ساعت هشت و چهل و پنج دقیقه", "ساعت 8:45 دقیقه"),
-    ("ساعت دو و 15 دقیقه", "ساعت 2:15 دقیقه"),
+    ("ساعت هشت و چهل و پنج دقیقه", "ساعت 8:45"),
+    ("ساعت دو و 15 دقیقه", "ساعت 2:15"),
     ("هشت و نیم صبح", "8:30 صبح"),
     ("ساعت هشت صبح", "ساعت 8 صبح"),
     ("ساعت دو بعد از ظهر", "ساعت 2 بعد از ظهر"),
@@ -849,7 +876,7 @@ def test_fold_is_anchored_and_never_half_converts_a_number(fst):
     # "ده دقیقه" has no lead and no after-anchor: left as spoken rather than
     # folded into a meaningless bare "10".
     assert canon(fst, "هشت و سی دقیقه") == "هشت و سی دقیقه"
-    assert canon(fst, "ساعت هشت و سی دقیقه") == "ساعت 8:30 دقیقه"
+    assert canon(fst, "ساعت هشت و سی دقیقه") == "ساعت 8:30"
     # an invalid hour is not a clock reading
     assert canon(fst, "ساعت 24") == "ساعت 24"
     assert canon(fst, "ساعت 23 و 60 دقیقه") == "ساعت 23 و 60 دقیقه"
@@ -913,7 +940,8 @@ def test_the_fold_only_rewrites_number_spans(fst, raw, _expected):
     match it.
     """
     removable = (set(SPOKEN_NUMERALS)
-                 | {SPOKEN_NUMERAL_JOINER, NUMERIC_CONTEXT.ratio_connector}
+                 | {SPOKEN_NUMERAL_JOINER, NUMERIC_CONTEXT.ratio_connector,
+                    NUMERIC_CONTEXT.minute_unit}
                  | NUMERIC_CONTEXT.half_words | NUMERIC_CONTEXT.quarter_words)
     removable |= {SPOKEN_NUMERAL_JOINER + word
                   for word in NUMERIC_CONTEXT.half_words | NUMERIC_CONTEXT.quarter_words}
@@ -981,6 +1009,68 @@ def test_app_transcript_still_canonicalizes_explicit_chart_notation(fst):
     raw = normalize_text("فشار خون صد و چهل روی هشتاد، اشباع اکسیژن نود و هفت درصد، پنج میلی گرم")
     out, _ = fst.canonicalize(raw, preserve_narrative=True)
     assert out == "BP 140/80، SpO2 97 %، 5 mg"
+
+
+@pytest.mark.parametrize("raw", [
+    "دکتر احمدی",
+    "ارزیابی اولیه پرستاری",
+    "نرس کال",
+    "فلبیت",
+    "مقیاس مورس",
+    "مقیاس برادن",
+    "درد قفسه سینه",
+    "آنژین ناپایدار",
+    "پنی سیلین",
+    "آپاندکتومی",
+])
+def test_conservative_application_mode_preserves_persian_narrative(fst, raw):
+    out, hits = fst.canonicalize(normalize_text(raw), preserve_narrative=True)
+    assert out == raw
+    assert hits == []
+
+
+@pytest.mark.parametrize(("raw", "expected"), [
+    ("پنجاه و هشت ساله", "58 ساله"),
+    ("ساعت ده و سی دقیقه", "ساعت 10:30"),
+    ("نود و هفت درصد", "97 %"),
+    ("فشار خون صد و چهل روی هشتاد", "BP 140/80"),
+    ("اشباع اکسیژن نود و هفت درصد", "SpO2 97 %"),
+    ("پنج میلی گرم", "5 mg"),
+    ("ای سی جی", "ECG"),
+    ("سی بی سی", "CBC"),
+    ("نمره بیست", "نمره 20"),
+])
+def test_conservative_application_mode_keeps_bounded_notation(fst, raw, expected):
+    out, _ = fst.canonicalize(normalize_text(raw), preserve_narrative=True)
+    assert out == expected
+
+
+def test_score_twenty_is_never_guessed_as_twenty_five(fst):
+    out, _ = fst.canonicalize(
+        normalize_text("نمره بیست"), preserve_narrative=True
+    )
+    assert out == "نمره 20"
+    assert "25" not in out
+
+
+@pytest.mark.parametrize("raw", [
+    "MRI روی هشتاد و پنج",
+    "فشار خون MRI روی هشتاد و پنج",
+    "فشار خون MRI روی 80 و پنج",
+])
+def test_corrupt_non_ratio_numeric_chunk_is_not_reinterpreted(fst, raw):
+    out, _ = fst.canonicalize(normalize_text(raw), preserve_narrative=True)
+    assert out == raw
+    assert not out.startswith("BP")
+
+
+def test_measurement_phrase_requires_an_immediately_following_value(fst):
+    out, _ = fst.canonicalize(
+        normalize_text("سابقه فشار خون دارد و سن پنجاه سال است"),
+        preserve_narrative=True,
+    )
+    assert out == "سابقه فشار خون دارد و سن 50 سال است"
+    assert "BP" not in out
 
 
 ORDINARY_PERSIAN = [
