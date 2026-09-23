@@ -85,7 +85,9 @@ def test_curated_speechmatics_vocab_is_bounded_and_keeps_sounds_like():
         MedicalLayer(app_module.ROOT).additional_vocab
     )
     by_content = {item["content"]: item for item in vocab if isinstance(item, dict)}
-    assert len(vocab) < 100  # ASR biasing vocabulary, not the local dictionary
+    # budgeted biasing list, not the local dictionary (shared budget:
+    # tests/test_dictionary.py::test_vocabulary_stays_bounded_not_the_full_dictionary)
+    assert len(vocab) <= 150
     assert {
         "metformin", "CT scan", "HbA1c", "right lung", "C3-C4", "mL"
     } <= set(by_content)

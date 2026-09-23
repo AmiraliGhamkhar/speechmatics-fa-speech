@@ -8,6 +8,7 @@ agreement, native/pure-python engine parity, and the ``MedicalFST`` alias.
 """
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -17,9 +18,16 @@ from speechmatics_test.matcher import (
     FstError,
     MedicalFST,
     MedicalMatcher,
+    NUMERIC_CONTEXT,
     TIER_ORDER,
 )
-from speechmatics_test.text import normalize_text
+from speechmatics_test.text import (
+    fold_clock_times,
+    fold_numeric_expressions,
+    fold_spoken_numbers,
+    fold_spoken_ratio,
+    normalize_text,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -705,3 +713,200 @@ def test_consolidated_dictionary_reproduces_legacy_behavior(fst):
         if out != case["canonical"] or expected_hits != case["hits"]:
             mismatches.append(case["raw"])
     assert mismatches == []
+
+
+# ==========================================================================
+# numeric and clock folding: age, blood pressure, SpO2, time of day, AM/PM
+#
+# ``canon`` drives the real pipeline (normalize_text -> lexical pass -> fold),
+# so every case below is the behaviour of the service and not of a test-local
+# copy.  The fold is deliberately anchor-driven: a number is only rewritten
+# when the words around it say what kind of number it is.
+# ==========================================================================
+
+NUMERIC_CASES = [
+    # --- age: "سن <n> سال" / "<n> ساله" ---------------------------------
+    ("سن بیست سال", "سن 20 سال"),
+    ("بیست ساله", "20 ساله"),
+    ("بیمار بیست و پنج ساله", "بیمار 25 ساله"),
+    ("بیمار شصت و هفت ساله", "بیمار 67 ساله"),
+    ("سن بیمار چهل و دو سال است", "سن بیمار 42 سال است"),
+    ("بیمار 25 ساله", "بیمار 25 ساله"),
+    ("سن 65 سال", "سن 65 سال"),
+    ("بیمار 72 ساله", "بیمار 72 ساله"),
+    ("۲۰ ساله", "20 ساله"),
+    # --- blood pressure: concept + systolic/diastolic --------------------
+    ("فشار خون", "BP"),
+    ("فشار خون صد و بیست روی هشتاد", "BP 120/80"),
+    ("فشار خون ۱۲۰ روی ۸۰", "BP 120/80"),
+    ("فشار 120 روی 80", "BP 120/80"),
+    ("صد و بیست روی هشتاد", "120/80"),
+    # a run that does not form one number is left entirely alone, never half
+    ("فشار خون صد و بیست و هشتاد", "BP صد و بیست و هشتاد"),
+    ("فشار خون 120/80", "BP 120/80"),
+    ("فشار خون بالا", "HTN"),
+    # --- SpO2: concept and percentage, never a bare "98 %" -------------
+    ("اشباع اکسیژن", "SpO2"),
+    ("اس پی او دو نود و هشت", "SpO2 98"),
+    ("اشباع اکسیژن نود و هشت درصد", "SpO2 98 %"),
+    ("اشباع اکسیژن 98 درصد", "SpO2 98 %"),
+    ("ساتوریشن نود و هشت", "oxygen saturation 98"),
+    ("ساتوریشن 97 درصد", "oxygen saturation 97 %"),
+    ("اکسیژن نود و پنج درصد", "O2 95 %"),
+    ("SpO2 98%", "SpO2 98%"),
+    ("SpO2 98 %", "SpO2 98 %"),
+    ("۹۸ درصد", "98 %"),
+    # --- time of day ------------------------------------------------------
+    ("ساعت هشت", "ساعت 8"),
+    ("ساعت ۱۲", "ساعت 12"),
+    ("ساعت 08", "ساعت 08"),
+    ("ساعت 14", "ساعت 14"),
+    ("08:30", "08:30"),
+    ("14:30", "14:30"),
+    ("23:15", "23:15"),
+    ("ساعت هشت و نیم", "ساعت 8:30"),
+    ("ساعت هشت وربع", "ساعت 8:15"),
+    ("ساعت هشت و چهل و پنج دقیقه", "ساعت 8:45 دقیقه"),
+    ("ساعت دو و 15 دقیقه", "ساعت 2:15 دقیقه"),
+    ("هشت و نیم صبح", "8:30 AM"),
+    ("ساعت هشت صبح", "ساعت 8 AM"),
+    ("ساعت دو بعد از ظهر", "ساعت 2 PM"),
+    ("ساعت سه عصر", "ساعت 3 PM"),
+    ("ساعت هشت شب", "ساعت 8 PM"),
+    ("ساعت دوازده ظهر", "ساعت 12 ظهر"),
+    # --- AM / PM ---------------------------------------------------------
+    ("8 AM", "8 AM"),
+    ("8 PM", "8 PM"),
+    ("12 AM", "12 AM"),
+    ("12 PM", "12 PM"),
+    ("8 am", "8 AM"),
+    ("۸ صبح", "8 AM"),
+    ("at 8 A.M. give IV", "at 8 AM. give IV"),
+    ("ساعت ۸:۳۰ صبح", "ساعت 8:30 AM"),
+]
+
+
+@pytest.mark.parametrize("raw,expected", NUMERIC_CASES)
+def test_requested_numeric_rewrites(fst, raw, expected):
+    assert canon(fst, raw) == expected
+
+
+@pytest.mark.parametrize("raw,_expected", NUMERIC_CASES)
+def test_numeric_rewrites_are_idempotent(fst, raw, _expected):
+    """Re-canonicalizing the output must not rewrite it a second time."""
+    once = canon(fst, raw)
+    assert canon(fst, once) == once
+
+
+SAFE_CASES = [
+    # Ordinary English must not be read as clinical notation.
+    ("vivid", "vivid"),
+    ("ivory", "ivory"),
+    ("The patient is stable now", "The patient is stable now"),
+    ("8", "8"),
+    ("120", "120"),
+    ("ordinary 120 numbers", "ordinary 120 numbers"),
+    # Persian words that merely look like anchors.
+    ("درد روی سینه", "درد روی سینه"),
+    ("یک ضایعه در ریه", "یک ضایعه در ریه"),
+    ("پنج و شش ساله", "پنج و شش ساله"),
+    ("دو هفته قبل", "دو هفته قبل"),
+    ("ده میلیارد", "ده میلیارد"),
+    # "هزار" is deliberately not in the numeral lexicon: no half-thousands.
+    ("هزار میلی لیتر", "هزار mL"),
+    # A duration is not a clock reading, and half an hour of it stays spoken.
+    ("دو و نیم ساعت", "دو و نیم ساعت"),
+    ("ساعت هشت و نیم ساعت", "ساعت 8 و نیم ساعت"),
+    ("هر دو ساعت داده شد", "q2h داده شد"),
+    # Units keep their own canonical spelling.
+    ("دوز 20 mg", "دوز 20 mg"),
+    ("دوز ۵ میلی گرم", "دوز 5 mg"),
+    ("۵.۵ میلی لیتر", "5.5 mL"),
+    ("۶۰ کیلوگرم", "60 kg"),
+    # Dates and calendar years are not clock values.
+    ("۲۵ مارس ۲۰۲۵", "25 مارس 2025"),
+    ("۱۳۹۰", "1390"),
+    ("۳ بار در روز", "3 بار در روز"),
+]
+
+
+@pytest.mark.parametrize("raw,expected", SAFE_CASES)
+def test_folds_leave_ordinary_text_alone(fst, raw, expected):
+    assert canon(fst, raw) == expected
+
+
+def test_fold_is_anchored_and_never_half_converts_a_number(fst):
+    # "ده دقیقه" has no lead and no after-anchor: left as spoken rather than
+    # folded into a meaningless bare "10".
+    assert canon(fst, "هشت و سی دقیقه") == "هشت و سی دقیقه"
+    assert canon(fst, "ساعت هشت و سی دقیقه") == "ساعت 8:30 دقیقه"
+    # an invalid hour is not a clock reading
+    assert canon(fst, "ساعت 24") == "ساعت 24"
+    assert canon(fst, "ساعت 23 و 60 دقیقه") == "ساعت 23 و 60 دقیقه"
+
+
+def test_folds_apply_after_the_lexical_pass_and_add_no_hits(fst):
+    """Folds rewrite canonical text; they must never invent medical hits."""
+    text = normalize_text("فشار خون صد و بیست روی هشتاد")
+    canonical, hits = fst.canonicalize(text)
+    assert canonical == "BP 120/80"
+    assert [hit["canonical"] for hit in hits] == ["BP"]
+
+
+def test_standalone_fold_stage_matches_the_pipeline():
+    """The fold is the last stage, so it can be exercised on its own."""
+    lexical = "فشار خون صد و بیست روی هشتاد"
+    folded = fold_numeric_expressions(lexical, NUMERIC_CONTEXT)
+    assert folded == "فشار خون 120/80"
+    assert fold_spoken_numbers(folded, NUMERIC_CONTEXT) == folded
+    assert fold_clock_times("ساعت هشت و نیم", NUMERIC_CONTEXT) == "ساعت 8:30"
+    assert fold_spoken_ratio("120 روی 80", NUMERIC_CONTEXT) == "120/80"
+    assert fold_spoken_ratio("درد روی سینه", NUMERIC_CONTEXT) == "درد روی سینه"
+
+
+def test_minute_word_is_a_tail_marker_not_an_anchor():
+    """"دقیقه" must stay out of ``after`` or bare durations get corrupted."""
+    assert "دقیقه" not in NUMERIC_CONTEXT.after
+    assert "دقیقه" == NUMERIC_CONTEXT.minute_unit
+    assert NUMERIC_CONTEXT.clock_lead == "ساعت"
+
+
+def test_numeric_fold_is_engine_independent():
+    """The fold sits outside both scanners, so both produce the same text."""
+    matcher = MedicalMatcher(ROOT)
+    matcher._ac_native = None
+    matcher._ac_python = AhoAutomaton([rule.match_form for rule in matcher.rules])
+    for raw, _expected in NUMERIC_CASES + SAFE_CASES:
+        text = normalize_text(raw)
+        assert matcher.canonicalize(text) == MedicalMatcher(ROOT).canonicalize(text)
+
+
+def test_number_and_meridiem_rows_are_single_sourced():
+    """Dictionary invariants that keep the fold authoritative for numbers.
+
+    A row per spoken hour used to emit digits *and* fight the fold over the
+    same span, and a bare "morning" was rewritten to the frequency phrase
+    "every morning" by the dictionary; both are prevented here.
+    """
+    data = json.loads(
+        (ROOT / "medical_knowledge" / "medical_dictionary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    by_id = {term["id"]: term for term in data["terms"]}
+    assert not [term for term in data["terms"] if re.fullmatch(r"hour_\d+", term["id"])]
+    assert by_id["am"]["canonical"] == "AM"
+    assert by_id["pm"]["canonical"] == "PM"
+    assert by_id["midnight"]["canonical"] == "12 AM"
+    mapped: dict[str, set[str]] = {}
+    for term in data["terms"]:
+        for form in term["forms"]:
+            mapped.setdefault(form.strip().casefold(), set()).add(term["canonical"])
+    assert "every morning" not in mapped.get("morning", set())
+    assert "every evening" not in mapped.get("evening", set())
+    assert "noon / midday" not in mapped.get("noon", set())
+    # the day-part aliases live on the meridiem rows themselves
+    assert "صبح" in by_id["am"]["forms"] and "شب" in by_id["pm"]["forms"]
+    # ... while "نیمه شب" keeps its own row so "شب" -> PM cannot split it
+    assert "نیمه شب" in by_id["midnight"]["forms"]
+    assert by_id["spo2"]["canonical"] == "SpO2"

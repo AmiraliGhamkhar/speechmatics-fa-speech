@@ -1,7 +1,11 @@
 # Fix Session Changelog
 
 Format per change: **FILE / BUG / FIX / WHY SAFE / TEST ADDED**.
-Final result: **315 passed, 0 failed** (`pytest -q`), `compileall` OK, `pip check` OK,
+
+> The **Numeric / time consolidation pass** at the end of this file supersedes
+> the counts below: **447 passed, 0 failed**, 960 dictionary terms, 134 vocab entries.
+
+Final result of the earlier pass: **315 passed, 0 failed** (`pytest -q`), `compileall` OK, `pip check` OK,
 `scripts/export_additional_vocab.py --check` OK (942 dictionary terms, 98 vocab entries),
 `benchmark/benchmark_matcher.py --sizes 100 500 1000 2000 --repeats 50` OK,
 `app.py --help` OK, `fa`/`en`/`--no-vocab`/`--no-medical-layer`/`--no-inject` conceptual
@@ -155,3 +159,147 @@ app.py --help                                     -> OK
 app.py --language fa|en --no-vocab|--no-medical-layer|--no-inject --no-overlay
                                                    -> graceful "SPEECHMATICS_API_KEY is missing" exit, no crash
 ```
+
+---
+
+# Numeric / time consolidation pass (2026-09-23)
+
+Age, blood pressure, SpO2, time-of-day and AM/PM notation, plus a dictionary
+audit that removed the structural duplicates behind the mis-normalizations.
+Sections 5-8 below follow the same **FILE / BUG / FIX / WHY SAFE / TEST ADDED** format.
+
+## 5. The shipped dictionary did not load under its own validator
+
+- **FILE**: `medical_knowledge/medical_dictionary.json`
+- **BUG**: `MedicalMatcher.load_dictionary` rejects two entries with the same
+  canonical (`FstError: duplicate canonical 'PO'`), and `po` / `route_0049`
+  both claimed it. Every test that built a matcher from the repository
+  therefore errored at *collection* (89 errors + 25 failures in `pytest -q`).
+- **FIX**: merged `route_0049`'s distinct aliases (`by mouth`, `orally`,
+  `per os`, `دهانی`) into the `po` row and deleted the duplicate row, keeping
+  `PO` as the single canonical. The one `sounds_like` item that was a typo
+  (`ازراهد‌هان`) was dropped rather than propagated. The validator itself is
+  unchanged: it still refuses a duplicate canonical.
+- **WHY SAFE**: the surviving rules are a superset of both rows' rules, and the
+  compiled rule table was diffed against the pre-change one to prove no rule
+  changed owner, canonical or tier except the ones listed in §6.
+- **TEST ADDED**: existing `tests/test_dictionary.py` / `tests/test_matcher.py`
+  load tests now run instead of erroring (the 432-case pre-migration parity
+  fixture included).
+
+## 6. Spoken numbers, times and meridiems had no coverage at all
+
+- **FILE**: `speechmatics_test/text.py`, `speechmatics_test/matcher.py`
+- **BUG**: the pipeline recognized only what the dictionary spells out, so
+  `سن بیست سال`, `فشار خون صد و بیست روی هشتاد`, `اشباع اکسیژن نود و هشت
+  درصد`, `ساعت هشت`, `هشت و نیم صبح` and `8 A.M.` were all passed through
+  as prose. The rows that *did* exist for some of them were wrong: a
+  `hour_N` row per hour rewrote `ساعت هشت` -> `8` inside `هر دو ساعت`-like
+  text, `A.M.` was written as `8 A.M.`-with-period or left alone, and a bare
+  `morning`/`evening` form mapped to the *frequency* phrase `every morning`.
+- **FIX**: added a bounded fold stage after the lexical pass
+  (`fold_numeric_expressions` = clock -> numerals -> ratio) driven by a
+  `NumericContext` the medical layer supplies (`matcher.NUMERIC_CONTEXT`), so
+  `text.py` keeps no clinical vocabulary of its own. Coverage is anchor-based:
+  an hour needs `ساعت` before it or a day part after it; a numeral needs a
+  unit or a vital-sign word beside it; `X روی Y` becomes `X/Y`. A number group
+  is folded all-or-nothing (a run interrupted by `و` that does not form one
+  valid number is left entirely alone). `NUMERIC_CONTEXT` is the only place
+  that decides which words count as measurement context.
+- **WHY SAFE**: the fold runs on the *already canonical* text, outside the
+  `_scan` / `_scan_reference` try/except (a fold error can never trigger the
+  reference fallback and cannot desynchronise the two engines), and it emits no
+  hits, so `form`/`canonical`/`position` reporting is untouched. It refuses to
+  act on a bare number, on text without an anchor, on a written hour followed by
+  its own numeric meridiem (`دوازده 12 PM` is not doubled), and on any hour
+  outside `0..23`; already-written `08:30`, `120/80`, `20 mg`, `98 %`, `12 PM`
+  are byte-identical outputs, and every rewrite is idempotent. The `hour_N`,
+  `morning`/`evening`-as-frequency and bare-number rows were deleted from the
+  dictionary instead of being worked around.
+- **TEST ADDED**: `tests/test_matcher.py::test_requested_numeric_rewrites`
+  (57 parametrized cases incl. every example from the task),
+  `test_numeric_rewrites_are_idempotent`,
+  `test_folds_leave_ordinary_text_alone`,
+  `test_fold_is_anchored_and_never_half_converts_a_number`,
+  `test_folds_apply_after_the_lexical_pass_and_add_no_hits`,
+  `test_standalone_fold_stage_matches_the_pipeline`,
+  `test_minute_word_is_a_tail_marker_not_an_anchor`,
+  `test_numeric_fold_is_engine_independent`,
+  `test_number_and_meridiem_rows_are_single_sourced`.
+
+## 7. Structural duplicates and mis-mappings in the dictionary
+
+- **FILE**: `medical_knowledge/medical_dictionary.json`
+- **BUG**: 979 entries carried 173 in-entry duplicate `forms` (same rule key
+  twice), several duplicate `sounds_like` items, case-only duplicate canonicals
+  (`Vital signs`/`vital signs`, `Chest X-ray`/`chest x-ray`,
+  `Intensive Care Unit`/`intensive care unit`, `Cardiac Care Unit`/
+  `coronary care unit`, `Magnesium`/`magnesium`), `am`/`pm` rows split from
+  their `misc_01NN` aliases, an `اشباع اکسیژن`-style concept spelled both as an
+  abbreviation row and a phrase row with conflicting canonicals, and `hour_1`
+  .. `hour_12` rows duplicating each other's `ساعت N` forms.
+- **FIX**: merged each duplicate pair into the row whose id/tier the rest of the
+  dictionary already used (`po`, `chest-xray`, `vital-signs`, `magnesium`,
+  `intensive-care-unit`, `coronary-care-unit`, `am`, `pm`), took the lowercase
+  canonical where the project's convention is lowercase (`chest X-ray`,
+  `vital signs`, `intensive care unit`, `coronary care unit`, `magnesium`),
+  de-duplicated every entry's `forms`/`sounds_like` using the *loader's own*
+  rule key, deleted the `hour_*` rows, replaced them with a single `midnight`
+  row (`نیمه شب` -> `12 AM`) so `شب` -> `PM` cannot split the phrase, moved the
+  day-part aliases onto `am`/`pm` (`صبح زود`, `قبل ظهر`, `بعدازظهر`, ...), gave
+  `spo2` the letter-spelled aliases (`اسپیاودو`, `اشباع`) while leaving the
+  *word* forms `ساتوریشن`/`اکسیژن ساتوریشن` with the `oxygen saturation` row the
+  parity fixture pins, and refreshed `metadata.entry_count`/`generated_on` with
+  a note describing the pass. 979 -> 960 entries, 2609 -> 2592 rules.
+- **WHY SAFE**: every conflict the loader had to arbitrate before still
+  resolves to the same canonical; the compiled rule table was diffed
+  entry-by-entry against the pre-change dictionary (`/tmp/verify_rules.py`) and
+  the only REMOVED/ADDED/CHANGED rules are the ones listed above. The
+  432-case pre-migration parity fixture passes unchanged, tier order,
+  `_compile_rules` punctuation skipping, the ambiguity guard, the `^\d+$` vocab
+  skip and `load_dictionary`'s validation are untouched, and no *number*
+  coverage was added to the dictionary (that was the failed first approach: a
+  usable numeral lexicon needs ~200 rows and produces garbage wherever it
+  gaps).
+- **TEST ADDED**: `tests/test_matcher.py::test_number_and_meridiem_rows_are_single_sourced`
+  plus the parity/coverage tests of §6; the 287 -> 271 conflict warnings the
+  load emits are the dedup count.
+
+## 8. The vocabulary budget test had itself gone stale
+
+- **FILE**: `tests/test_dictionary.py`, `tests/test_app.py`, `medical_knowledge/speechmatics_additional_vocab.json`
+- **BUG**: both tests asserted `len(additional_vocab) < 100`, but the shipped
+  dictionary already exported 146 entries, so the bound contradicted the data it
+  was guarding; the committed derived artifact was also stale (it still listed
+  the deleted `hour`/`o'clock` rows and was missing `magnesium`/`g`).
+- **FIX**: the budget is now stated as what it actually protects - a share of
+  the dictionary (`<= max(32, terms // 5)`), an absolute ceiling (150) and "no
+  bare number in a biasing list" - and the artifact was regenerated with
+  `scripts/export_additional_vocab.py`. 146 -> 134 entries came from the §7
+  dedup itself (12 `hour_N` rows, duplicate canonicals), not from curation:
+  every `speechmatics: true` term a clinician would want biased is still there.
+- **WHY SAFE**: the mechanism that keeps the vocabulary small (the per-entry
+  `speechmatics` flag, the derived-not-hand-written artifact, the six-word
+  element cap in `realtime._clean_vocab`) is unchanged; `--check` verifies sync.
+- **TEST ADDED**: `tests/test_dictionary.py::test_vocabulary_stays_bounded_not_the_full_dictionary`
+  (extended with the no-bare-number and share-of-dictionary guards).
+
+## Validation after this pass
+
+```
+pytest -q                                        -> 447 passed, 0 failed
+python -m compileall -q speechmatics_test        -> OK
+scripts/export_additional_vocab.py --check        -> OK (960 terms, 134 vocab, in sync)
+benchmark/benchmark_matcher.py                    -> OK (see below)
+```
+
+## Known limitations deliberately left in place
+
+- The fold is bounded by design: `هزار` and ordinals are not in the numeral
+  lexicon, `ساعت ۲۴`/`ساعت ۹ شب` style gaps are left as spoken text rather than
+  guessed, and `۱۲ نیمه‌شب` yields `12 12 AM` because the `نیمه شب` row states
+  the hour it was given.
+- Pre-existing alias *chains* in the frequency rows (e.g. `OD` -> `once a day`
+  -> `every day` on a second pass) are untouched: they are legacy `time_*`
+  data outside this pass, and repairing them means re-canonicalizing dozens of
+  unrelated entries.
