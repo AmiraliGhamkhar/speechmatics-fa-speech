@@ -150,6 +150,21 @@ def test_empty_terms_list_fails(tmp_path):
         MedicalMatcher(tmp_path)
 
 
+def test_ptt_runtime_forms_are_single_sourced_without_losing_asr_vocab():
+    data = load_repo_dictionary()
+    ptt_forms = {"PTT", "partial thromboplastin time", "زمان PTT",
+                 "زمان ترومبوپلاستین نسبی"}
+    owners = [
+        term for term in data["terms"]
+        if ptt_forms.intersection(term.get("forms", []))
+    ]
+
+    assert [term["id"] for term in owners] == ["aptt"]
+    assert ptt_forms <= set(owners[0]["forms"])
+    assert owners[0]["speechmatics"] is True
+    assert owners[0]["sounds_like"]
+
+
 def test_duplicate_id_fails(tmp_path):
     write_dictionary(tmp_path, {"version": 1, "terms": [
         valid_term(), valid_term(canonical="Other"),

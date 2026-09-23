@@ -247,7 +247,10 @@ class TextInjector:
         self.restore_clipboard = restore_clipboard
         #: How long to let the target app consume the clipboard after Ctrl+V.
         self.paste_settle_seconds = max(0.0, paste_settle_seconds)
-        #: Always wrap RTL payloads in RLM + RLE ... PDF before pasting.
+        #: Optional compatibility mode for target editors that cannot render
+        #: logical RTL text correctly. The constructor keeps its historical
+        #: default for API compatibility; the live app explicitly disables it
+        #: so controls never become part of the stored clinical document.
         self.add_bidi_marks = add_bidi_marks
         self._last_partial: str = ""
         #: Serializes all injection entry points: realtime callbacks and the
@@ -271,8 +274,9 @@ class TextInjector:
         The injector performs **presentation work only** - it never rewrites
         medical terminology (that already happened once, deterministically,
         in ``MedicalLayer.canonicalize``). The payload it receives IS the
-        canonical logical text, and what it pastes is that same text plus
-        direction controls:
+        canonical logical text. The live app pastes clean logical Unicode;
+        direction controls remain available to direct API callers as a
+        compatibility option:
 
         1. strip any direction controls that are already present, so the
            logical text is recovered exactly (**idempotency**);

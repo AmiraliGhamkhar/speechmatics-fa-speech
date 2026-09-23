@@ -373,3 +373,51 @@ app.py --help and missing-key startup for fa/en, --no-vocab,
 --no-medical-layer, and --no-inject
   -> options present; startup exits cleanly with the expected key error
 ```
+
+---
+
+# Clean injection and ASR review pass (2026-09-23)
+
+## 1. Clean logical text is injected by the live application
+
+- **FILE**: `app.py`, `injector.py`, `README.md`
+- **BUG**: the live app enabled RLM/RLE/PDF wrapping for every RTL-dominant paste. Some target systems persisted or exposed those presentation controls as visible `‏‫` / `‬` artifacts in the clinical document.
+- **FIX**: the app now explicitly requests clean logical-Unicode injection. BiDi wrapping remains available through `TextInjector(add_bidi_marks=True)` for backward-compatible direct API use, while the overlay continues to apply direction controls only to its display text.
+- **WHY SAFE**: canonical text and clipboard text now agree character-for-character after the injector's existing whitespace cleanup. No medical text, number, focus guard, FIFO behavior, clipboard restoration, or overlay rendering was changed.
+- **TEST ADDED**: `tests/test_safety_regressions.py::test_default_injector_pastes_clean_logical_unicode` and `test_bidi_injection_remains_explicit_compatibility_opt_in`.
+
+## 2. Low-confidence clinical entities are surfaced without correction
+
+- **FILE**: `app.py`, `overlay.py`, `tests/test_safety_regressions.py`
+- **BUG**: `realtime.confidence_summary()` already identified uncertain numeric/compact clinical entities, but that information appeared only in the end-of-session confidence summary and was not available during final-segment review.
+- **FIX**: `FinalStreamCanonicalizer._emit()` reuses the existing confidence policy on the exact source words attached to an emitted span. Review flags are accumulated in the JSON report and the overlay status displays up to three uncertain entities. `TranscriptOverlay.set_final(text, warnings=None)` remains backward compatible.
+- **WHY SAFE**: flags are metadata only. They never alter, suppress, infer, validate, or replace recognized content, and the injector receives the unchanged canonical text. No physiological plausibility ranges or guessed corrections were introduced.
+- **TEST ADDED**: low-confidence numeric evidence produces a flag while preserving `Temp 45` exactly; high-confidence evidence produces no flag.
+
+## 3. PTT runtime forms have one deterministic dictionary owner
+
+- **FILE**: `medical_knowledge/medical_dictionary.json`, `tests/test_dictionary.py`
+- **BUG**: `lab_0210` and `aptt` both owned `PTT`, `partial thromboplastin time`, and `زمان ترومبوپلاستین نسبی`, leaving runtime conflict resolution to load order/tier arbitration.
+- **FIX**: merged the former row's unique `زمان PTT` form and source provenance into surviving id `aptt`; retained `speechmatics: true` and all existing pronunciations. The derived vocabulary was regenerated and is byte-for-byte unchanged at 135 eligible entries.
+- **WHY SAFE**: this is structural deduplication, not vocabulary reduction. ASR biasing content and `sounds_like` values remain available, while every merged exact runtime form now has one owner.
+- **TEST ADDED**: `test_ptt_runtime_forms_are_single_sourced_without_losing_asr_vocab` pins the single owner, complete form union, vocabulary eligibility, and retained pronunciations.
+
+## Deliberately not changed
+
+- Wrong Speechmatics facts such as `45` instead of `36.7`, `10` instead of `25`, or raw `C3-C4` are not guessed or rewritten.
+- No generic repeated-word filter or timestamp-based rollback was added. A repetition already present in RAW remains auditable; application-level suppression requires evidence that one finalized event was committed twice.
+- Existing bounded numeric folding and cross-segment buffering were retained because they already canonicalize only emitted safe prefixes and pass the nursing-fragment regressions.
+- The full Speechmatics vocabulary remains enabled; no `speechmatics: true` or `sounds_like` value was removed.
+
+## Validation
+
+```text
+python -m pytest -q
+  -> 600 passed
+python -m compileall -q app.py injector.py overlay.py speechmatics_test tests benchmark scripts
+  -> OK
+python scripts/export_additional_vocab.py --check
+  -> OK (951 terms, 135 eligible entries; artifact in sync)
+git diff --check
+  -> OK
+```
