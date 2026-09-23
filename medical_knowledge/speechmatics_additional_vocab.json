@@ -713,7 +713,7 @@
     ]
   },
   {
-    "content": "bedside rails",
+    "content": "Bedside Rails",
     "sounds_like": [
       "بدساید",
       "گاردتخت"
@@ -1000,5 +1000,22 @@
     "sounds_like": [
       "پی‌ام"
     ]
-  }
+  },
+  "Bed Side Up",
+  "آپاندکتومی",
+  "ایسکمی میوکارد",
+  "نرمال سالین 0.9%",
+  "تورگور",
+  {
+    "content": "پنی‌سیلین",
+    "sounds_like": [
+      "پنیسیلین",
+      "پنی سیلین"
+    ]
+  },
+  "Appendectomy",
+  "Myocardial Ischemia",
+  "Normal Saline 0.9%",
+  "Pressure Sore",
+  "Skin Turgor"
 ]

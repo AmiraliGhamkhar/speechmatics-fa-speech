@@ -14,6 +14,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from speechmatics_test.cleanliness import inspect_text
+from speechmatics_test.entity_guard import ClinicalEntityGuard
 from speechmatics_test.evaluation import evaluate_stages
 from speechmatics_test.matcher import NUMERIC_CONTEXT
 from speechmatics_test.medical_layer import MedicalLayer
@@ -76,6 +77,16 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--save-report", action="store_true",
                    help="Save the text/metadata session report as JSON "
                         "(always saved when --test-id is given)")
+    p.add_argument("--dump-stages", nargs="?", const="auto", metavar="PATH",
+                   help="Dump RAW/NORMALIZED/CANONICAL/entity flags for each "
+                        "finalized segment as JSON. With no PATH, writes to "
+                        "results/stages_<timestamp>.json.")
+    p.add_argument("--entity-guard", choices=("on", "off"), default="on",
+                   help="Enable non-destructive clinical entity review flags "
+                        "(default: %(default)s)")
+    p.add_argument("--benchmark-asr", action="store_true",
+                   help="Run the deterministic stored-transcript ASR benchmark "
+                        "instead of opening a microphone session")
     return p.parse_args()
 
 
@@ -393,6 +404,31 @@ def print_cleanliness(label: str, text: str) -> dict:
 
 async def main() -> int:
     args = parse_args()
+
+    # The app-level switch deliberately uses the stored-transcript dry run:
+    # it is deterministic, needs neither a microphone nor credentials, and
+    # cannot accidentally send audio. The dedicated benchmark CLI supports
+    # custom cases and explicit live runs.
+    if args.benchmark_asr:
+        from benchmark.benchmark_asr import DEFAULT_TEST_CASES, run_benchmark
+
+        benchmark_report = run_benchmark(
+            DEFAULT_TEST_CASES, mode="offline", dry_run=True
+        )
+        benchmark_path = ROOT / "results" / (
+            "asr_benchmark_" + datetime.now().strftime("%Y%m%d_%H%M%S_%f") + ".json"
+        )
+        benchmark_path.parent.mkdir(parents=True, exist_ok=True)
+        benchmark_path.write_text(
+            json.dumps(benchmark_report, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        summary = benchmark_report["summary"]
+        print(f"ASR benchmark complete: {summary['case_count']} case(s)")
+        print(f"RAW WER: {summary['raw_wer']['wer']}")
+        print(f"JSON: {benchmark_path}")
+        return 0
+
     api_key = os.getenv("SPEECHMATICS_API_KEY", "").strip()
 
     if not api_key:
@@ -407,6 +443,12 @@ async def main() -> int:
         ROOT / "results" / f"session_{stamp}_{args.language}.json"
         if (args.save_report or args.test_id) else None
     )
+    if args.dump_stages == "auto":
+        stage_dump_path = ROOT / "results" / f"stages_{stamp}_{args.language}.json"
+    elif args.dump_stages:
+        stage_dump_path = Path(args.dump_stages).expanduser()
+    else:
+        stage_dump_path = None
 
     # --no-medical-layer must be fully independent of --no-vocab: it disables
     # the local Aho-Corasick canonicalization layer, so the dictionary is not
@@ -414,6 +456,10 @@ async def main() -> int:
     # NOT construct MedicalLayer(ROOT) unconditionally here - that would load
     # and compile the whole dictionary even when the flag says not to.
     medical = None if args.no_medical_layer else MedicalLayer(ROOT)
+    # The guard validates only the emitted canonical transcript and produces
+    # review metadata. It never participates in matching, text replacement,
+    # or injection decisions.
+    entity_guard = ClinicalEntityGuard() if args.entity_guard == "on" else None
     # Bounded Speechmatics vocabulary, derived once from the dictionary's
     # speechmatics-eligible entries (medical_knowledge/medical_dictionary.json
     # is the single source of truth; the generated
@@ -447,9 +493,11 @@ async def main() -> int:
     print(f"Max delay       : {args.max_delay:.1f}s ({args.max_delay_mode})")
     print(f"Medical vocab   : {'ON' if vocab else 'OFF'}")
     print(f"Matcher engine  : {medical.engine if medical is not None else 'OFF'}")
+    print(f"Entity guard    : {'ON (review-only)' if entity_guard else 'OFF'}")
     print(f"Device index    : {args.device_index if args.device_index is not None else 'default'}")
     print("Audio storage   : NONE (in-memory streaming only)")
     print(f"Report          : {json_path.name if json_path else 'not saved (use --save-report)'}")
+    print(f"Stage dump      : {stage_dump_path if stage_dump_path else 'OFF'}")
     print(f"Max duration    : {args.max_seconds:.1f} sec")
     print(f"Auto-injection  : {'ON — every finalized segment is pasted at the cursor' if injector else 'OFF'}")
     print("=" * 72)
@@ -485,6 +533,9 @@ async def main() -> int:
     # blocks (clipboard retries + settle delay) and must never stall the
     # synchronous SDK receive callback.
     accumulator = FinalStreamCanonicalizer(medical)
+    # Diagnostics only. A record remains useful even when a segment is held in
+    # the cross-segment matcher buffer (its canonical field is then empty).
+    stage_records: list[dict] = []
     worker = (
         InjectionWorker(injector, on_result=on_injection_result)
         if injector else None
@@ -512,6 +563,18 @@ async def main() -> int:
             segment["word_start_index"]:segment["word_end_index"]
         ]
         emitted = accumulator.add(clean, final_words)
+        # Required pipeline order: ASR RAW -> normalize -> medical matcher
+        # -> entity guard -> injection. The scan returns metadata only and
+        # ``emitted`` is passed to the worker byte-for-byte unchanged.
+        emitted_entity_flags = (
+            entity_guard.scan(emitted) if entity_guard is not None and emitted else []
+        )
+        stage_records.append({
+            "final_transcript_raw": text,
+            "final_transcript_normalized": clean,
+            "final_transcript_canonical": emitted or "",
+            "entity_flags": [flag.to_dict() for flag in emitted_entity_flags],
+        })
         if emitted:
             print("\n[final]   " + emitted)
         else:
@@ -537,7 +600,17 @@ async def main() -> int:
         # Flush regardless of injection: the report's canonical stage is
         # built from these emissions, with or without a worker.
         tail = accumulator.flush()
+        tail_entity_flags = (
+            entity_guard.scan(tail) if entity_guard is not None and tail else []
+        )
         if tail:
+            stage_records.append({
+                "final_transcript_raw": "",
+                "final_transcript_normalized": "",
+                "final_transcript_canonical": tail,
+                "entity_flags": [flag.to_dict() for flag in tail_entity_flags],
+                "flush": True,
+            })
             print("\n[final]   " + tail + "  (flushed at end of session)")
             if overlay:
                 overlay.set_final(
@@ -656,6 +729,11 @@ async def main() -> int:
     word_results = getattr(result, "word_results", []) if result is not None else []
     canonical = accumulator.canonical_text
     medical_hits = accumulator.hits
+    # One final whole-session scan catches intra-document clock-time
+    # contradictions that can span multiple finalized ASR segments. It still
+    # only returns flags and does not alter the canonical text already sent to
+    # the injector.
+    entity_flags = entity_guard.scan(canonical) if entity_guard is not None else []
 
     raw_clean = print_cleanliness("RAW TRANSCRIPT", raw)
     normalized_clean = print_cleanliness("NORMALIZED TRANSCRIPT", normalized)
@@ -670,6 +748,19 @@ async def main() -> int:
         if benchmark else None
     )
 
+    if stage_dump_path is not None:
+        stage_dump_path.parent.mkdir(parents=True, exist_ok=True)
+        stage_dump_path.write_text(
+            json.dumps({
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "language": args.language,
+                "entity_guard_enabled": entity_guard is not None,
+                "segments": stage_records,
+                "final_entity_flags": [flag.to_dict() for flag in entity_flags],
+            }, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
     if json_path is not None:
         report = {
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -677,6 +768,7 @@ async def main() -> int:
             "test_id": args.test_id,
             "medical_vocab_enabled": bool(vocab),
             "medical_layer_enabled": medical is not None,
+            "entity_guard_enabled": entity_guard is not None,
             "matcher_engine": medical.engine if medical is not None else None,
             # Keep the established top-level settings and add one compact,
             # self-contained Speechmatics block for benchmark comparisons.
@@ -710,6 +802,9 @@ async def main() -> int:
             "final_transcript_raw": raw,
             "final_transcript_normalized": normalized,
             "final_transcript_canonical": canonical,
+            # Clinical review metadata only. The canonical transcript above is
+            # the exact text passed to the injector and is never corrected.
+            "entity_flags": [flag.to_dict() for flag in entity_flags],
             "medical_hits": medical_hits,
             "medical_warnings": medical.warnings if medical is not None else [],
             "cleanliness": {
@@ -746,6 +841,10 @@ async def main() -> int:
     print()
     print("FINAL CANONICAL:")
     print(canonical or "[empty]")
+    if entity_flags:
+        print()
+        print("ENTITY FLAGS (review only; transcript unchanged):")
+        print(json.dumps([flag.to_dict() for flag in entity_flags], ensure_ascii=False, indent=2))
 
     if evaluation_result:
         print()
@@ -757,6 +856,8 @@ async def main() -> int:
         print(f"JSON: {json_path}")
     else:
         print("No report saved (use --save-report or --test-id to save).")
+    if stage_dump_path is not None:
+        print(f"Stage dump: {stage_dump_path}")
 
     return 0
 

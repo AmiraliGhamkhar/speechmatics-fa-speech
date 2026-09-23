@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -27,6 +28,27 @@ from speechmatics_test.matcher import MedicalMatcher  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 VOCAB_PATH = ROOT / "medical_knowledge" / "speechmatics_additional_vocab.json"
+
+# A bare number offers no stable pronunciation benefit to Speechmatics and can
+# bias a free-form clinical value toward an unrelated value. Numeric clinical
+# identifiers such as SpO2, C3-C4 and HbA1c are intentionally retained: this
+# filter only excludes an entry that is *entirely* a number (optionally with a
+# decimal separator or percent sign).
+_BARE_NUMERIC_VOCAB = re.compile(r"^\d+(?:[.,]\d+)?%?$")
+
+
+def _content(entry) -> str:
+    if isinstance(entry, str):
+        return entry.strip()
+    if isinstance(entry, dict):
+        value = entry.get("content")
+        return value.strip() if isinstance(value, str) else ""
+    return ""
+
+
+def filter_numeric_vocab(vocab: list) -> list:
+    """Drop only bare numeric additional-vocabulary entries, preserving order."""
+    return [entry for entry in vocab if not _BARE_NUMERIC_VOCAB.fullmatch(_content(entry))]
 
 
 def main() -> int:
@@ -39,9 +61,12 @@ def main() -> int:
     # Derive through the exact runtime path (validated dictionary -> matcher)
     # so the artifact can never disagree with what the app sends.
     matcher = MedicalMatcher(ROOT)
-    vocab = matcher.additional_vocab
+    unfiltered_vocab = matcher.additional_vocab
+    vocab = filter_numeric_vocab(unfiltered_vocab)
     print(f"dictionary terms          : {len(matcher.terms)}")
-    print(f"speechmatics-eligible vocab: {len(vocab)} (speechmatics: true only)")
+    print(f"speechmatics-eligible vocab: {len(vocab)} (speechmatics: true only; bare numerics excluded)")
+    if len(vocab) != len(unfiltered_vocab):
+        print(f"bare numeric entries excluded: {len(unfiltered_vocab) - len(vocab)}")
 
     if args.check:
         current = json.loads(VOCAB_PATH.read_text(encoding="utf-8"))
