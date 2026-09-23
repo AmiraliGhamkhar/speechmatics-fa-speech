@@ -57,12 +57,14 @@ Rules are:
 
 ### Numeric and clock notation
 
-Age, blood pressure, saturation, time of day and AM/PM are **not** dictionary
-rules: a row per spoken hour (`ساعت هشت` -> `8`) fires inside unrelated text
-(`هر دو ساعت` = "every two hours"), so the notation is produced by a bounded,
-deterministic fold in `speechmatics_test/text.py`
+Age, blood pressure, saturation and clock times are **not** per-value
+dictionary rules: a row per spoken hour (`ساعت هشت` -> `8`) fires inside
+unrelated text (`هر دو ساعت` = "every two hours"), so that notation is
+produced by a bounded, deterministic fold in `speechmatics_test/text.py`
 (`fold_numeric_expressions`), applied to the text *after* the lexical pass and
-configured by `matcher.NUMERIC_CONTEXT`.
+configured by `matcher.NUMERIC_CONTEXT`. AM/PM is written only when the
+abbreviation itself is spoken (`ای ام`, `پی ام`, `A.M.`, `P.M.`); ordinary
+day-part words (`صبح`, `ظهر`, `عصر`, `شب`) stay Persian.
 
 | Spoken | Canonical |
 | --- | --- |
@@ -70,8 +72,8 @@ configured by `matcher.NUMERIC_CONTEXT`.
 | `فشار خون صد و بیست روی هشتاد` | `BP 120/80` |
 | `اشباع اکسیژن نود و هشت درصد` | `SpO2 98 %` |
 | `ساعت هشت`, `ساعت هشت و نیم`, `ساعت هشت وربع` | `ساعت 8`, `ساعت 8:30`, `ساعت 8:15` |
-| `ساعت هشت صبح`, `ساعت دو بعد از ظهر` | `ساعت 8 AM`, `ساعت 2 PM` |
-| `A.M.`, `P.M.` | `AM`, `PM` |
+| `ساعت هشت صبح`, `ساعت دو بعد از ظهر` | `ساعت 8 صبح`, `ساعت 2 بعد از ظهر` |
+| `ای ام`, `پی ام`, `A.M.`, `P.M.` | `AM`, `PM` |
 
 Deliberate limits:
 

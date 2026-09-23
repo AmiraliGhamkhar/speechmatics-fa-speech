@@ -4,7 +4,7 @@
     "name": "SwiftMedics Nursing/Orthopedic Merged Persian-English Medical Dictionary",
     "schema_compatible_with": "speechmatics-fa-speech medical_dictionary.json / matcher.py v1",
     "generated_on": "2026-09-23",
-    "entry_count": 960,
+    "entry_count": 954,
     "design": "deterministic lexical canonicalization; Persian spoken aliases included for fa Speechmatics matching; merged from nursing_core, abbreviations, support, orthopedic additions; deduplicated by id",
     "sources": [
       "nursing_core_extraction_ordered.json",
@@ -12,7 +12,7 @@
       "nursing_support_terms_ordered.json",
       "nursing_orthopedic_dictionary_additions.json"
     ],
-    "note": "Deduplicated by id; forms and sounds_like unioned; order preserved from core extraction primarily.; added AM/PM and hour terms; fixed 32 invalid types.; 2026-09-23 pass: merged 8 duplicate terms (PO, chest x-ray, vital signs, magnesium, intensive care unit, coronary/cardiac care unit, morning/afternoon rows), removed the hour_1..hour_12 rows that replaced a clock hour with a bare digit, dropped the forms that rewrote the ordinary words 'morning', 'evening', 'نیم' and 'نیمه', and added blood-pressure / SpO2 / day-part aliases (spoken numbers and clock times are normalized by the anchored fold in speechmatics_test/text.py, not by per-value entries)."
+    "note": "Deduplicated by id; forms and sounds_like unioned; order preserved from core extraction primarily.; added AM/PM and hour terms; fixed 32 invalid types.; 2026-09-23 pass: merged 8 duplicate terms (PO, chest x-ray, vital signs, magnesium, intensive care unit, coronary/cardiac care unit, morning/afternoon rows), removed the hour_1..hour_12 rows that replaced a clock hour with a bare digit, dropped the forms that rewrote the ordinary words 'morning', 'evening', 'نیم' and 'نیمه', and added blood-pressure / SpO2 / day-part aliases (spoken numbers and clock times are normalized by the anchored fold in speechmatics_test/text.py, not by per-value entries). 2026-09-23 chart pass: ordinary Persian words and day-part aliases no longer rewrite to English or AM/PM (صبح/ظهر/عصر/شب stay Persian; ای ام/پی ام stay AM/PM); rows whose only forms were those words were removed; a few unspaced spoken abbreviation aliases were added (ایسیجی, ایکیجی, PTT)."
   },
   "terms": [
     {
@@ -24,8 +24,7 @@
         "بی پی",
         "بیپی",
         "فشار خون",
-        "فشارخون",
-        "فشار"
+        "فشارخون"
       ],
       "speechmatics": true,
       "sounds_like": [
@@ -82,8 +81,7 @@
       "forms": [
         "اس پی او دو",
         "اشباع اکسیژن",
-        "اسپیاودو",
-        "اشباع"
+        "اسپیاودو"
       ],
       "speechmatics": true,
       "sounds_like": [
@@ -101,18 +99,14 @@
       "tier": "abbreviation",
       "forms": [
         "تمپ",
-        "دما",
         "دمای بدن",
-        "حرارت بدن",
-        "تی"
+        "حرارت بدن"
       ],
       "speechmatics": true,
       "sounds_like": [
         "تمپ",
-        "دما",
         "دمایبدن",
-        "حرارتبدن",
-        "تی"
+        "حرارتبدن"
       ],
       "source_file": "nursing_terms.json"
     },
@@ -142,6 +136,7 @@
       "type": "abbreviation",
       "tier": "abbreviation",
       "forms": [
+        "ایسیجی",
         "ای سی جی",
         "الکتروکاردیوگرام",
         "ecg"
@@ -159,6 +154,7 @@
       "type": "abbreviation",
       "tier": "abbreviation",
       "forms": [
+        "ایکیجی",
         "ای کی جی",
         "نوار قلب"
       ],
@@ -195,6 +191,7 @@
       "type": "abbreviation",
       "tier": "abbreviation",
       "forms": [
+        "سیتی",
         "سی تی",
         "سی تی اسکن",
         "ct"
@@ -212,6 +209,7 @@
       "type": "abbreviation",
       "tier": "abbreviation",
       "forms": [
+        "امآرآی",
         "ام آر آی",
         "ام‌آرآی",
         "MRI اسکن",
@@ -375,16 +373,12 @@
       "tier": "abbreviation",
       "forms": [
         "ای دی",
-        "دپارتمان اورژانس",
-        "اورژنس",
-        "اورژانس"
+        "دپارتمان اورژانس"
       ],
       "speechmatics": true,
       "sounds_like": [
         "ایدی",
-        "دپارتماناورژانس",
-        "اورژنس",
-        "اورژانس"
+        "دپارتماناورژانس"
       ],
       "source_file": "abbreviations.json"
     },
@@ -395,13 +389,11 @@
       "tier": "abbreviation",
       "forms": [
         "ای آر",
-        "اورژانس",
         "اتاق اورژانس"
       ],
       "speechmatics": true,
       "sounds_like": [
         "ایآر",
-        "اورژانس",
         "اتاقاورژانس"
       ],
       "source_file": "abbreviations.json"
@@ -652,6 +644,23 @@
         "زمانپروترومبین"
       ],
       "source_file": "abbreviations.json"
+    },
+    {
+      "id": "ptt",
+      "canonical": "PTT",
+      "type": "abbreviation",
+      "tier": "abbreviation",
+      "forms": [
+        "پی تی تی",
+        "پیتیتی"
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "پیتیتی",
+        "پی تی تی",
+        "پی‌تی‌تی"
+      ],
+      "source_file": "medical_dictionary.json"
     },
     {
       "id": "inr",
@@ -940,7 +949,6 @@
       "tier": "abbreviation",
       "forms": [
         "پی او سی",
-        "کنار تخت",
         "پوینت آو کر",
         "پوینت آف کر"
       ],
@@ -2590,7 +2598,6 @@
       "tier": "phrase",
       "forms": [
         "سرم وریدی",
-        "سرم",
         "مایع وریدی",
         "آی وی فلوید"
       ],
@@ -2717,21 +2724,7 @@
       "tier": "phrase",
       "forms": [
         "تحویل شیفت",
-        "هنداور",
-        "گزارش شیفت"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_phrases.json"
-    },
-    {
-      "id": "shift-report",
-      "canonical": "shift report",
-      "type": "phrase",
-      "tier": "phrase",
-      "forms": [
-        "گزارش شیفت",
-        "گزارش پرستاری شیفت"
+        "هنداور"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -2743,9 +2736,7 @@
       "type": "phrase",
       "tier": "phrase",
       "forms": [
-        "گزارش پرستاری",
-        "نوت پرستاری",
-        "یادداشت پرستاری"
+        "نوت پرستاری"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -2815,7 +2806,6 @@
       "tier": "phrase",
       "forms": [
         "ترخیص بیمار",
-        "ترخیص",
         "دیسچارج"
       ],
       "speechmatics": false,
@@ -3532,6 +3522,7 @@
       "type": "phrase",
       "tier": "phrase",
       "forms": [
+        "انپیاو",
         "ان پی او",
         "ناشتا از راه دهان",
         "عدم مصرف خوراکی"
@@ -3552,8 +3543,7 @@
         "a.c.",
         "ac",
         "ante cibum",
-        "before food",
-        "ناشتا"
+        "before food"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -4109,14 +4099,12 @@
       "type": "procedure",
       "tier": "validated_term",
       "forms": [
-        "سی پی آر",
-        "احیا"
+        "سی پی آر"
       ],
       "speechmatics": true,
       "sounds_like": [
         "احیایقلبیریوی",
-        "سیپیآر",
-        "احیا"
+        "سیپیآر"
       ],
       "source_file": "nursing_terms.json"
     },
@@ -5467,19 +5455,6 @@
       "forms": [
         "هیپوکسی",
         "کمبود اکسیژن"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
-      "id": "fever",
-      "canonical": "fever",
-      "type": "condition",
-      "tier": "validated_term",
-      "forms": [
-        "تب",
-        "تب و لرز"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -7007,7 +6982,6 @@
       "type": "anatomy",
       "tier": "validated_term",
       "forms": [
-        "قلب",
         "هارت"
       ],
       "speechmatics": false,
@@ -7270,7 +7244,6 @@
       "type": "term",
       "tier": "phrase",
       "forms": [
-        "اورژانس",
         "دپارتمان اورژانس"
       ],
       "speechmatics": false,
@@ -7513,8 +7486,7 @@
       "type": "term",
       "tier": "phrase",
       "forms": [
-        "کلینیک سرپایی",
-        "درمانگاه"
+        "کلینیک سرپایی"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -7587,20 +7559,6 @@
       "source_file": "nursing_phrases.json"
     },
     {
-      "id": "doctor",
-      "canonical": "doctor",
-      "type": "term",
-      "tier": "phrase",
-      "forms": [
-        "پزشک",
-        "دکتر",
-        "پزشک معالج"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_phrases.json"
-    },
-    {
       "id": "resident",
       "canonical": "resident physician",
       "type": "term",
@@ -7649,19 +7607,6 @@
       "tier": "phrase",
       "forms": [
         "متخصص بیهوشی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_phrases.json"
-    },
-    {
-      "id": "surgeon",
-      "canonical": "surgeon",
-      "type": "term",
-      "tier": "phrase",
-      "forms": [
-        "جراح",
-        "پزشک جراح"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -8674,7 +8619,6 @@
         "NBM",
         "nil per os",
         "N.P.O.",
-        "ناشتا",
         "هیچ چیز از دهان",
         "ناشتا / هیچ چیز از راه دهان"
       ],
@@ -9189,7 +9133,6 @@
         "A&O",
         "A/O",
         "AAOx3",
-        "هوشیار",
         "اورینته",
         "هوشیار و جهت‌دار"
       ],
@@ -9503,31 +9446,6 @@
       "forms": [
         "پزشک آنکال",
         "آنکال"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_phrases.json"
-    },
-    {
-      "id": "day-shift",
-      "canonical": "day shift",
-      "type": "phrase",
-      "tier": "phrase",
-      "forms": [
-        "شیفت صبح",
-        "شیفت روز"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_phrases.json"
-    },
-    {
-      "id": "night-shift",
-      "canonical": "night shift",
-      "type": "phrase",
-      "tier": "phrase",
-      "forms": [
-        "شیفت شب"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -9973,6 +9891,7 @@
       "type": "abbreviation",
       "tier": "curated",
       "forms": [
+        "آیوی",
         "آی وی",
         "I V",
         "iv",
@@ -10297,7 +10216,6 @@
         "ad libitum",
         "freely",
         "به دلخواه",
-        "آزاد",
         "به مقدار دلخواه"
       ],
       "speechmatics": false,
@@ -10314,10 +10232,7 @@
         "stat",
         "statim",
         "now",
-        "urgent",
-        "فوراً",
-        "فوری",
-        "همین حالا"
+        "urgent"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -10591,8 +10506,7 @@
       "forms": [
         "with",
         "c̄",
-        "cum",
-        "همراه با"
+        "cum"
       ],
       "speechmatics": false,
       "sounds_like": [
@@ -10608,9 +10522,7 @@
       "forms": [
         "without",
         "s̄",
-        "sine",
-        "بدون",
-        "فاقد"
+        "sine"
       ],
       "speechmatics": false,
       "sounds_like": [
@@ -10626,9 +10538,7 @@
       "forms": [
         "before",
         "ā",
-        "ante",
-        "قبل از",
-        "پیش از"
+        "ante"
       ],
       "speechmatics": false,
       "sounds_like": [
@@ -10644,9 +10554,7 @@
       "forms": [
         "after",
         "p̄",
-        "post",
-        "بعد از",
-        "پس از"
+        "post"
       ],
       "speechmatics": false,
       "sounds_like": [
@@ -10667,10 +10575,7 @@
         "discontinue",
         "discharge",
         "disc.",
-        "قطع",
-        "ترخیص",
         "قطع دارو",
-        "خارج کردن",
         "قطع کردن / ترخیص"
       ],
       "speechmatics": false,
@@ -10730,10 +10635,7 @@
       "tier": "validated_term",
       "forms": [
         "female",
-        "♀",
-        "زن",
-        "مؤنث",
-        "خانم"
+        "♀"
       ],
       "speechmatics": false,
       "sounds_like": [
@@ -10748,10 +10650,7 @@
       "tier": "validated_term",
       "forms": [
         "male",
-        "♂",
-        "مرد",
-        "مذکر",
-        "آقا"
+        "♂"
       ],
       "speechmatics": false,
       "sounds_like": [
@@ -10768,8 +10667,7 @@
         "date of birth",
         "DOB",
         "D.O.B.",
-        "تاریخ تولد",
-        "تولد"
+        "تاریخ تولد"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -10849,7 +10747,6 @@
       "forms": [
         "status post",
         "s/p",
-        "پس از",
         "بعد از عمل"
       ],
       "speechmatics": false,
@@ -10865,8 +10762,7 @@
         "rule out",
         "R/O",
         "رد تشخیص",
-        "خارج از تشخیص",
-        "رد کردن"
+        "خارج از تشخیص"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -10962,7 +10858,6 @@
         "emergency room",
         "emergency department",
         "A&E",
-        "اورژانس",
         "بخش اورژانس"
       ],
       "speechmatics": false,
@@ -10981,7 +10876,6 @@
         "out-patient",
         "outpatient department",
         "کلینیک سرپایی",
-        "درمانگاه",
         "درمانگاه سرپایی"
       ],
       "speechmatics": false,
@@ -11029,9 +10923,7 @@
         "pediatrics",
         "Peds",
         "paeds",
-        "paediatrics",
-        "اطفال",
-        "کودکان"
+        "paediatrics"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -11049,8 +10941,6 @@
         "OB/GYN",
         "obstetrics",
         "gynecology",
-        "زنان",
-        "زایمان",
         "زنان و زایمان"
       ],
       "speechmatics": false,
@@ -11082,9 +10972,7 @@
         "GU",
         "urology",
         "ادراری تناسلی",
-        "اورولوژی",
-        "ادراری",
-        "تناسلی"
+        "اورولوژی"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -11114,7 +11002,6 @@
         "neurology",
         "Neuro",
         "neurosurgery",
-        "اعصاب",
         "مغز و اعصاب"
       ],
       "speechmatics": false,
@@ -11227,7 +11114,6 @@
         "A&D",
         "A & D",
         "admitting",
-        "پذیرش",
         "پذیرش و ترخیص"
       ],
       "speechmatics": false,
@@ -11314,7 +11200,6 @@
         "URTI",
         "upper respiratory tract infection",
         "عفونت تنفسی فوقانی",
-        "سرماخوردگی",
         "عفونت دستگاه تنفسی فوقانی"
       ],
       "speechmatics": false,
@@ -11545,8 +11430,7 @@
         "anxiety",
         "GAD",
         "generalized anxiety",
-        "اضطراب",
-        "نگرانی"
+        "اضطراب"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -11560,8 +11444,7 @@
       "forms": [
         "fracture",
         "Fx",
-        "شکستگی",
-        "شکسته"
+        "شکستگی"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -11575,8 +11458,7 @@
       "forms": [
         "contusion",
         "bruise",
-        "کوفتگی",
-        "کبودی"
+        "کوفتگی"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -11768,8 +11650,6 @@
       "forms": [
         "symptoms",
         "Sx",
-        "علائم",
-        "نشانه‌ها",
         "سمپتوم"
       ],
       "speechmatics": false,
@@ -11785,7 +11665,6 @@
         "treatment",
         "Tx",
         "therapy",
-        "درمان",
         "تراپی"
       ],
       "speechmatics": false,
@@ -11948,7 +11827,6 @@
       "forms": [
         "partial thromboplastin time",
         "PTT",
-        "aPTT",
         "زمان PTT",
         "زمان ترومبوپلاستین نسبی"
       ],
@@ -12589,7 +12467,6 @@
         "cardiovascular",
         "CV",
         "cardiac",
-        "قلبی",
         "قلبی عروقی"
       ],
       "speechmatics": false,
@@ -12605,7 +12482,6 @@
         "respiratory",
         "resp",
         "pulmonary",
-        "تنفسی",
         "ریوی"
       ],
       "speechmatics": false,
@@ -12620,7 +12496,6 @@
       "forms": [
         "gastrointestinal",
         "GI",
-        "گوارشی",
         "دستگاه گوارش"
       ],
       "speechmatics": false,
@@ -12651,7 +12526,6 @@
         "neurological",
         "neuro",
         "CNS",
-        "عصبی",
         "سیستم عصبی"
       ],
       "speechmatics": false,
@@ -12666,7 +12540,6 @@
       "forms": [
         "endocrine",
         "endo",
-        "غدد",
         "اندوکرین",
         "غدد درون‌ریز"
       ],
@@ -12699,7 +12572,6 @@
         "dermatologic",
         "derm",
         "skin",
-        "پوستی",
         "درماتولوژی"
       ],
       "speechmatics": false,
@@ -12721,7 +12593,6 @@
       "speechmatics": true,
       "sounds_like": [
         "ایپیتی‌تی",
-        "پی‌تی‌تی",
         "زمانترومبوپلاستین"
       ],
       "source_file": "nursing_orthopedic_terms.json"
@@ -12791,13 +12662,11 @@
       "tier": "validated_term",
       "forms": [
         "drainage",
-        "درناژ",
-        "ترشح"
+        "درناژ"
       ],
       "speechmatics": true,
       "sounds_like": [
-        "درناژ",
-        "ترشح"
+        "درناژ"
       ],
       "source_file": "nursing_orthopedic_terms.json"
     },
@@ -12917,6 +12786,7 @@
       "type": "abbreviation",
       "tier": "abbreviation",
       "forms": [
+        "اووابی",
         "OOB",
         "او او بی",
         "out of bed",
@@ -12975,20 +12845,17 @@
         "PO",
         "پی او",
         "oral",
-        "خوراکی",
         "از راه دهان",
         "از راه خوراکی",
         "by mouth / oral",
         "p.o.",
         "per os",
         "by mouth",
-        "orally",
-        "دهانی"
+        "orally"
       ],
       "speechmatics": true,
       "sounds_like": [
         "پی‌او",
-        "خوراکی",
         "ازراهدهان",
         "ازراهخوراکی"
       ],
@@ -13022,7 +12889,6 @@
       "forms": [
         "psychiatric",
         "psych",
-        "روانی",
         "سایک"
       ],
       "speechmatics": false,
@@ -13323,8 +13189,7 @@
         "tab",
         "tabs",
         "pill",
-        "قرص",
-        "حبه"
+        "قرص"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -13413,8 +13278,7 @@
       "forms": [
         "suspension",
         "susp",
-        "سوسپانسیون",
-        "تعلیق"
+        "سوسپانسیون"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -13461,8 +13325,7 @@
         "one half",
         "ss",
         "½",
-        "semis",
-        "نصف"
+        "semis"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -13525,8 +13388,7 @@
       "forms": [
         "kilogram",
         "kg",
-        "کیلوگرم",
-        "کیلو"
+        "کیلوگرم"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -13540,8 +13402,7 @@
       "forms": [
         "grain",
         "gr",
-        "گرین",
-        "دانه"
+        "گرین"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -13709,7 +13570,6 @@
       "forms": [
         "آی ام",
         "درون عضلانی",
-        "عضلانی",
         "intramuscular",
         "IM",
         "i.m.",
@@ -13781,7 +13641,6 @@
       "tier": "curated",
       "forms": [
         "rectal",
-        "PR",
         "rect",
         "rectally",
         "per rectum",
@@ -13824,8 +13683,7 @@
         "nebulizer",
         "inhaled",
         "استنشاقی",
-        "نبولایزر",
-        "اسپری"
+        "نبولایزر"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -13839,7 +13697,6 @@
       "forms": [
         "topical",
         "TOP",
-        "موضعی",
         "روی پوست"
       ],
       "speechmatics": false,
@@ -13966,7 +13823,6 @@
         "ophthalmic",
         "ophth",
         "eye drops",
-        "چشمی",
         "قطره چشمی"
       ],
       "speechmatics": false,
@@ -13981,7 +13837,6 @@
       "forms": [
         "otic",
         "ear drops",
-        "گوشی",
         "قطره گوش"
       ],
       "speechmatics": false,
@@ -13996,7 +13851,6 @@
       "forms": [
         "nasal",
         "intranasal",
-        "بینی",
         "اسپری بینی"
       ],
       "speechmatics": false,
@@ -14009,15 +13863,14 @@
       "type": "abbreviation",
       "tier": "abbreviation",
       "forms": [
+        "پیآر",
         "پی آر",
-        "تعداد نبض",
-        "نبض"
+        "تعداد نبض"
       ],
       "speechmatics": true,
       "sounds_like": [
         "پیآر",
-        "تعدادنبض",
-        "نبض"
+        "تعدادنبض"
       ],
       "source_file": "nursing_terms.json"
     },
@@ -14143,14 +13996,12 @@
       "tier": "validated_term",
       "forms": [
         "تراکشن",
-        "کشش",
         "تراکشن اندام",
         "تراکشن ارتوپدی"
       ],
       "speechmatics": true,
       "sounds_like": [
         "تراکشن",
-        "کشش",
         "تراکشناندام",
         "تراکشنارتوپدی"
       ],
@@ -14165,7 +14016,6 @@
         "بدساید",
         "بد ساید",
         "Bed Side",
-        "کنار تخت",
         "ریل کنار تخت"
       ],
       "speechmatics": true,
@@ -14223,16 +14073,12 @@
       "tier": "validated_term",
       "forms": [
         "فیکس",
-        "فیکس شده",
-        "ثابت شده",
-        "محکم شده"
+        "فیکس شده"
       ],
       "speechmatics": true,
       "sounds_like": [
         "فیکس",
-        "فیکسشده",
-        "ثابتشده",
-        "محکم‌شده"
+        "فیکسشده"
       ],
       "source_file": "nursing_terms.json"
     },
@@ -14299,13 +14145,11 @@
       "tier": "validated_term",
       "forms": [
         "اکیموز",
-        "کبودی",
         "اکیموز پوستی"
       ],
       "speechmatics": true,
       "sounds_like": [
         "اکیموز",
-        "کبودی",
         "اکیموزپوستی"
       ],
       "source_file": "nursing_terms.json"
@@ -14317,19 +14161,12 @@
       "tier": "abbreviation",
       "forms": [
         "ای ام",
-        "صبح",
-        "قبل از ظهر",
         "a.m.",
-        "am",
-        "قبل ظهر",
-        "صبح زود"
+        "am"
       ],
       "speechmatics": true,
       "sounds_like": [
-        "ایام",
-        "ای‌ام",
-        "صبح",
-        "قبل‌ازظهر"
+        "ای‌ام"
       ],
       "source_file": "nursing_time_additions"
     },
@@ -14340,36 +14177,14 @@
       "tier": "abbreviation",
       "forms": [
         "پی ام",
-        "بعد از ظهر",
-        "عصر",
-        "شب",
         "p.m.",
-        "pm",
-        "عصر / شب",
-        "بعدازظهر",
-        "بعد ازظهر"
+        "pm"
       ],
       "speechmatics": true,
       "sounds_like": [
-        "پیام",
-        "پی‌ام",
-        "بعدازظهر",
-        "عصر",
-        "شب"
+        "پی‌ام"
       ],
       "source_file": "nursing_time_additions"
-    },
-    {
-      "id": "midnight",
-      "canonical": "12 AM",
-      "type": "abbreviation",
-      "tier": "abbreviation",
-      "forms": [
-        "نیمه شب"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "medical_dictionary.json"
     }
   ]
 }
