@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 from speechmatics_test.cleanliness import inspect_text
 from speechmatics_test.evaluation import evaluate_stages
+from speechmatics_test.matcher import NUMERIC_CONTEXT
 from speechmatics_test.medical_layer import MedicalLayer
 from speechmatics_test.realtime import (
     DEFAULT_MAX_DELAY,
@@ -26,7 +27,11 @@ from speechmatics_test.realtime import (
     confidence_summary,
     resolve_domain,
 )
-from speechmatics_test.text import normalize_text
+from speechmatics_test.text import (
+    SPOKEN_NUMERAL_JOINER,
+    SPOKEN_NUMERALS,
+    normalize_text,
+)
 
 
 ROOT = Path(__file__).resolve().parent
@@ -134,11 +139,10 @@ def create_injector(enabled: bool):
 class FinalStreamCanonicalizer:
     """One canonicalization state shared by injection AND the final report.
 
-    Fixes the segment/report divergence: a medical phrase that spans
-    Speechmatics final-segment boundaries (e.g. "فشار خون" + "بالا دارد")
-    used to be canonicalized per segment at injection time ("BP بالا") and
-    over the joined transcript in the report ("HTN دارد"), so the pasted
-    text could not be reproduced from the report.
+    Prevents segment/report divergence when a bounded expression spans
+    Speechmatics final boundaries (for example "پنجاه" + "و هشت" +
+    "ساله", or "سی تی" + "اسکن").  Injection and reporting consume the same
+    emitted pieces, so the pasted text is always reproducible from the report.
 
     Raw final segments are accumulated and canonicalized incrementally.
     Only the longest prefix that NO future final can still extend into a
@@ -188,36 +192,70 @@ class FinalStreamCanonicalizer:
         (that phrase could still complete across the boundary), so the
         emission stops right before the earliest such suffix.
 
-        The whole-buffer case (``i == 0``) is special-cased with the STRICT
-        prefix check (``is_strict_rule_token_prefix``): when the ENTIRE
-        buffer already equals a complete, non-extendable rule by itself
-        (e.g. the standalone abbreviation "iv" with no longer sibling rule
-        "iv ..."), it has nothing left to grow into and must not be held
-        back forever waiting for a continuation no rule defines - that
-        buffer must be emitted rather than returning 0. For ``i > 0`` the
-        plain (non-strict) check is kept: a mid-buffer suffix that merely
-        equals some OTHER complete rule (e.g. the second token of a
-        two-token compound like "رایت لانگ") can still be genuinely
-        ambiguous with a sibling rule sharing that same tail token (e.g.
-        "لانگ ساوندز"), so the whole compound must stay held together until
-        the ambiguity resolves; only the never-completes-into-anything
-        whole-buffer edge case is safe to special-case here.
+        Only a STRICT prefix is retained: a complete rule that cannot grow
+        must be emitted immediately wherever it appears, not delayed merely
+        because it happens to end a segment.  Prefix checks use the same
+        conservative narrative policy as canonicalization, so ordinary
+        Persian dictionary phrases that the live path will preserve are not
+        pointlessly buffered.
+
+        A trailing spoken number is also retained for one continuation.  ASR
+        commonly finalizes an age as "پنجاه" + "و هشت" + "ساله"; keeping
+        only that bounded suffix allows the existing numeric fold to see the
+        complete expression without accumulating the session.
         """
         tokens = self._buffer.split()
         if self._medical is None or not tokens:
             return len(self._buffer)
+
+        numeric_start = self._numeric_tail_start(tokens)
+        if numeric_start is not None:
+            # Keep a context-sensitive multi-token lead with its fragmented
+            # value ("فشار خون" + "صد ..."), otherwise the phrase would be
+            # emitted separately and could no longer become BP 120/80.
+            for i in range(numeric_start):
+                if self._medical.is_strict_rule_token_prefix(
+                    tokens[i:numeric_start], preserve_narrative=True
+                ):
+                    numeric_start = i
+                    break
         for i in range(len(tokens)):
-            suffix = tokens[i:]
-            if not self._medical.is_rule_token_prefix(suffix):
-                continue
-            if i == 0 and not self._medical.is_strict_rule_token_prefix(suffix):
-                # Entire remaining buffer is only a complete, non-extendable
-                # rule on its own - not a genuine risk, keep scanning.
-                continue
-            if i == 0:
-                return 0
-            return sum(len(t) + 1 for t in tokens[:i]) - 1
+            lexical_prefix = (
+                self._medical is not None
+                and self._medical.is_strict_rule_token_prefix(
+                    tokens[i:], preserve_narrative=True
+                )
+            )
+            if lexical_prefix or i == numeric_start:
+                if i == 0:
+                    return 0
+                return sum(len(t) + 1 for t in tokens[:i]) - 1
         return len(self._buffer)
+
+    @staticmethod
+    def _numeric_tail_start(tokens: list[str]) -> int | None:
+        """Start of a potentially extendable numeric suffix (maximum 12 tokens)."""
+        number_tokens = set(SPOKEN_NUMERALS) | {
+            SPOKEN_NUMERAL_JOINER, NUMERIC_CONTEXT.ratio_connector,
+        }
+        # 12 covers a complete bounded BP expression while preventing a stream
+        # of malformed numeral-only finals from growing the buffer forever.
+        for i in range(max(0, len(tokens) - 12), len(tokens)):
+            suffix = tokens[i:]
+            if suffix[0] not in SPOKEN_NUMERALS and not suffix[0].isdigit():
+                continue
+            if not any(token in SPOKEN_NUMERALS or token.isdigit()
+                       for token in suffix):
+                continue
+            if not all(token in number_tokens or token.isdigit()
+                       for token in suffix):
+                continue
+            if i and tokens[i - 1].casefold() in NUMERIC_CONTEXT.before:
+                return i - 1
+            return i
+        if tokens[-1].casefold() in NUMERIC_CONTEXT.before:
+            return len(tokens) - 1
+        return None
 
     def _emit(self, cut: int) -> str | None:
         emitted_text = self._buffer[:cut].strip()

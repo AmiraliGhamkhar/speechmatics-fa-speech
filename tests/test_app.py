@@ -182,27 +182,27 @@ def make_accumulator(no_medical=False):
     )
 
 
-def test_accumulator_holds_phrase_until_it_completes_across_segments():
+def test_accumulator_holds_measurement_phrase_for_numeric_context_only():
     acc = make_accumulator()
     from speechmatics_test.text import normalize_text
 
     first = acc.add(normalize_text("فشار خون"), [])
-    # "فشار خون" can still extend to the longest rule "فشار خون بالا":
-    # nothing may be injected yet
+    # The phrase may still receive a value in the next tiny ASR final.
     assert first is None
     second = acc.add(normalize_text("بالا دارد"), [])
-    assert second == "HTN دارد"
-    assert acc.canonical_text == "HTN دارد"
-    assert [h["canonical"] for h in acc.hits if h["canonical"] == "HTN"]
+    # No measurement followed: ordinary Persian narrative remains Persian.
+    assert second == "فشار خون بالا دارد"
+    assert acc.canonical_text == "فشار خون بالا دارد"
+    assert acc.hits == []
 
 
-def test_accumulator_flush_emits_the_remaining_tail():
+def test_accumulator_flush_emits_standalone_measurement_phrase_verbatim():
     acc = make_accumulator()
     from speechmatics_test.text import normalize_text
 
     assert acc.add(normalize_text("فشار خون"), []) is None
-    assert acc.flush() == "BP"
-    assert acc.canonical_text == "BP"
+    assert acc.flush() == "فشار خون"
+    assert acc.canonical_text == "فشار خون"
 
 
 def test_accumulator_emits_standalone_complete_rule_without_delay():
@@ -221,22 +221,18 @@ def test_accumulator_emits_standalone_complete_rule_without_delay():
     assert acc.flush() is None
 
 
-def test_accumulator_still_holds_genuinely_ambiguous_compound_tail():
-    """Guard against over-correcting the standalone-rule fix: a compound
-    whose last token is itself the leading token of an unrelated, longer
-    sibling rule (here "لانگ" also starts "لانگ ساوندز" = lung sounds) must
-    still be held across the segment boundary, because it is genuinely at
-    risk of extending into that other rule.
-    """
+def test_accumulator_does_not_buffer_ordinary_persian_dictionary_phrases():
+    """Rules suppressed by conservative mode must not delay live injection."""
     acc = make_accumulator()
     from speechmatics_test.text import normalize_text
 
     first = acc.add(normalize_text("بیمار در سی تی اسکن"), [])
     second = acc.add(normalize_text("لیژن در رایت لانگ"), [])
     tail = acc.flush()
-    assert acc.canonical_text == "بیمار در CT scan lesion در right lung"
-    joined = " ".join(e.strip() for e in (first, second, tail) if e).strip()
-    assert joined == acc.canonical_text
+    assert first == "بیمار در CT scan"
+    assert second == "لیژن در رایت لانگ"
+    assert tail is None
+    assert acc.canonical_text == "بیمار در CT scan لیژن در رایت لانگ"
 
 
 def test_accumulator_emitted_pieces_never_duplicate_text():
@@ -251,7 +247,7 @@ def test_accumulator_emitted_pieces_never_duplicate_text():
     joined = " ".join(e.strip() for e in emissions if e).strip()
     # every emitted piece survives exactly once, in order
     assert joined == acc.canonical_text
-    assert acc.canonical_text == "بیمار در CT scan lesion در right lung"
+    assert acc.canonical_text == "بیمار در CT scan لیژن در رایت لانگ"
 
 
 def test_accumulator_without_medical_layer_passes_text_through():
@@ -269,6 +265,48 @@ def test_accumulator_empty_adds_are_ignored():
     assert acc.add("", []) is None
     assert acc.flush() is None
     assert acc.canonical_text == ""
+
+
+def test_accumulator_combines_only_fragmented_numeric_tail():
+    """Tiny finals form one age without retaining the surrounding session."""
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    assert acc.add(normalize_text("مددجو آقای"), []) == "مددجو آقای"
+    assert acc.add(normalize_text("پنجاه"), []) is None
+    assert acc.add(normalize_text("و هشت"), []) is None
+    assert acc.add(normalize_text("ساله با شکایت"), []) == "58 ساله با شکایت"
+    assert acc.flush() is None
+    assert acc.canonical_text == "مددجو آقای 58 ساله با شکایت"
+
+
+def test_accumulator_combines_fragmented_measurement_without_loss():
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    emissions = [
+        acc.add(normalize_text(segment), [])
+        for segment in ("فشار خون", "صد و چهل", "روی هشتاد", "ثبت شد")
+    ]
+    emissions.append(acc.flush())
+    assert " ".join(part for part in emissions if part) == "BP 140/80 ثبت شد"
+    assert acc.canonical_text == "BP 140/80 ثبت شد"
+
+
+def test_accumulator_emits_standalone_narrative_immediately():
+    acc = make_accumulator()
+    assert acc.add("ارزیابی اولیه پرستاری", []) == "ارزیابی اولیه پرستاری"
+    assert acc.flush() is None
+
+
+def test_numeric_tail_buffer_is_bounded_and_preserves_every_token():
+    acc = make_accumulator()
+    emissions = [acc.add("دو", []) for _ in range(20)]
+    assert len(acc._buffer.split()) <= 12
+    emissions.append(acc.flush())
+    joined = " ".join(part for part in emissions if part)
+    assert joined == " ".join(["دو"] * 20)
+    assert joined == acc.canonical_text
 
 
 # ---------------------------------------------- InjectionWorker (H2 fix)
@@ -331,6 +369,34 @@ def test_injection_worker_shutdown_is_safe_without_jobs():
 
 
 # ------------------------------------------------- overlay lifecycle (M7)
+
+def test_overlay_close_never_destroys_tcl_root_on_callback_failure():
+    from overlay import TranscriptOverlay
+
+    destroyed = []
+
+    class Root:
+        def after(self, delay, callback):
+            raise RuntimeError("event loop is racing shutdown")
+
+        def destroy(self):
+            destroyed.append(True)
+
+    overlay = TranscriptOverlay.__new__(TranscriptOverlay)
+    overlay._root = Root()
+    overlay._label = object()
+    overlay._status = object()
+    overlay._closed = False
+    overlay._thread = None
+
+    overlay.close()
+    assert destroyed == []  # caller thread must not deallocate Tcl
+    overlay._tick_follow()  # represents the already scheduled UI-thread tick
+    assert destroyed == [True]
+    assert overlay._root is None
+    assert overlay._label is None
+    assert overlay._status is None
+
 
 def test_overlay_abort_destroys_root_created_after_shutdown():
     from overlay import TranscriptOverlay

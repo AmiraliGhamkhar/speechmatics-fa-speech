@@ -39,11 +39,17 @@ import hashlib
 import json
 import re
 from collections import deque
+from functools import lru_cache
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
-from .text import NumericContext, fold_numeric_expressions, normalize_text
+from .text import (
+    SPOKEN_NUMERALS,
+    NumericContext,
+    fold_numeric_expressions,
+    normalize_text,
+)
 
 try:  # pragma: no cover - depends on environment
     import ahocorasick as _native_ac
@@ -142,6 +148,24 @@ _NARRATIVE_MEASUREMENT_FORMS = frozenset({
 })
 _NARRATIVE_CHART_CODE_RE = re.compile(r"^[A-Za-z0-9%°]+(?:[-/][A-Za-z0-9%°]+)*$")
 
+# Persian names used when an abbreviation is dictated letter by letter.  This
+# is deliberately lexical: it permits "ای سی جی" -> ECG, but not the ordinary
+# Persian alias "الکتروکاردیوگرام" -> ECG.  Compact ASR spellings such as
+# "ایسیجی" are accepted by the small segmenter below.
+_PERSIAN_ABBREVIATION_PARTS = frozenset({
+    "ا", "ای", "ئی", "بی", "سی", "دی", "اف", "جی", "اچ", "ایچ", "آی",
+    "کی", "ال", "ام", "ان", "او", "پی", "کیو", "آر", "آرآی", "اس", "تی", "یو",
+    "وی", "دبلیو", "ایکس", "اکس", "وای", "زد",
+    "صفر", "یک", "وان", "دو", "تو", "سه", "تری", "چهار", "فور", "پنج",
+    "فایو", "شش", "سیکس", "هفت", "سون", "هشت", "ایت", "نه", "ناین",
+})
+# A small compatibility exception for an established, explicitly dictated
+# chart term.  This is not a general Persian-to-English phrase list.
+_NARRATIVE_EXPLICIT_CHART_FORMS = frozenset({"سی تی اسکن"})
+_PERSIAN_NUMERAL_ABBREVIATION_PARTS = frozenset(SPOKEN_NUMERALS) | frozenset({
+    "وان", "تو", "تری", "فور", "فایو", "سیکس", "سون", "ایت", "ناین",
+})
+
 
 def _contains_persian(text: str) -> bool:
     return any("\u0600" <= ch <= "\u06ff" or "\u0750" <= ch <= "\u077f" or
@@ -157,30 +181,79 @@ def _is_narrative_chart_code(canonical: str) -> bool:
     if value in _NARRATIVE_UNIT_CANONICALS:
         return True
     letters = [ch for ch in value if ch.isascii() and ch.isalpha()]
-    return bool(letters) and all(ch.isupper() for ch in letters) or any(ch.isdigit() for ch in value)
+    return (bool(letters) and all(ch.isupper() for ch in letters)
+            or any(ch.isdigit() for ch in value))
+
+
+@lru_cache(maxsize=None)
+def _is_spoken_abbreviation(form: str) -> bool:
+    """Whether Persian ``form`` spells a chart code rather than translating it."""
+    parts = form.split()
+    compact = "".join(parts)
+    if not compact:
+        return False
+    if len(parts) > 1:
+        # Spaces are strong evidence supplied by the ASR.  Do not segment a
+        # normal trailing word into coincidental pieces (e.g. "صفرا" must not
+        # be read as "صفر" + "ا").
+        return (
+            len(parts) >= 2
+            and all(part in _PERSIAN_ABBREVIATION_PARTS for part in parts)
+            and any(part not in _PERSIAN_NUMERAL_ABBREVIATION_PARTS
+                    for part in parts)
+        )
+    # Compact ASR spellings such as "ایسیجی" have no token boundaries.  A
+    # tiny dynamic program segments that one token into known letter names.
+    states: dict[int, tuple[int, bool]] = {0: (0, False)}
+    for position in range(len(compact)):
+        state = states.get(position)
+        if state is None:
+            continue
+        count, has_letter = state
+        for part in _PERSIAN_ABBREVIATION_PARTS:
+            if compact.startswith(part, position):
+                candidate = (
+                    count + 1,
+                    has_letter or part not in _PERSIAN_NUMERAL_ABBREVIATION_PARTS,
+                )
+                end = position + len(part)
+                if candidate > states.get(end, (-1, False)):
+                    states[end] = candidate
+    count, has_letter = states.get(len(compact), (0, False))
+    return count >= 2 and has_letter
+
+
+def _is_narrative_rule_candidate(rule: "MedicalRule") -> bool:
+    """Whether a rule can ever fire in conservative application mode."""
+    if not _contains_persian(rule.form):
+        return True
+    if rule.form in _NARRATIVE_MEASUREMENT_FORMS:
+        return True
+    if rule.canonical.strip() in _NARRATIVE_UNIT_CANONICALS:
+        return True
+    if rule.form in _NARRATIVE_EXPLICIT_CHART_FORMS:
+        return True
+    return (_is_narrative_chart_code(rule.canonical)
+            and _is_spoken_abbreviation(rule.form))
 
 
 def _looks_like_number_after(text: str) -> bool:
-    """Small lexical check used only for ordinary measurement phrases."""
-    from .text import SPOKEN_NUMERALS
-    for token in re.split(r"\s+", text[:80].lstrip(" :،,;؛"))[:6]:
-        bare = token.strip(".,:;!?،؛؟()[]{}")
-        if not bare:
-            continue
-        if bare[0].isdigit() or bare in SPOKEN_NUMERALS:
-            return True
-    return False
+    """Whether a value starts immediately after a measurement phrase."""
+    remainder = text.lstrip(" :،,;؛")
+    if not remainder:
+        return False
+    token = re.split(r"\s+", remainder, maxsplit=1)[0]
+    bare = token.strip(".,:;!?،؛؟()[]{}")
+    return bool(bare) and (bare[0].isdigit() or bare in SPOKEN_NUMERALS)
 
 
 def _passes_narrative_guard(rule: "MedicalRule", text: str, start: int, end: int) -> bool:
     """Keep ordinary Persian speech verbatim in the application transcript path."""
-    if not _contains_persian(rule.form):
-        return True
+    if not _is_narrative_rule_candidate(rule):
+        return False
     if rule.form in _NARRATIVE_MEASUREMENT_FORMS:
         return _looks_like_number_after(text[end:])
-    if rule.canonical.strip() in _NARRATIVE_UNIT_CANONICALS:
-        return True
-    return _is_narrative_chart_code(rule.canonical)
+    return True
 
 
 #: Which spoken numbers count as a medical value, and which as a clock reading.
@@ -205,8 +278,9 @@ _DOSAGE_UNIT_TOKENS = frozenset(
 )
 
 NUMERIC_CONTEXT = NumericContext(
-    before=(frozenset({"ساعت", "سن", "روی", "عدد", "دوز", "وزن", "saturation"})
-            | _VITAL_SIGN_TOKENS),
+    before=(frozenset({
+        "ساعت", "سن", "نمره", "روی", "عدد", "دوز", "وزن", "saturation",
+    }) | _VITAL_SIGN_TOKENS),
     # "دقیقه"/"ثانیه" are deliberately NOT here: a bare "هشت و سی دقیقه" is
     # either a clock reading or a duration, and folding only one side of it
     # would corrupt both. The clock pass below handles them as a pair.
@@ -555,6 +629,10 @@ class MedicalMatcher:
     _by_first: dict = field(default_factory=dict, init=False, repr=False)
     _form_prefixes: set = field(default_factory=set, init=False, repr=False)
     _strict_form_prefixes: set = field(default_factory=set, init=False, repr=False)
+    _narrative_form_prefixes: set = field(default_factory=set, init=False, repr=False)
+    _narrative_strict_form_prefixes: set = field(
+        default_factory=set, init=False, repr=False
+    )
 
     # ---------------------------------------------------------------- load
 
@@ -707,14 +785,29 @@ class MedicalMatcher:
         # for a continuation that no rule defines.
         prefixes: set[tuple[str, ...]] = set()
         strict_prefixes: set[tuple[str, ...]] = set()
+        narrative_prefixes: set[tuple[str, ...]] = set()
+        narrative_strict_prefixes: set[tuple[str, ...]] = set()
         for rule in rules:
             form_tokens = rule.match_form.split()
             for take in range(1, len(form_tokens) + 1):
                 prefixes.add(tuple(form_tokens[:take]))
             for take in range(1, len(form_tokens)):
                 strict_prefixes.add(tuple(form_tokens[:take]))
+
+            if _is_narrative_rule_candidate(rule):
+                for take in range(1, len(form_tokens) + 1):
+                    narrative_prefixes.add(tuple(form_tokens[:take]))
+                for take in range(1, len(form_tokens)):
+                    narrative_strict_prefixes.add(tuple(form_tokens[:take]))
+                # A complete measurement phrase is context-sensitive: retain
+                # it only long enough to see whether the next final begins a
+                # value ("فشار خون" + "صد و بیست ...").
+                if rule.form in _NARRATIVE_MEASUREMENT_FORMS:
+                    narrative_strict_prefixes.add(tuple(form_tokens))
         self._form_prefixes = prefixes
         self._strict_form_prefixes = strict_prefixes
+        self._narrative_form_prefixes = narrative_prefixes
+        self._narrative_strict_form_prefixes = narrative_strict_prefixes
         return rules
 
     # -------------------------------------------------------------- automaton
@@ -1012,21 +1105,27 @@ class MedicalMatcher:
         """Longest rule form measured in whitespace tokens (0 without rules)."""
         return max((len(rule.form.split()) for rule in self.rules), default=0)
 
-    def is_rule_token_prefix(self, tokens: list[str]) -> bool:
+    def is_rule_token_prefix(
+        self, tokens: list[str], *, preserve_narrative: bool = False
+    ) -> bool:
         """True when ``tokens`` start some rule form (prefix or full form).
 
         Comparison mirrors the matcher exactly: normalized tokens,
-        case-folded per ``casefold_preserving``. Kept for API stability and
-        direct rule-form membership checks; the cross-segment buffer itself
-        uses ``is_strict_rule_token_prefix`` (see there for why the
-        distinction matters).
+        case-folded per ``casefold_preserving``. ``preserve_narrative`` limits
+        the query to rules that can fire in the conservative application path;
+        the default retains the established public behavior.
         """
         if not tokens:
             return False
-        return tuple(casefold_preserving(token) for token in tokens) \
-            in self._form_prefixes
+        prefixes = (
+            self._narrative_form_prefixes
+            if preserve_narrative else self._form_prefixes
+        )
+        return tuple(casefold_preserving(token) for token in tokens) in prefixes
 
-    def is_strict_rule_token_prefix(self, tokens: list[str]) -> bool:
+    def is_strict_rule_token_prefix(
+        self, tokens: list[str], *, preserve_narrative: bool = False
+    ) -> bool:
         """True when ``tokens`` are a PROPER prefix of some longer rule form.
 
         Unlike ``is_rule_token_prefix``, a tuple that only matches a rule's
@@ -1043,8 +1142,11 @@ class MedicalMatcher:
         """
         if not tokens:
             return False
-        return tuple(casefold_preserving(token) for token in tokens) \
-            in self._strict_form_prefixes
+        prefixes = (
+            self._narrative_strict_form_prefixes
+            if preserve_narrative else self._strict_form_prefixes
+        )
+        return tuple(casefold_preserving(token) for token in tokens) in prefixes
 
     def canonicalize(
         self, text: str, word_results: Optional[list[dict[str, Any]]] = None,
@@ -1059,7 +1161,14 @@ class MedicalMatcher:
         if not text or not self.rules:
             return text, []
         try:
-            canonical, hits = self._scan(text, word_results)
+            if preserve_narrative:
+                canonical, hits = self._scan(
+                    text, word_results, preserve_narrative=True
+                )
+            else:
+                # Preserve compatibility with private test/deployment scan
+                # overrides that implement the historical two-argument shape.
+                canonical, hits = self._scan(text, word_results)
         except Exception as exc:
             # An engine failure must never cost the clinician their finished
             # transcript: the naive scanner implements the identical priority
@@ -1073,7 +1182,9 @@ class MedicalMatcher:
                 f"(sha256:{digest}) ({exc}); "
                 f"using the equivalent reference scanner output"
             )
-            canonical, hits = self._scan_reference(text, word_results)
+            canonical, hits = self._scan_reference(
+                text, word_results, preserve_narrative=preserve_narrative
+            )
         # Spoken numbers and clock times are folded AFTER the lexical pass, so
         # a dictionary rule always wins over digitizing its own number words
         # ("هر دو ساعت" -> "q2h" must not become "2 ساعت" first). The fold is

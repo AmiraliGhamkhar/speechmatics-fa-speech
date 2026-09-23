@@ -75,7 +75,7 @@ def test_end_to_end_session(tmp_path, monkeypatch, capsys):
     assert "FINAL CANONICAL:" in out
     # Aho-Corasick canonicalization applied to the joined finals
     assert "CT scan" in out.split("FINAL CANONICAL:")[1]
-    assert "right lung" in out.split("FINAL CANONICAL:")[1]
+    assert "لیژن در رایت لانگ" in out.split("FINAL CANONICAL:")[1]
     # raw is preserved unnormalized before the canonical stage
     raw_block = out.split("FINAL RAW:")[1].split("FINAL NORMALIZED:")[0]
     assert "سی تی اسکن" in raw_block or "لیژن" in raw_block
@@ -134,7 +134,8 @@ def test_end_to_end_session_with_report(tmp_path, monkeypatch):
         assert report["final_transcript_raw"] == "بیمار در سی سی یو است فشار خون بالا دارد"
         assert report["final_transcript_normalized"] == report["final_transcript_raw"]
         assert "CCU" in report["final_transcript_canonical"]
-        assert "HTN" in report["final_transcript_canonical"]
+        assert "فشار خون بالا دارد" in report["final_transcript_canonical"]
+        assert "HTN" not in report["final_transcript_canonical"]
         assert "audio_path" not in report  # audio is never persisted
         assert report["medical_hits"]
         assert report["session_error"] is None
@@ -299,12 +300,48 @@ def test_auto_injection_fires_per_final_segment(tmp_path, monkeypatch):
     # canonicalized and with a trailing space separator
     assert [t for t, _ in pasted] == [
         "بیمار در CCU است ",
-        "HTN دارد ",
+        "فشار خون بالا دارد ",
     ]
     assert all(mark for _, mark in pasted)
     # the focus guard armed the target once, before the first paste
     assert FakeInjector.calls[0] == "arm"
     assert FakeInjector.calls[1:4] == ["reset", "paste", "reset"]
+
+
+def test_failed_auto_injection_is_recorded_as_failed(tmp_path, monkeypatch):
+    class RejectingInjector:
+        def arm_target(self):
+            return True
+
+        def reset_partial(self):
+            pass
+
+        def paste_text(self, text, add_rtl_mark=False):
+            return False  # same public result as a focus-guard rejection
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(
+        app_module, "create_injector", lambda enabled: RejectingInjector()
+    )
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--save-report",
+    ])
+    install_fake_sdk(monkeypatch, {"script": [("final", "دکتر احمدی")]})
+
+    assert asyncio.run(app_module.main()) == 0
+    reports = sorted((app_module.ROOT / "results").glob("session_*.json"))
+    assert reports
+    try:
+        report = json.loads(reports[-1].read_text(encoding="utf-8"))
+        assert report["injection"]["segments"] == [
+            {"text": "دکتر احمدی", "success": False}
+        ]
+    finally:
+        for path in reports:
+            path.unlink(missing_ok=True)
 
 
 def test_injection_disabled_with_no_inject_flag(tmp_path, monkeypatch):
@@ -412,12 +449,10 @@ def test_sigint_handler_is_removed_after_the_session(tmp_path, monkeypatch):
     assert signal.getsignal(signal.SIGINT) is before
 
 
-def test_cross_segment_medical_phrase_injects_and_reports_identically(
+def test_cross_segment_narrative_injects_and_reports_identically(
     tmp_path, monkeypatch
 ):
-    """H3 regression: a phrase split across finals ("فشار خون" + "بالا دارد")
-    must inject and report the same canonical text ("HTN دارد"), instead of
-    injecting "BP بالا" while the report claimed "HTN دارد"."""
+    """A split narrative phrase stays Persian and is emitted exactly once."""
     pasted = []
 
     class FakeInjector:
@@ -450,24 +485,93 @@ def test_cross_segment_medical_phrase_injects_and_reports_identically(
 
     # the first final is buffered (it could still extend), then the phrase
     # resolves once and is injected exactly once
-    assert pasted == ["HTN دارد "]
+    assert pasted == ["فشار خون بالا دارد "]
 
     reports = sorted((app_module.ROOT / "results").glob("session_*.json"))
     assert reports
     try:
         report = json.loads(reports[-1].read_text(encoding="utf-8"))
         # the report's canonical stage IS the injected text
-        assert report["final_transcript_canonical"] == "HTN دارد"
+        assert report["final_transcript_canonical"] == "فشار خون بالا دارد"
         assert report["final_transcript_normalized"] == "فشار خون بالا دارد"
         injected = " ".join(t.strip() for t in pasted).strip()
         assert report["final_transcript_canonical"] == injected
         assert report["injection"]["segments"] == [
-            {"text": "HTN دارد", "success": True}
+            {"text": "فشار خون بالا دارد", "success": True}
         ]
-        assert any(h["canonical"] == "HTN" for h in report["medical_hits"])
+        assert not any(h["canonical"] == "HTN" for h in report["medical_hits"])
     finally:
         for p in reports:
             p.unlink(missing_ok=True)
+
+
+def test_fragmented_persian_nursing_dictation_reaches_injection_without_rewrite(
+    tmp_path, monkeypatch
+):
+    """Speechmatics final -> callback -> accumulator -> medical layer -> paste."""
+    segments = [
+        "مددجو آقای", "پنجاه", "و هشت",
+        "ساله با شکایت درد قفسه سینه",
+        "با تشخیص آنژین ناپایدار در سرویس دکتر احمدی",
+        "در ساعت ده و سی دقیقه وارد بخش قلب شد.",
+        "در ارزیابی اولیه پرستاری انجام شد.",
+        "فشار خون", "صد و چهل", "روی هشتاد",
+        "اشباع اکسیژن", "نود و هفت درصد",
+        "پنج میلی گرم دریافت کرد.", "نمره بیست",
+    ]
+    pasted = []
+
+    class FakeInjector:
+        def arm_target(self):
+            return True
+
+        def reset_partial(self):
+            pass
+
+        def paste_text(self, text, add_rtl_mark=False):
+            pasted.append(text.rstrip())
+            return True
+
+    async def enough_audio(recorder, max_seconds, stop_event=None):
+        for _ in segments:
+            yield b"\x00" * 6400
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", enough_audio)
+    monkeypatch.setattr(app_module, "create_injector", lambda enabled: FakeInjector())
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--save-report",
+    ])
+    install_fake_sdk(monkeypatch, {
+        "script": [("final", segment) for segment in segments],
+    })
+
+    assert asyncio.run(app_module.main()) == 0
+    injected = " ".join(pasted)
+    expected = (
+        "مددجو آقای 58 ساله با شکایت درد قفسه سینه با تشخیص آنژین ناپایدار "
+        "در سرویس دکتر احمدی در ساعت 10:30 وارد بخش قلب شد. در ارزیابی اولیه "
+        "پرستاری انجام شد. BP 140/80 SpO2 97 % 5 mg دریافت کرد. نمره 20"
+    )
+    assert injected == expected
+    for invented in (
+        "nursing assessment", "Morse Fall Scale", "Braden Scale",
+        "Phlebitis", "diagnosis", "vital signs",
+    ):
+        assert invented not in injected
+
+    reports = sorted((app_module.ROOT / "results").glob("session_*.json"))
+    assert reports
+    try:
+        report = json.loads(reports[-1].read_text(encoding="utf-8"))
+        assert report["final_transcript_canonical"] == expected
+        assert " ".join(item["text"] for item in report["injection"]["segments"]) == expected
+        assert all(item["success"] for item in report["injection"]["segments"])
+    finally:
+        for path in reports:
+            path.unlink(missing_ok=True)
 
 
 def test_no_focus_guard_skips_arming(tmp_path, monkeypatch):
