@@ -2691,19 +2691,6 @@
       "source_file": "nursing_phrases.json"
     },
     {
-      "id": "nursing-assessment",
-      "canonical": "nursing assessment",
-      "type": "phrase",
-      "tier": "phrase",
-      "forms": [
-        "ارزیابی پرستاری",
-        "ارزیابی اولیه پرستاری"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_phrases.json"
-    },
-    {
       "id": "head-to-toe-assessment",
       "canonical": "head-to-toe assessment",
       "type": "phrase",
@@ -5656,23 +5643,6 @@
         "abdominal pain",
         "abd pain",
         "درد شکمی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
-      "id": "chest-pain",
-      "canonical": "chest pain",
-      "type": "condition",
-      "tier": "validated_term",
-      "forms": [
-        "درد قفسه سینه",
-        "درد سینه",
-        "چست پین",
-        "chest pain",
-        "CP",
-        "C/P"
       ],
       "speechmatics": false,
       "sounds_like": [],
