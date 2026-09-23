@@ -1,0 +1,176 @@
+{
+  "description": "Post-processing integrity cases. Every 'segments' value is a transcript Speechmatics recognized CORRECTLY, split the way the realtime API finalizes it. 'expected' is that same clinical content after deterministic normalization. Any mismatch is a defect introduced by our own pipeline, never an ASR error. Cases marked 'streaming_only' reproduce an ASR final boundary inside a written value; joining them with a space (the single-pass view) is not the scenario, so they are scored on the streamed path only.",
+  "cases": [
+    {
+      "id": "reference_sentence",
+      "segments": [
+        "مددجو آقای ۵۸ ساله با شکایت درد قفسه سینه در ساعت ۱۰:۳۰ وارد بخش قلب شد."
+      ],
+      "expected": "مددجو آقای 58 ساله با شکایت درد قفسه سینه در ساعت 10:30 وارد بخش قلب شد."
+    },
+    {
+      "id": "reference_sentence_fragmented",
+      "segments": [
+        "مددجو آقای",
+        "پنجاه",
+        "و هشت",
+        "ساله با شکایت درد قفسه سینه",
+        "در ساعت ده و سی دقیقه وارد بخش قلب شد."
+      ],
+      "expected": "مددجو آقای 58 ساله با شکایت درد قفسه سینه در ساعت 10:30 وارد بخش قلب شد."
+    },
+    {
+      "id": "vitals_written",
+      "segments": [
+        "BP 145/90 و SpO2 96% و T 36.7 و PR 88"
+      ],
+      "expected": "BP 145/90 و SpO2 96% و T 36.7 و PR 88"
+    },
+    {
+      "id": "vitals_spoken",
+      "segments": [
+        "فشار خون صد و چهل و پنج روی نود",
+        "اشباع اکسیژن نود و شش درصد"
+      ],
+      "expected": "BP 145/90 SpO2 96 %"
+    },
+    {
+      "id": "vitals_fragmented",
+      "segments": [
+        "فشار خون",
+        "صد و چهل",
+        "روی هشتاد",
+        "ثبت شد"
+      ],
+      "expected": "BP 140/80 ثبت شد"
+    },
+    {
+      "id": "clock_split_at_separator",
+      "segments": [
+        "ساعت 10:",
+        "30"
+      ],
+      "expected": "ساعت 10:30",
+      "streaming_only": true
+    },
+    {
+      "id": "bp_split_at_separator",
+      "segments": [
+        "فشار خون 145",
+        "/90"
+      ],
+      "expected": "BP 145/90",
+      "streaming_only": true
+    },
+    {
+      "id": "concentration_split_at_separator",
+      "segments": [
+        "نرمال سالین 0.",
+        "9 درصد"
+      ],
+      "expected": "نرمال سالین 0.9 %",
+      "streaming_only": true
+    },
+    {
+      "id": "iv_line_and_saline",
+      "segments": [
+        "IV-Line 20G و نرمال سالین 0.9%"
+      ],
+      "expected": "IV-Line 20G و نرمال سالین 0.9%"
+    },
+    {
+      "id": "saline_without_concentration",
+      "segments": [
+        "نرمال سالین وصل شد"
+      ],
+      "expected": "نرمال سالین وصل شد"
+    },
+    {
+      "id": "saline_other_concentration",
+      "segments": [
+        "normal saline 0.45%"
+      ],
+      "expected": "Normal Saline 0.45%"
+    },
+    {
+      "id": "scales_written",
+      "segments": [
+        "Morse 45 و Braden 20"
+      ],
+      "expected": "Morse 45 و Braden 20"
+    },
+    {
+      "id": "scales_spoken_fragmented",
+      "segments": [
+        "مورس",
+        "چهل و پنج"
+      ],
+      "expected": "مورس 45"
+    },
+    {
+      "id": "lab_terms",
+      "segments": [
+        "سی بی سی و ای بی جی"
+      ],
+      "expected": "CBC و ABG"
+    },
+    {
+      "id": "coagulation_terms",
+      "segments": [
+        "پی تی و پی تی تی"
+      ],
+      "expected": "PT و PTT"
+    },
+    {
+      "id": "imaging_term_mid_sentence",
+      "segments": [
+        "بیمار ام آر آی شد"
+      ],
+      "expected": "بیمار MRI شد"
+    },
+    {
+      "id": "imaging_term_across_finals",
+      "segments": [
+        "هرچیزی رو که نمیفهمه",
+        "ام آر آی مینویسه"
+      ],
+      "expected": "هرچیزی رو که نمیفهمه MRI مینویسه"
+    },
+    {
+      "id": "resuscitation_unit_terms",
+      "segments": [
+        "بیمار سی پی آر شد و به سی سی یو منتقل شد"
+      ],
+      "expected": "بیمار CPR شد و به CCU منتقل شد"
+    },
+    {
+      "id": "skin_terms",
+      "segments": [
+        "Pressure Sore و Ecchymosis مشاهده شد"
+      ],
+      "expected": "Pressure Sore و Ecchymosis مشاهده شد"
+    },
+    {
+      "id": "chained_ratio_is_not_a_bp",
+      "segments": [
+        "فشار خون 120 روی 80 روی 60"
+      ],
+      "expected": "BP 120 روی 80 روی 60"
+    },
+    {
+      "id": "two_numbers_are_not_one_dose",
+      "segments": [
+        "دوز نهصد سیصد mg"
+      ],
+      "expected": "دوز نهصد سیصد mg"
+    },
+    {
+      "id": "unrelated_speech_is_preserved",
+      "segments": [
+        "مددجو آقای پنجاه و هشت ساله",
+        "الان میخوام برم ناهار بخورم"
+      ],
+      "expected": "مددجو آقای 58 ساله الان میخوام برم ناهار بخورم"
+    }
+  ]
+}

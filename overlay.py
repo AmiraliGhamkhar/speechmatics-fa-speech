@@ -459,11 +459,28 @@ class TranscriptOverlay:
         if self._closed:
             return
 
-        root = self._root
         thread = getattr(self, "_thread", None)
         self._closed = True
 
+        # The Tk root is referenced through ``self`` ONLY.  Binding it to a
+        # local here (the previous implementation did) kept the interpreter
+        # alive in this frame across the join below, so when the UI thread had
+        # already dropped it, the last reference died on THIS thread and
+        # Tkapp.__del__ ran off-thread:
+        #     "the Tcl interpreter is leaked because it was deallocated in a
+        #      thread other than the one it was created in".
+        # Everything the destroy callback needs is reached through ``self``,
+        # which the UI thread owns for the lifetime of the interpreter.
+        root = self._root
         if root is not None:
+<<<<<<< HEAD
+=======
+            def destroy() -> None:
+                current = self._root
+                if current is not None:
+                    self._destroy_root(current)
+
+>>>>>>> 19ea4506b281e9bb2f9f3996a800177994fec120
             # Do not use _ui() here: it correctly rejects callbacks once the
             # overlay is closed.  Tk's queued callback makes destruction occur
             # on the UI thread rather than racing mainloop from the ASR thread.
@@ -479,6 +496,10 @@ class TranscriptOverlay:
                 # _tick_follow() is already scheduled on the UI thread and
                 # observes _closed within 40 ms.
                 pass
+            finally:
+                # Drop this frame's reference before waiting, so the UI thread
+                # holds the only one and releases it where it was created.
+                del root, destroy
 
         root = None
         if thread is not None and thread is not threading.current_thread():

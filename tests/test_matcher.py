@@ -1135,3 +1135,113 @@ def test_number_and_meridiem_rows_are_single_sourced():
             assert day_parts.isdisjoint(term.get("sounds_like") or [])
     assert "12 AM" not in mapped.get("نیمه شب", set())
     assert by_id["spo2"]["canonical"] == "SpO2"
+
+
+# ---------------------------------------------------------------- safety pass
+# Every case below reproduces a defect where post-processing INVENTED or
+# corrupted a clinical value. "NORMALIZE != INVENT": a number, dose, score or
+# vital sign may only be rewritten when the text deterministically states it.
+
+
+@pytest.mark.parametrize("raw,expected", [
+    # A chain is not a ratio. The middle number belongs to both halves, so
+    # folding either one had to duplicate it: "120/8080/60".
+    ("فشار خون 120 روی 80 روی 60", "BP 120 روی 80 روی 60"),
+    ("145 روی 90 روی 70", "145 روی 90 روی 70"),
+    ("10 روی 20 روی 30", "10 روی 20 روی 30"),
+    # Two plain numbers still fold, including several independent pairs.
+    ("فشار خون 120 روی 80", "BP 120/80"),
+    ("120 روی 80 و 70 روی 60", "120/80 و 70/60"),
+])
+def test_chained_ratio_is_never_fused_into_a_new_number(fst, raw, expected):
+    assert canon(fst, raw) == expected
+
+
+def test_rebuild_drops_overlapping_edits():
+    from speechmatics_test.text import _rebuild
+
+    # Two edits sharing source characters must not both be applied.
+    assert _rebuild("a b c", [(0, 3, "X"), (2, 5, "Y")]) == "X c"
+    assert _rebuild("a b c", [(0, 1, "X"), (4, 5, "Y")]) == "X b Y"
+
+
+@pytest.mark.parametrize("tokens,expected", [
+    # Same magnitude class twice = two separate numbers, never a sum.
+    ("هشت سه", (1, 8)),
+    ("نهصد سیصد", (1, 900)),
+    ("نهصد هفتصد", (1, 900)),
+    ("ده ده", (1, 10)),
+    # Descending magnitude classes are one number, with or without "و".
+    ("بیست پنج", (2, 25)),
+    ("پنجاه و هشت", (3, 58)),
+    ("صد و بیست و هشت", (5, 128)),
+    ("دویست و پنجاه", (3, 250)),
+    ("نود و شش", (3, 96)),
+])
+def test_spoken_number_run_follows_persian_magnitude_order(tokens, expected):
+    from speechmatics_test.text import spoken_number_at
+
+    assert spoken_number_at(tokens.split(), 0) == expected
+
+
+@pytest.mark.parametrize("raw,expected", [
+    # Two numbers spoken back to back are ambiguous: report neither.
+    ("نمره هشت سه", "نمره هشت سه"),
+    ("دوز نهصد سیصد mg", "دوز نهصد سیصد mg"),
+    ("سن هشت سه سال", "سن هشت سه سال"),
+    # ... and never half-convert one of them.
+    ("نمره صفر نه", "نمره صفر نه"),
+    ("ده صفر درصد", "ده صفر %"),
+    # An unambiguous value is still folded.
+    ("سن پنجاه و هشت سال", "سن 58 سال"),
+    ("نمره چهل و پنج", "نمره 45"),
+    ("دوز دویست و پنجاه mg", "دوز 250 mg"),
+])
+def test_two_adjacent_numbers_are_never_added_together(fst, raw, expected):
+    assert canon(fst, raw) == expected
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("مورس چهل و پنج", "Morse Fall Scale 45"),
+    ("برادن بیست", "Braden Scale 20"),
+    ("مقیاس مورس چهل و پنج", "Morse Fall Scale 45"),
+])
+def test_named_nursing_scales_anchor_their_score(fst, raw, expected):
+    assert canon(fst, raw) == expected
+
+
+@pytest.mark.parametrize("raw,expected", [
+    # The live (conservative) path keeps the Persian name and folds the score,
+    # so the entity guard's Morse/Braden range check finally sees a value.
+    ("مورس چهل و پنج", "مورس 45"),
+    ("برادن بیست", "برادن 20"),
+    ("مقیاس مورس چهل و پنج", "مقیاس مورس 45"),
+    # "مورس" without a score stays prose.
+    ("درد مورس دارد", "درد مورس دارد"),
+])
+def test_named_scales_fold_their_score_in_the_narrative_path(fst, raw, expected):
+    out, _ = fst.canonicalize(normalize_text(raw), preserve_narrative=True)
+    assert out == expected
+
+
+@pytest.mark.parametrize("raw,expected", [
+    # The dictionary must not attach a concentration nobody dictated.
+    ("نرمال سالین", "نرمال سالین"),
+    ("normal saline", "Normal Saline"),
+    ("نرمال سالین 0.9 درصد", "نرمال سالین 0.9 %"),
+    ("IV normal saline 0.45%", "IV Normal Saline 0.45%"),
+    ("نرمال سالین 5%", "نرمال سالین 5%"),
+])
+def test_saline_concentration_is_only_what_was_dictated(fst, raw, expected):
+    assert canon(fst, raw) == expected
+
+
+def test_rule_match_at_reports_the_longest_complete_form(matcher):
+    # Used by the cross-segment buffer to avoid cutting inside a match.
+    tokens = normalize_text("سی بی سی و ای بی جی").split()
+    end, canonical = matcher.rule_match_at(tokens, 0, preserve_narrative=True)
+    assert (end, canonical) == (3, "CBC")
+    end, canonical = matcher.rule_match_at(tokens, 4, preserve_narrative=True)
+    assert (end, canonical) == (7, "ABG")
+    # No rule starts at the connector.
+    assert matcher.rule_match_at(tokens, 3, preserve_narrative=True) == (3, "")

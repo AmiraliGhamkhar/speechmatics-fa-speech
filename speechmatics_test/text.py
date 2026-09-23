@@ -136,6 +136,16 @@ SPOKEN_NUMERALS: dict[str, int] = {
 #: The single word joining the parts of a Persian number.
 SPOKEN_NUMERAL_JOINER = "و"
 
+#: Magnitude class of a numeral word: 3 = hundreds, 2 = tens (20-90),
+#: 1 = ten/teens (10-19), 0 = units (0-9).
+#:
+#: A Persian number is built by descending magnitude CLASS, not merely by
+#: descending value: "صد و بیست و هشت" is 100 + 20 + 8, while "نهصد سیصد" is
+#: two separate numbers that no speaker ever combines.  Comparing values alone
+#: accepted the second one and silently reported 1200 - a dose/score nobody
+#: dictated.  Only these transitions exist in the language.
+_SPOKEN_NUMERAL_TRANSITIONS = frozenset({(3, 2), (3, 1), (3, 0), (2, 0)})
+
 #: Meaningless as a measurement on their own - never folded as a whole run.
 SPOKEN_NUMERAL_UNSAFE_ALONE = frozenset({"یک", "نه"})
 
@@ -214,6 +224,22 @@ def _numeral(token: str) -> Optional[int]:
     return SPOKEN_NUMERALS.get(_bare(token))
 
 
+def _magnitude(value: int) -> int:
+    """Magnitude class of a numeral value (see ``_SPOKEN_NUMERAL_TRANSITIONS``)."""
+    if value >= 100:
+        return 3
+    if value >= 20:
+        return 2
+    if value >= 10:
+        return 1
+    return 0
+
+
+def _continues_number(previous: int, value: int) -> bool:
+    """Whether ``value`` may extend a numeral run whose last part was ``previous``."""
+    return (_magnitude(previous), _magnitude(value)) in _SPOKEN_NUMERAL_TRANSITIONS
+
+
 def spoken_number_at(tokens: list[str], index: int, *,
                      allow_single_unsafe: bool = False) -> Optional[tuple[int, int]]:
     """``(tokens_consumed, value)`` of the maximal valid numeral run at ``index``.
@@ -221,6 +247,11 @@ def spoken_number_at(tokens: list[str], index: int, *,
     ``None`` when no valid number starts there. A run interrupted by anything
     unexpected stops BEFORE it, and the caller then refuses to fold even a
     prefix, so a number is never half-converted.
+
+    Parts must descend by magnitude CLASS (hundreds -> tens -> units), which is
+    how Persian numbers are actually built. Two same-class numerals spoken back
+    to back ("نهصد سیصد", "هشت سه") are two separate numbers and are never
+    added together: reporting their sum would invent a dose or a score.
     """
     total = 0
     count = 0
@@ -232,7 +263,8 @@ def spoken_number_at(tokens: list[str], index: int, *,
             if not count or cursor + 1 >= len(tokens):
                 break
             follower = _numeral(tokens[cursor + 1])
-            if follower is None or (previous is not None and follower >= previous):
+            if follower is None or (previous is not None
+                                    and not _continues_number(previous, follower)):
                 break
             value, cursor = follower, cursor + 2
         else:
@@ -242,7 +274,7 @@ def spoken_number_at(tokens: list[str], index: int, *,
             if not count:
                 if not allow_single_unsafe and token in SPOKEN_NUMERAL_UNSAFE_ALONE:
                     break
-            elif previous is not None and value >= previous:
+            elif previous is None or not _continues_number(previous, value):
                 break
             cursor += 1
         total += value
@@ -270,9 +302,20 @@ def _number_at(tokens: list[str], index: int, maximum: int, *,
 
 
 def _rebuild(text: str, edits: list[tuple[int, int, str]]) -> str:
+    """Apply non-overlapping ``(start, end, replacement)`` edits left to right.
+
+    An edit that starts inside the span of the previous one is DROPPED rather
+    than concatenated.  Two overlapping edits share source characters, and
+    emitting both wrote those characters twice: a chained "120 روی 80 روی 60"
+    produced "120/8080/60", inventing a systolic value that was never spoken.
+    Skipping the later edit leaves that part of the text exactly as dictated,
+    which is always the safe direction.
+    """
     out: list[str] = []
     cursor = 0
     for start, end, replacement in edits:
+        if start < cursor:
+            continue
         out.append(text[cursor:start])
         out.append(replacement)
         cursor = end
@@ -295,15 +338,27 @@ def fold_spoken_numbers(text: str, context: NumericContext) -> str:
         count, value = run
         end = index + count
         # All-or-nothing per NUMBER GROUP (a run plus every "و <run>" behind
-        # it): an unanchored group, a dangling "و", or several runs that do not
-        # form one valid number are skipped whole, so "پنج و شش" and "بیست و"
-        # never come out as "5 و 6" / "20 و".
+        # it, plus any numeral juxtaposed straight after it): an unanchored
+        # group, a dangling "و", or several runs that do not form one valid
+        # number are skipped whole, so "پنج و شش" and "بیست و" never come out
+        # as "5 و 6" / "20 و", and "نمره هشت سه" never becomes "نمره 8 سه".
         group_end = end
-        while group_end < len(tokens) and tokens[group_end] == SPOKEN_NUMERAL_JOINER:
-            following = spoken_number_at(tokens, group_end + 1)
-            if following is None:
-                break
-            group_end = group_end + 1 + following[0]
+        while group_end < len(tokens):
+            if tokens[group_end] == SPOKEN_NUMERAL_JOINER:
+                following = spoken_number_at(tokens, group_end + 1)
+                if following is None:
+                    break
+                group_end = group_end + 1 + following[0]
+                continue
+            if _numeral(tokens[group_end]) is not None:
+                # A numeral the run refused to absorb (two numbers spoken back
+                # to back). The whole sequence is one unresolved group: folding
+                # only its head would report a value next to a spoken one.
+                following = spoken_number_at(tokens, group_end,
+                                             allow_single_unsafe=True)
+                group_end += following[0] if following else 1
+                continue
+            break
         incomplete = group_end > end
         before_token = tokens[index - 1] if index else None
         anchored_before = _anchor(before_token, context.before)
@@ -446,14 +501,32 @@ def fold_spoken_ratio(text: str, context: NumericContext) -> str:
         return text
     tokens, spans = _token_spans(text)
     edits: list[tuple[int, int, str]] = []
-    for index in range(1, len(tokens) - 1):
+    index = 1
+    while index < len(tokens) - 1:
         if _bare(tokens[index]) != connector:
+            index += 1
             continue
         left, right = _bare(tokens[index - 1]), _bare(tokens[index + 1])
         if not _is_plain_number(left) or not _is_plain_number(right):
+            index += 1
+            continue
+        # A ratio is exactly two numbers. A CHAIN ("120 روی 80 روی 60") is not
+        # a blood pressure at all, and its middle number belongs to both
+        # halves: folding either half would have to duplicate it. The whole
+        # chain is therefore left exactly as dictated - the reading is
+        # ambiguous, so nothing may be asserted about it.
+        chain_end = index + 1
+        while (chain_end + 1 < len(tokens)
+               and _bare(tokens[chain_end + 1]) == connector
+               and chain_end + 2 < len(tokens)
+               and _is_plain_number(_bare(tokens[chain_end + 2]))):
+            chain_end += 2
+        if chain_end > index + 1:
+            index = chain_end + 1
             continue
         edits.append((spans[index - 1][0], _span_end(spans, tokens, index + 1),
                       f"{left}/{right}"))
+        index += 2
     return _rebuild(text, edits) if edits else text
 
 

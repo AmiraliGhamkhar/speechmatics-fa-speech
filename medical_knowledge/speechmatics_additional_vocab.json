@@ -1004,7 +1004,7 @@
   "Bed Side Up",
   "آپاندکتومی",
   "ایسکمی میوکارد",
-  "نرمال سالین 0.9%",
+  "نرمال سالین",
   "تورگور",
   {
     "content": "پنی‌سیلین",
@@ -1015,7 +1015,7 @@
   },
   "Appendectomy",
   "Myocardial Ischemia",
-  "Normal Saline 0.9%",
+  "Normal Saline",
   "Pressure Sore",
   "Skin Turgor"
 ]
