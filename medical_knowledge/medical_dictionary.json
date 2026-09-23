@@ -13888,7 +13888,7 @@
     },
     {
       "id": "normal-saline-fa",
-      "canonical": "نرمال سالین 0.9%",
+      "canonical": "نرمال سالین",
       "type": "term",
       "tier": "validated_term",
       "forms": [
@@ -13951,7 +13951,7 @@
     },
     {
       "id": "normal-saline-en",
-      "canonical": "Normal Saline 0.9%",
+      "canonical": "Normal Saline",
       "type": "term",
       "tier": "validated_term",
       "forms": [

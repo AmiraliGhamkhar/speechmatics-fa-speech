@@ -355,6 +355,11 @@ class TextInjector:
         Windows paste verifies that the armed window is STILL focused and
         refuses to paste anywhere else. Returns False when the platform
         cannot identify the foreground window (non-Windows).
+
+        Our OWN console is never armed. Arming it guaranteed that every
+        subsequent paste was skipped ("focus changed - paste skipped"), because
+        the text is by definition destined for a different window: the console
+        is the app's own UI, not a dictation target.
         """
         info = self.get_foreground_window_info()
         hwnd = info.get("hwnd")
@@ -362,8 +367,24 @@ class TextInjector:
             print("  [injector] focus guard unavailable on this platform")
             self._armed_hwnd = None
             return False
+        if hwnd == self._own_console_hwnd():
+            print("  [injector] focus guard not armed: this app's own console "
+                  "is focused — click the target field to arm it")
+            self._armed_hwnd = None
+            return False
         self._armed_hwnd = int(hwnd)
         return True
+
+    @staticmethod
+    def _own_console_hwnd() -> Optional[int]:
+        """Handle of the console this process owns, when it has one."""
+        if _SYSTEM != "windows":
+            return None
+        try:
+            hwnd = kernel32.GetConsoleWindow()
+        except Exception:
+            return None
+        return int(hwnd) if hwnd else None
 
     @property
     def armed_target(self) -> Optional[int]:
@@ -754,11 +775,16 @@ class TextInjector:
         OpenClipboard fails while another process holds it open. A single try
         meant a whole dictated sentence vanished, so retry briefly.
         """
-        hwnd = user32.GetForegroundWindow()
+        # NULL associates the clipboard with the current TASK, which is what a
+        # console process must use: OpenClipboard requires a window owned by
+        # the calling thread, and the foreground HWND normally belongs to a
+        # different process entirely. Our own console window (when there is
+        # one) is the only valid non-NULL handle here.
+        own_console = self._own_console_hwnd()
         for i in range(attempts):
-            if user32.OpenClipboard(hwnd):
-                return True
             if user32.OpenClipboard(None):
+                return True
+            if own_console and user32.OpenClipboard(own_console):
                 return True
             time.sleep(delay * (1 + i * 0.25))
         print("  [clipboard] busy — another application is holding it open")
