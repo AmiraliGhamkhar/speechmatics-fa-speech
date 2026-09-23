@@ -948,6 +948,41 @@ def test_clinical_paragraph_end_to_end(fst):
     assert canon(fst, expected) == expected
 
 
+def test_app_transcript_preserves_spoken_persian_narrative(fst):
+    """The live chart path must not turn ordinary Persian into English templates."""
+    raw = (
+        "مددجو آقای پنجاه و هشت ساله با شکایت درد قفسه سینه با تشخیص آنژین ناپایدار "
+        "در سرویس دکتر احمدی با پای خود در ساعت ده و سی دقیقه وارد بخش قلب شد. "
+        "در ارزیابی اولیه پرستاری در ساعت ده و چهل و پنج دقیقه انجام شد. "
+        "مددجو بیدار و هوشیار است. دستبند شناسایی بیمار در دست راست به رنگ زرد میباشد. "
+        "حساسیت به پنی سیلین ذکر میکند. سابقه فشار خون دارد. "
+        "نرس کال در دسترس بیمار میباشد. فلبیت و قرمزی ندارد. "
+        "از نظر مقیاس مورس نمره بیست و پنج میگیرد. "
+        "بیمار از نظر مقیاس برادن نمره بیست و دو میگیرد."
+    )
+    out, _ = fst.canonicalize(normalize_text(raw), preserve_narrative=True)
+    assert "مددجو آقای 58 ساله" in out
+    assert "درد قفسه سینه" in out
+    assert "آنژین ناپایدار" in out
+    assert "دکتر احمدی" in out
+    assert "در ارزیابی اولیه پرستاری" in out
+    assert "نرس کال" in out
+    assert "فلبیت و قرمزی ندارد" in out
+    assert "مقیاس مورس نمره 25" in out
+    assert "مقیاس برادن نمره 22" in out
+    assert "nursing assessment" not in out
+    assert "pressure injury" not in out
+    assert "Morse Fall Scale" not in out
+    assert "Braden Scale" not in out
+
+
+def test_app_transcript_still_canonicalizes_explicit_chart_notation(fst):
+    """The conservative guard keeps useful abbreviations and units."""
+    raw = normalize_text("فشار خون صد و چهل روی هشتاد، اشباع اکسیژن نود و هفت درصد، پنج میلی گرم")
+    out, _ = fst.canonicalize(raw, preserve_narrative=True)
+    assert out == "BP 140/80، SpO2 97 %، 5 mg"
+
+
 ORDINARY_PERSIAN = [
     ("دکتر آمد", "دکتر آمد"),
     ("پزشک آمد", "پزشک آمد"),
