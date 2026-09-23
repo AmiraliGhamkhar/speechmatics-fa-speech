@@ -302,11 +302,13 @@ class TranscriptOverlay:
                 self._status.config(text="● در حال شنیدن...", fg="#a6e3a1", anchor="e")
         self._ui(_)
 
-    def set_final(self, text: str) -> None:
-        """A finalized ASR segment (post-Aho-Corasick canonical).
+    def set_final(self, text: str, warnings: Optional[list[dict]] = None) -> None:
+        """Display finalized canonical text and optional review warnings.
 
-        Final results must be displayed through this API, never through
-        ``set_partial``: partials are revisable hypotheses, finals are not.
+        Warnings are presentation-only metadata (currently low-confidence
+        clinical entities). They never change the displayed logical text or
+        the text sent to the injector. ``warnings=None`` preserves the
+        established behavior and public call shape.
         """
         def _():
             raw = strip_bidi_controls(text or "")
@@ -315,7 +317,20 @@ class TranscriptOverlay:
             if self._label:
                 self._label.config(text=display, fg="#f9e2af")
             if self._status:
-                self._status.config(text="✓ نهایی شد", fg="#f9e2af", anchor="e")
+                if warnings:
+                    entities = ", ".join(
+                        str(item.get("content", "")) for item in warnings[:3]
+                        if item.get("content")
+                    )
+                    suffix = f": {entities}" if entities else ""
+                    self._status.config(
+                        text=f"⚠ بررسی مقدار نامطمئن{suffix}",
+                        fg="#fab387", anchor="e",
+                    )
+                else:
+                    self._status.config(
+                        text="✓ نهایی شد", fg="#f9e2af", anchor="e"
+                    )
         self._ui(_)
 
     def set_done(self, text: str) -> None:

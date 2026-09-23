@@ -7,13 +7,13 @@ Production-oriented medical dictation for **Speechmatics Realtime**, optimized f
 * **Aho-Corasick medical matcher** — deterministic lexical canonicalization with a native `pyahocorasick` backend and a pure-Python fallback.
 * **Single medical dictionary** — `medical_knowledge/medical_dictionary.json` is the source of truth for canonicalization and Speechmatics vocabulary.
 * **Automatic injection** — finalized segments are pasted directly into the focused application; no hotkeys or manual countdown.
-* **RTL-aware injection** — mixed Persian/English text uses Unicode BiDi controls and ZWNJ/whitespace normalization.
+* **Clean logical-text injection** — pasted Persian/English text is normalized without storing hidden Unicode BiDi controls; direction wrapping is limited to the overlay (the injector API retains an explicit compatibility option).
 * **Realtime-safe injection** — clipboard operations run on a dedicated FIFO worker and never block the ASR callback.
 * **Focus guard** — prevents text from being injected into an unintended window.
 * **Overlay** — logical-order rendering with automatic Persian/English direction detection.
 * **No LLM / embeddings / vector DB** — all post-processing is deterministic and auditable.
 * **No audio persistence** — microphone audio remains in memory only.
-* **Audit-ready reports** — raw, normalized, canonical, confidence, language, timing, and medical-match metadata can be saved as JSON.
+* **Audit-ready reports** — raw, normalized, canonical, confidence, language, timing, medical-match metadata, and non-destructive low-confidence review flags can be saved as JSON.
 
 ## Pipeline
 
@@ -278,7 +278,8 @@ The injector provides:
 
 * Atomic per-segment paste.
 * FIFO ordering.
-* Unicode BiDi wrapping.
+* Clean logical-Unicode paste by default (no stored RLM/RLE/PDF controls).
+* Optional BiDi wrapping for direct API callers that need target-editor compatibility.
 * ZWNJ/whitespace cleanup.
 * Clipboard restoration.
 * Modifier-key protection.

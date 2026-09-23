@@ -4,7 +4,7 @@
     "name": "SwiftMedics Nursing/Orthopedic Merged Persian-English Medical Dictionary",
     "schema_compatible_with": "speechmatics-fa-speech medical_dictionary.json / matcher.py v1",
     "generated_on": "2026-09-23",
-    "entry_count": 954,
+    "entry_count": 951,
     "design": "deterministic lexical canonicalization; Persian spoken aliases included for fa Speechmatics matching; merged from nursing_core, abbreviations, support, orthopedic additions; deduplicated by id",
     "sources": [
       "nursing_core_extraction_ordered.json",
@@ -12,7 +12,7 @@
       "nursing_support_terms_ordered.json",
       "nursing_orthopedic_dictionary_additions.json"
     ],
-    "note": "Deduplicated by id; forms and sounds_like unioned; order preserved from core extraction primarily.; added AM/PM and hour terms; fixed 32 invalid types.; 2026-09-23 pass: merged 8 duplicate terms (PO, chest x-ray, vital signs, magnesium, intensive care unit, coronary/cardiac care unit, morning/afternoon rows), removed the hour_1..hour_12 rows that replaced a clock hour with a bare digit, dropped the forms that rewrote the ordinary words 'morning', 'evening', 'نیم' and 'نیمه', and added blood-pressure / SpO2 / day-part aliases (spoken numbers and clock times are normalized by the anchored fold in speechmatics_test/text.py, not by per-value entries). 2026-09-23 chart pass: ordinary Persian words and day-part aliases no longer rewrite to English or AM/PM (صبح/ظهر/عصر/شب stay Persian; ای ام/پی ام stay AM/PM); rows whose only forms were those words were removed; a few unspaced spoken abbreviation aliases were added (ایسیجی, ایکیجی, PTT)."
+    "note": "Deduplicated by id; forms and sounds_like unioned; order preserved from core extraction primarily.; added AM/PM and hour terms; fixed 32 invalid types.; 2026-09-23 pass: merged 8 duplicate terms (PO, chest x-ray, vital signs, magnesium, intensive care unit, coronary/cardiac care unit, morning/afternoon rows), removed the hour_1..hour_12 rows that replaced a clock hour with a bare digit, dropped the forms that rewrote the ordinary words 'morning', 'evening', 'نیم' and 'نیمه', and added blood-pressure / SpO2 / day-part aliases (spoken numbers and clock times are normalized by the anchored fold in speechmatics_test/text.py, not by per-value entries). 2026-09-23 chart pass: ordinary Persian words and day-part aliases no longer rewrite to English or AM/PM (صبح/ظهر/عصر/شب stay Persian; ای ام/پی ام stay AM/PM); rows whose only forms were those words were removed; a few unspaced spoken abbreviation aliases were added (ایسیجی, ایکیجی, PTT). 2026-09-23: merged duplicate lab_0210 PTT forms into aptt; ASR vocabulary eligibility and pronunciations preserved."
   },
   "terms": [
     {
@@ -11790,21 +11790,6 @@
       "source_file": "nursing_terms.json"
     },
     {
-      "id": "lab_0210",
-      "canonical": "partial thromboplastin time",
-      "type": "lab",
-      "tier": "validated_term",
-      "forms": [
-        "partial thromboplastin time",
-        "PTT",
-        "زمان PTT",
-        "زمان ترومبوپلاستین نسبی"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "nursing_terms.json"
-    },
-    {
       "id": "lab_0211",
       "canonical": "international normalized ratio",
       "type": "lab",
@@ -12558,14 +12543,15 @@
         "ای پی تی تی",
         "PTT",
         "partial thromboplastin time",
-        "زمان ترومبوپلاستین نسبی"
+        "زمان ترومبوپلاستین نسبی",
+        "زمان PTT"
       ],
       "speechmatics": true,
       "sounds_like": [
         "ایپیتی‌تی",
         "زمانترومبوپلاستین"
       ],
-      "source_file": "nursing_orthopedic_terms.json"
+      "source_file": "nursing_orthopedic_terms.json; nursing_terms.json"
     },
     {
       "id": "bedside_rails",

@@ -129,7 +129,10 @@ def create_injector(enabled: bool):
             enable_smart_rewrite=True,
             restore_clipboard=True,
             paste_settle_seconds=0.25,
-            add_bidi_marks=True,
+            # Keep clipboard/document content as clean logical Unicode.
+            # Direction controls remain an overlay presentation concern; the
+            # injector still supports them as an explicit compatibility opt-in.
+            add_bidi_marks=False,
         )
     except Exception as exc:
         print(f"[injector disabled] {exc}")
@@ -161,6 +164,10 @@ class FinalStreamCanonicalizer:
         self._buffer = ""                # " ".join(piece texts), derived
         self.parts: list[str] = []       # emitted canonical pieces, in order
         self.hits: list[dict] = []       # medical hits of the emitted pieces
+        # Review-only ASR warnings. They never alter canonical or injected
+        # text; each item comes directly from source-word confidence metadata.
+        self.flags: list[dict] = []
+        self.last_flags: list[dict] = []
 
     @property
     def canonical_text(self) -> str:
@@ -169,6 +176,7 @@ class FinalStreamCanonicalizer:
 
     def add(self, normalized_text: str, words: list[dict]) -> str | None:
         """Add one normalized final segment; return the text to inject now."""
+        self.last_flags = []
         if not normalized_text:
             return None
         if self._buffer:
@@ -180,6 +188,7 @@ class FinalStreamCanonicalizer:
 
     def flush(self) -> str | None:
         """Emit everything still buffered (end of session)."""
+        self.last_flags = []
         return self._emit(len(self._buffer))
 
     # ------------------------------------------------------------ internals
@@ -303,6 +312,16 @@ class FinalStreamCanonicalizer:
         self._buffer = " ".join(piece["text"] for piece in self._pieces)
         self.parts.append(canonical)
         self.hits.extend(hits)
+
+        # Reuse the realtime adapter's established entity/confidence policy.
+        # Flags are audit/UI metadata only: recognized content is never
+        # corrected, removed, or withheld because its confidence is low.
+        summary = confidence_summary(words)
+        self.last_flags = [
+            {"kind": "low_confidence_entity", **entity}
+            for entity in summary["low_confidence_entities"]
+        ]
+        self.flags.extend(self.last_flags)
         return canonical
 
 
@@ -499,7 +518,9 @@ async def main() -> int:
             print("\n[final]   (segment buffered — the next final may still "
                   "complete a cross-segment medical phrase)")
         if overlay:
-            overlay.set_final(accumulator.canonical_text)
+            overlay.set_final(
+                accumulator.canonical_text, warnings=accumulator.last_flags
+            )
 
         if worker and emitted:
             if not worker_armed:
@@ -519,7 +540,9 @@ async def main() -> int:
         if tail:
             print("\n[final]   " + tail + "  (flushed at end of session)")
             if overlay:
-                overlay.set_final(accumulator.canonical_text)
+                overlay.set_final(
+                    accumulator.canonical_text, warnings=accumulator.last_flags
+                )
         if worker is None:
             return []
         if not worker_armed:
@@ -677,6 +700,9 @@ async def main() -> int:
             "final_segments": getattr(result, "final_segments", []),
             "word_results": word_results,
             "confidence_summary": confidence_summary(word_results),
+            # Review-only flags retain the recognized value verbatim. They
+            # never participate in canonicalization or injection decisions.
+            "review_flags": accumulator.flags,
             "medical_canonicalization": {
                 "hit_count": len(medical_hits),
                 "changed": canonical != normalized,
