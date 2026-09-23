@@ -42,7 +42,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
-from .text import normalize_text
+from .text import NumericContext, fold_numeric_expressions, normalize_text
 
 try:  # pragma: no cover - depends on environment
     import ahocorasick as _native_ac
@@ -52,7 +52,8 @@ except ImportError:  # pragma: no cover
 __all__ = [
     "MedicalMatcher", "MedicalFST", "FstError", "MedicalRule", "FstRule",
     "AhoAutomaton", "ENGINE_NAME", "TIER_ORDER", "TIER_RANK", "TERM_TYPES",
-    "DictionaryTerm", "casefold_preserving", "load_dictionary", "build_matcher",
+    "DictionaryTerm", "NUMERIC_CONTEXT", "casefold_preserving",
+    "load_dictionary", "build_matcher",
 ]
 
 #: Public engine identifier (reported by the app banner and the reports).
@@ -118,6 +119,50 @@ _LOW_CONFIDENCE_THRESHOLD = 0.75
 #: different ``match_form`` entirely and are therefore unaffected by this
 #: restriction; they were already unambiguous "stronger evidence" per se.
 _AMBIGUOUS_SHORT_FORMS = frozenset({"or", "p", "now", "diff", "ac", "pc", "hs", "od"})
+
+
+#: Which spoken numbers count as a medical value, and which as a clock reading.
+#: The generic fold machinery lives in ``speechmatics_test/text.py``; only the
+#: vocabulary of *contexts* is medical, so it is declared here. A number is
+#: folded only when one of these words touches it, which is what keeps ordinary
+#: prose ("یک ضایعه در ریه", "دو هفته قبل", "نه ممنوع") untouched.
+#:
+#: ``before``/``after`` deliberately name the tokens the DICTIONARY has already
+#: produced (``BP``, ``SpO2``, ``mg``, ``%``, ...) as well as the Persian ones:
+#: the fold runs on the canonical text, after the lexical pass.
+#:
+#: It is NOT a general natural-language date/time engine: nothing here infers a
+#: date, an AM/PM arithmetic or a clinical meaning; "ساعت ۳" becomes
+#: "ساعت 3" and nothing else.
+# Anchors are compared case-insensitively (see ``text._anchor``), so the Latin
+# spellings are stored case-folded: the same entry is matched whether the raw
+# text says "spo2" or the lexical pass has already written "SpO2".
+_VITAL_SIGN_TOKENS = frozenset({"bp", "spo2", "sao2", "hr", "rr", "temp", "o2"})
+_DOSAGE_UNIT_TOKENS = frozenset(
+    {"mg", "mcg", "ml", "l", "g", "kg", "cc", "cm", "mmhg", "meq", "%"}
+)
+
+NUMERIC_CONTEXT = NumericContext(
+    before=(frozenset({"ساعت", "سن", "روی", "عدد", "دوز", "وزن", "saturation"})
+            | _VITAL_SIGN_TOKENS),
+    # "دقیقه"/"ثانیه" are deliberately NOT here: a bare "هشت و سی دقیقه" is
+    # either a clock reading or a duration, and folding only one side of it
+    # would corrupt both. The clock pass below handles them as a pair.
+    after=frozenset({"سال", "ساله", "درصد", "بار", "روی"}) | _DOSAGE_UNIT_TOKENS,
+    # Persian "روی" ("over"): the only spoken blood-pressure form that is a
+    # value and not a diagnosis, e.g. "فشار خون صد و بیست روی هشتاد".
+    ratio_connector="روی",
+    clock_lead="ساعت",
+    minute_unit="دقیقه",
+    half_words=frozenset({"نیم", "نیمه"}),
+    quarter_words=frozenset({"ربع"}),
+    day_parts=frozenset({
+        "am", "pm", "صبح", "شب", "عصر", "ظهر", "نیمه شب",
+        "قبل از ظهر", "بعد از ظهر", "بعدازظهر",
+    }),
+    # Latin meridiem tags already written out after a spoken hour.
+    meridiem_words=frozenset({"am", "pm"}),
+)
 
 
 def _language_group(language: Any) -> str:
@@ -934,7 +979,7 @@ class MedicalMatcher:
         if not text or not self.rules:
             return text, []
         try:
-            return self._scan(text, word_results)
+            canonical, hits = self._scan(text, word_results)
         except Exception as exc:
             # An engine failure must never cost the clinician their finished
             # transcript: the naive scanner implements the identical priority
@@ -948,7 +993,13 @@ class MedicalMatcher:
                 f"(sha256:{digest}) ({exc}); "
                 f"using the equivalent reference scanner output"
             )
-            return self._scan_reference(text, word_results)
+            canonical, hits = self._scan_reference(text, word_results)
+        # Spoken numbers and clock times are folded AFTER the lexical pass, so
+        # a dictionary rule always wins over digitizing its own number words
+        # ("هر دو ساعت" -> "q2h" must not become "2 ساعت" first). The fold is
+        # generic numeric normalization (like the Persian digit folding in
+        # ``normalize_text``), so - like that one - it produces no medical hit.
+        return fold_numeric_expressions(canonical, NUMERIC_CONTEXT), hits
 
 
 #: Public API stability (§0): the class's historical name, kept on purpose

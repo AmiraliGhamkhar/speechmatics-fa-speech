@@ -52,6 +52,41 @@ Rules are:
 * ZWNJ-aware.
 * Fully auditable through `form`, `canonical`, `tier`, `source`, and position.
 * Protected by a reference-scanner fallback if the optimized matcher fails.
+* Spoken numbers are folded into charted notation, but only where a unit or a
+  context word says what kind of number it is.
+
+### Numeric and clock notation
+
+Age, blood pressure, saturation, time of day and AM/PM are **not** dictionary
+rules: a row per spoken hour (`ساعت هشت` -> `8`) fires inside unrelated text
+(`هر دو ساعت` = "every two hours"), so the notation is produced by a bounded,
+deterministic fold in `speechmatics_test/text.py`
+(`fold_numeric_expressions`), applied to the text *after* the lexical pass and
+configured by `matcher.NUMERIC_CONTEXT`.
+
+| Spoken | Canonical |
+| --- | --- |
+| `سن بیست سال`, `بیمار بیست و پنج ساله` | `سن 20 سال`, `بیمار 25 ساله` |
+| `فشار خون صد و بیست روی هشتاد` | `BP 120/80` |
+| `اشباع اکسیژن نود و هشت درصد` | `SpO2 98 %` |
+| `ساعت هشت`, `ساعت هشت و نیم`, `ساعت هشت وربع` | `ساعت 8`, `ساعت 8:30`, `ساعت 8:15` |
+| `ساعت هشت صبح`, `ساعت دو بعد از ظهر` | `ساعت 8 AM`, `ساعت 2 PM` |
+| `A.M.`, `P.M.` | `AM`, `PM` |
+
+Deliberate limits:
+
+* A numeral is folded only next to an anchor (`ساعت`, `سن`, `دوز`, `میلی گرم`,
+  `BP`, `SpO2`, `درصد`, ...). `vivid`, `ivory`, `درد روی سینه` and
+  `یک ضایعه در ریه` are left untouched.
+* A number group is all-or-nothing: `پنج و شش ساله` or `صد و بیست و هشتاد` stay
+  spoken rather than being half-converted, and `هزار` is not in the lexicon.
+* Durations are not clock readings: `دو و نیم ساعت` and `ساعت هشت و نیم ساعت`
+  stay as spoken; `دقیقه` alone never anchors a number.
+* Existing charting notation is never reformatted: `08:30`, `120/80`, `20 mg`,
+  `98 %`, `12 PM`, `ساعت 08`, `۲۵ مارس ۲۰۲۵` (whose digits still fold) pass
+  through unchanged, and the fold is idempotent.
+* No calendar logic, no 12/24-hour arithmetic, no date math, no dose or
+  severity inference. Trailing punctuation is preserved, never consumed.
 
 Clinical abbreviations that collide with common English words require stronger evidence, such as uppercase charting forms.
 
@@ -145,6 +180,12 @@ The vocabulary focuses on high-value medical terms such as:
 * Dosage units
 * Compact entities such as `HbA1c`, `SpO2`, `C3-C4`, and `q2h`
 * Persianized pronunciations
+
+A bare number is never exported (it would fight the engine's own digit output),
+and Speechmatics drops any element longer than six words, which
+`SpeechmaticsRealtime._clean_vocab` enforces locally before the config is sent.
+The list stays a bounded, curated biasing vocabulary rather than a dump of the
+dictionary, and `tests/test_dictionary.py` guards that budget.
 
 Generate or validate the derived vocabulary with:
 

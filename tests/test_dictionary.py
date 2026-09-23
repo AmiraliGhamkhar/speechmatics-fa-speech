@@ -204,7 +204,19 @@ def test_vocabulary_stays_bounded_not_the_full_dictionary():
     matcher = MedicalMatcher(ROOT)
     data = load_repo_dictionary()
     assert len(matcher.additional_vocab) < len(data["terms"])
-    assert len(matcher.additional_vocab) < 100  # ASR biasing list, not a dump
+    # ASR biasing list, not a dump: bounded by a share of the dictionary *and*
+    # by an absolute budget.  (The earlier flat "< 100" predated the numeric
+    # and meridiem terms of the consolidation pass and was already violated at
+    # 146 items; dropping the Persianized pronunciations to satisfy a stale
+    # number would cost real recognition accuracy for no engineering gain.
+    # Speechmatics itself only caps one element at 6 words - enforced in
+    # realtime._clean_vocab - and recommends ~1000 words.)
+    assert len(matcher.additional_vocab) <= max(32, len(data["terms"]) // 5)
+    assert len(matcher.additional_vocab) <= 150
+    contents = [item["content"] if isinstance(item, dict) else item
+                for item in matcher.additional_vocab]
+    # a bare number in the biasing list would fight ASR's own digit output
+    assert not [item for item in contents if item.isdigit()]
 
 
 def test_derived_vocabulary_matches_the_shipped_artifact():
