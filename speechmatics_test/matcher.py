@@ -163,7 +163,7 @@ def _is_narrative_chart_code(canonical: str) -> bool:
 def _looks_like_number_after(text: str) -> bool:
     """Small lexical check used only for ordinary measurement phrases."""
     from .text import SPOKEN_NUMERALS
-    for token in re.split(r"\\s+", text[:80].lstrip(" :،,;؛"))[:6]:
+    for token in re.split(r"\s+", text[:80].lstrip(" :،,;؛"))[:6]:
         bare = token.strip(".,:;!?،؛؟()[]{}")
         if not bare:
             continue
