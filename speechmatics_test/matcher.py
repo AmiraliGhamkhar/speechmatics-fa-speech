@@ -965,19 +965,27 @@ class MedicalMatcher:
         while i < length:
             if self._is_start_boundary(text, i):
                 best: Optional[tuple[MedicalRule, Optional[dict[str, Any]]]] = None
+
                 for rule in self._by_first.get(haystack[i], ()):
                     end = i + len(rule.match_form)
-                    if haystack.startswith(rule.match_form, i) and self._is_end_boundary(
-                        text, end
-                    ) and text[i:end] != rule.canonical \
-                            and self._passes_ambiguous_short_form_guard(rule, text[i:end])
-                        and (not preserve_narrative or _passes_narrative_guard(
-                            rule, text, i, end
-                        )):
+                    if (
+                        haystack.startswith(rule.match_form, i)
+                        and self._is_end_boundary(text, end)
+                        and text[i:end] != rule.canonical
+                        and self._passes_ambiguous_short_form_guard(rule, text[i:end])
+                        and (
+                            not preserve_narrative
+                            or _passes_narrative_guard(rule, text, i, end)
+                        )
+                    ):
                         evidence = self._span_evidence(rule, i, end, word_spans)
-                        if best is None or self._candidate_key(rule, evidence) < \
-                                self._candidate_key(*best):
+                        if (
+                            best is None
+                            or self._candidate_key(rule, evidence)
+                            < self._candidate_key(*best)
+                        ):
                             best = (rule, evidence)
+
                 if best is not None:
                     rule, evidence = best
                     out.append(rule.canonical)
