@@ -741,7 +741,7 @@ NUMERIC_CASES = [
     ("فشار خون", "BP"),
     ("فشار خون صد و بیست روی هشتاد", "BP 120/80"),
     ("فشار خون ۱۲۰ روی ۸۰", "BP 120/80"),
-    ("فشار 120 روی 80", "BP 120/80"),
+    ("فشار 120 روی 80", "فشار 120/80"),
     ("صد و بیست روی هشتاد", "120/80"),
     # a run that does not form one number is left entirely alone, never half
     ("فشار خون صد و بیست و هشتاد", "BP صد و بیست و هشتاد"),
@@ -770,11 +770,11 @@ NUMERIC_CASES = [
     ("ساعت هشت وربع", "ساعت 8:15"),
     ("ساعت هشت و چهل و پنج دقیقه", "ساعت 8:45 دقیقه"),
     ("ساعت دو و 15 دقیقه", "ساعت 2:15 دقیقه"),
-    ("هشت و نیم صبح", "8:30 AM"),
-    ("ساعت هشت صبح", "ساعت 8 AM"),
-    ("ساعت دو بعد از ظهر", "ساعت 2 PM"),
-    ("ساعت سه عصر", "ساعت 3 PM"),
-    ("ساعت هشت شب", "ساعت 8 PM"),
+    ("هشت و نیم صبح", "8:30 صبح"),
+    ("ساعت هشت صبح", "ساعت 8 صبح"),
+    ("ساعت دو بعد از ظهر", "ساعت 2 بعد از ظهر"),
+    ("ساعت سه عصر", "ساعت 3 عصر"),
+    ("ساعت هشت شب", "ساعت 8 شب"),
     ("ساعت دوازده ظهر", "ساعت 12 ظهر"),
     # --- AM / PM ---------------------------------------------------------
     ("8 AM", "8 AM"),
@@ -782,9 +782,17 @@ NUMERIC_CASES = [
     ("12 AM", "12 AM"),
     ("12 PM", "12 PM"),
     ("8 am", "8 AM"),
-    ("۸ صبح", "8 AM"),
+    ("۸ صبح", "8 صبح"),
     ("at 8 A.M. give IV", "at 8 AM. give IV"),
-    ("ساعت ۸:۳۰ صبح", "ساعت 8:30 AM"),
+    ("ساعت ۸:۳۰ صبح", "ساعت 8:30 صبح"),
+    # Explicit spoken abbreviations only; ordinary day-parts stay Persian.
+    ("ای ام", "AM"),
+    ("پی ام", "PM"),
+    ("صبح", "صبح"),
+    ("عصر", "عصر"),
+    ("شب", "شب"),
+    ("ظهر", "ظهر"),
+    ("نیمه شب", "نیمه شب"),
 ]
 
 
@@ -932,11 +940,39 @@ def test_clinical_paragraph_end_to_end(fst):
         "گرفته شد."
     )
     expected = (
-        "بیمار male 67 ساله ساعت 2 PM مراجعه کرد. BP 150/90، SpO2 95 %، "
-        "سن بیمار 42 سال. دوز 500 mg داده شد. ساعت 8:30 AM CXR گرفته "
-        "شد."
+        "بیمار مرد 67 ساله ساعت 2 بعد از ظهر مراجعه کرد. BP 150/90، "
+        "SpO2 95 %، سن بیمار 42 سال. دوز 500 mg داده شد. ساعت 8:30 صبح "
+        "CXR گرفته شد."
     )
     assert canon(fst, paragraph) == expected
+    assert canon(fst, expected) == expected
+
+
+ORDINARY_PERSIAN = [
+    ("دکتر آمد", "دکتر آمد"),
+    ("پزشک آمد", "پزشک آمد"),
+    ("پرستار", "پرستار"),
+    ("بیمار", "بیمار"),
+    ("فشار بیمار پایین است", "فشار بیمار پایین است"),
+    ("نبض بیمار منظم است", "نبض بیمار منظم است"),
+    ("سرم وصل است", "سرم وصل است"),
+    ("قلب بیمار", "قلب بیمار"),
+    ("تب دارد", "تب دارد"),
+    ("جراح آمد", "جراح آمد"),
+    ("اورژانس", "اورژانس"),
+    ("ای ام", "AM"),
+    ("پی ام", "PM"),
+    ("پی آر", "PR"),
+    ("ایسیجی", "ECG"),
+    ("پی تی تی", "PTT"),
+    ("آی ام", "IM"),
+]
+
+
+@pytest.mark.parametrize("raw,expected", ORDINARY_PERSIAN)
+def test_ordinary_persian_stays_persian_and_spoken_abbreviations_chart(fst, raw, expected):
+    """Role words and day parts stay Persian; spoken abbreviations stay chart form."""
+    assert canon(fst, raw) == expected
     assert canon(fst, expected) == expected
 
 
@@ -956,7 +992,7 @@ def test_number_and_meridiem_rows_are_single_sourced():
     assert not [term for term in data["terms"] if re.fullmatch(r"hour_\d+", term["id"])]
     assert by_id["am"]["canonical"] == "AM"
     assert by_id["pm"]["canonical"] == "PM"
-    assert by_id["midnight"]["canonical"] == "12 AM"
+    assert "midnight" not in by_id
     mapped: dict[str, set[str]] = {}
     for term in data["terms"]:
         for form in term["forms"]:
@@ -964,8 +1000,13 @@ def test_number_and_meridiem_rows_are_single_sourced():
     assert "every morning" not in mapped.get("morning", set())
     assert "every evening" not in mapped.get("evening", set())
     assert "noon / midday" not in mapped.get("noon", set())
-    # the day-part aliases live on the meridiem rows themselves
-    assert "صبح" in by_id["am"]["forms"] and "شب" in by_id["pm"]["forms"]
-    # ... while "نیمه شب" keeps its own row so "شب" -> PM cannot split it
-    assert "نیمه شب" in by_id["midnight"]["forms"]
+    # AM/PM is the spoken abbreviation only. Day-part words stay Persian,
+    # so a bare "شب" cannot split "نیمه شب" into a meridiem either.
+    assert "ای ام" in by_id["am"]["forms"] and "پی ام" in by_id["pm"]["forms"]
+    day_parts = {"صبح", "ظهر", "عصر", "شب", "بعد از ظهر", "قبل از ظهر", "نیمه شب"}
+    for term in data["terms"]:
+        if term["canonical"] in {"AM", "PM"}:
+            assert day_parts.isdisjoint(term["forms"])
+            assert day_parts.isdisjoint(term.get("sounds_like") or [])
+    assert "12 AM" not in mapped.get("نیمه شب", set())
     assert by_id["spo2"]["canonical"] == "SpO2"
