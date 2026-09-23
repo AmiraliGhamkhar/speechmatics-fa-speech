@@ -68,16 +68,23 @@ class MedicalLayer:
         self,
         normalized_text: str,
         word_results: list[dict[str, Any]] | None = None,
+        *,
+        preserve_narrative: bool = False,
     ) -> tuple[str, list[dict[str, Any]]]:
         """Apply lexical rules to an already-normalized finalized segment.
 
         ``word_results`` is optional final-only ASR evidence. Missing metadata
         follows the exact legacy canonicalization path.
         """
-        return self.fst.canonicalize(normalized_text, word_results)
+        return self.fst.canonicalize(
+            normalized_text, word_results, preserve_narrative=preserve_narrative
+        )
 
     def normalize(
-        self, text: str, word_results: list[dict[str, Any]] | None = None
+        self, text: str, word_results: list[dict[str, Any]] | None = None,
+        *, preserve_narrative: bool = False,
     ) -> tuple[str, list[dict[str, Any]]]:
         """Convenience: generic normalization + medical layer in one call."""
-        return self.fst.canonicalize(normalize_text(text), word_results)
+        return self.fst.canonicalize(
+            normalize_text(text), word_results, preserve_narrative=preserve_narrative
+        )

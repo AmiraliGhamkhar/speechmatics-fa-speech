@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -119,6 +120,67 @@ _LOW_CONFIDENCE_THRESHOLD = 0.75
 #: different ``match_form`` entirely and are therefore unaffected by this
 #: restriction; they were already unambiguous "stronger evidence" per se.
 _AMBIGUOUS_SHORT_FORMS = frozenset({"or", "p", "now", "diff", "ac", "pc", "hs", "od"})
+
+
+# In the application transcript path, ordinary Persian clinical prose must stay
+# Persian. Only compact chart notation (abbreviations / units) is eligible for
+# lexical canonicalization. Measurement phrases such as "فشار خون" and
+# "اشباع اکسیژن" are allowed only when a numeric value follows them; this keeps
+# history/narrative text such as "فشار خون دارد" unchanged without adding a
+# semantic NLP layer.
+_NARRATIVE_UNIT_CANONICALS = frozenset({
+    "mg", "mcg", "mL", "L", "g", "kg", "cc", "cm", "mm", "mmHg",
+    "meq", "mEq", "bpm", "°C", "%",
+})
+_NARRATIVE_MEASUREMENT_FORMS = frozenset({
+    "فشار خون", "فشارخون", "فشار",
+    "اشباع اکسیژن", "اشباعاکسیژن", "اشباع O2",
+    "قند خون", "قندخون",
+    "ضربان قلب", "ضربانقلب", "تعداد نبض", "تعدادنبض",
+    "تعداد تنفس", "تعدادتنفس", "دمای بدن", "دمایبدن",
+    "حرارت بدن", "حرارتبدن",
+})
+_NARRATIVE_CHART_CODE_RE = re.compile(r"^[A-Za-z0-9%°]+(?:[-/][A-Za-z0-9%°]+)*$")
+
+
+def _contains_persian(text: str) -> bool:
+    return any("\u0600" <= ch <= "\u06ff" or "\u0750" <= ch <= "\u077f" or
+               "\ufb50" <= ch <= "\ufdff" or "\ufe70" <= ch <= "\ufeff"
+               for ch in text or "")
+
+
+def _is_narrative_chart_code(canonical: str) -> bool:
+    """True for compact chart notation, not ordinary English words/phrases."""
+    value = canonical.strip()
+    if not value or not _NARRATIVE_CHART_CODE_RE.fullmatch(value):
+        return False
+    if value in _NARRATIVE_UNIT_CANONICALS:
+        return True
+    letters = [ch for ch in value if ch.isascii() and ch.isalpha()]
+    return bool(letters) and all(ch.isupper() for ch in letters) or any(ch.isdigit() for ch in value)
+
+
+def _looks_like_number_after(text: str) -> bool:
+    """Small lexical check used only for ordinary measurement phrases."""
+    from .text import SPOKEN_NUMERALS
+    for token in re.split(r"\s+", text[:80].lstrip(" :،,;؛"))[:6]:
+        bare = token.strip(".,:;!?،؛؟()[]{}")
+        if not bare:
+            continue
+        if bare[0].isdigit() or bare in SPOKEN_NUMERALS:
+            return True
+    return False
+
+
+def _passes_narrative_guard(rule: "MedicalRule", text: str, start: int, end: int) -> bool:
+    """Keep ordinary Persian speech verbatim in the application transcript path."""
+    if not _contains_persian(rule.form):
+        return True
+    if rule.form in _NARRATIVE_MEASUREMENT_FORMS:
+        return _looks_like_number_after(text[end:])
+    if rule.canonical.strip() in _NARRATIVE_UNIT_CANONICALS:
+        return True
+    return _is_narrative_chart_code(rule.canonical)
 
 
 #: Which spoken numbers count as a medical value, and which as a clock reading.
@@ -812,7 +874,8 @@ class MedicalMatcher:
     # --------------------------------------------------------------- engines
 
     def _scan(
-        self, text: str, word_results: Optional[list[dict[str, Any]]] = None
+        self, text: str, word_results: Optional[list[dict[str, Any]]] = None,
+        preserve_narrative: bool = False,
     ) -> tuple[str, list[dict[str, Any]]]:
         """Aho-Corasick scan: one linear pass finds every candidate.
 
@@ -851,6 +914,10 @@ class MedicalMatcher:
             # ORIGINAL matched text must be fully uppercase.
             if not self._passes_ambiguous_short_form_guard(rule, text[start:end_excl]):
                 continue
+            if preserve_narrative and not _passes_narrative_guard(
+                rule, text, start, end_excl
+            ):
+                continue
             current = best_at.get(start)
             if current is None or end_excl > current[0]:
                 best_at[start] = (end_excl, idx)
@@ -880,7 +947,8 @@ class MedicalMatcher:
         return "".join(out), hits
 
     def _scan_reference(
-        self, text: str, word_results: Optional[list[dict[str, Any]]] = None
+        self, text: str, word_results: Optional[list[dict[str, Any]]] = None,
+        preserve_narrative: bool = False,
     ) -> tuple[str, list[dict[str, Any]]]:
         """Deterministic naive scanner (reference implementation).
 
@@ -902,7 +970,10 @@ class MedicalMatcher:
                     if haystack.startswith(rule.match_form, i) and self._is_end_boundary(
                         text, end
                     ) and text[i:end] != rule.canonical \
-                            and self._passes_ambiguous_short_form_guard(rule, text[i:end]):
+                            and self._passes_ambiguous_short_form_guard(rule, text[i:end])
+                        and (not preserve_narrative or _passes_narrative_guard(
+                            rule, text, i, end
+                        )):
                         evidence = self._span_evidence(rule, i, end, word_spans)
                         if best is None or self._candidate_key(rule, evidence) < \
                                 self._candidate_key(*best):
@@ -968,7 +1039,8 @@ class MedicalMatcher:
             in self._strict_form_prefixes
 
     def canonicalize(
-        self, text: str, word_results: Optional[list[dict[str, Any]]] = None
+        self, text: str, word_results: Optional[list[dict[str, Any]]] = None,
+        *, preserve_narrative: bool = False,
     ) -> tuple[str, list[dict[str, Any]]]:
         """Canonicalize a normalized FINAL transcript with optional ASR evidence.
 

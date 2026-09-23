@@ -249,7 +249,9 @@ class FinalStreamCanonicalizer:
         if self._medical is None:
             canonical, hits = emitted_text, []
         else:
-            canonical, hits = self._medical.canonicalize(emitted_text, words)
+            canonical, hits = self._medical.canonicalize(
+                emitted_text, words, preserve_narrative=True
+            )
 
         remaining = self._pieces[consumed:]
         if partial_index is not None:
