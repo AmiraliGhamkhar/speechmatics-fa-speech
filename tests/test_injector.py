@@ -453,3 +453,28 @@ def test_unarmed_injector_is_never_blocked(monkeypatch):
     inj, state = make_mock_windows_injector(monkeypatch, previous="user data")
     assert inj.armed_target is None
     assert inj._paste_windows("سلام") is True
+
+
+def test_arm_target_refuses_to_arm_the_apps_own_console(monkeypatch):
+    """Arming our own console skipped every later paste by construction."""
+    inj = TextInjector(paste_settle_seconds=0)
+    monkeypatch.setattr(TextInjector, "_own_console_hwnd", staticmethod(lambda: 4321))
+    monkeypatch.setattr(
+        inj, "get_foreground_window_info",
+        lambda: {"hwnd": 4321, "title": "Terminal", "pid": 7},
+    )
+    assert inj.arm_target() is False
+    assert inj.armed_target is None
+    # Unarmed means "paste into whatever is focused", not "never paste".
+    assert inj._focus_guard_ok() is True
+
+
+def test_arm_target_still_arms_a_real_target_window(monkeypatch):
+    inj = TextInjector(paste_settle_seconds=0)
+    monkeypatch.setattr(TextInjector, "_own_console_hwnd", staticmethod(lambda: 4321))
+    monkeypatch.setattr(
+        inj, "get_foreground_window_info",
+        lambda: {"hwnd": 99, "title": "EMR", "pid": 2},
+    )
+    assert inj.arm_target() is True
+    assert inj.armed_target == 99

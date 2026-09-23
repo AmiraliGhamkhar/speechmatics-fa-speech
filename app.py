@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import queue
+import re
 import signal
 import threading
 import time
@@ -185,17 +186,47 @@ class FinalStreamCanonicalizer:
         """The canonical transcript exactly as it was (is being) injected."""
         return " ".join(self.parts).strip()
 
+    #: A final split in the middle of a written value: ASR cut it at the
+    #: separator ("ساعت 10:" + "30", "145" + "/90", "0." + "9 درصد").  The
+    #: fragments are rejoined WITHOUT a space because the separator is already
+    #: in the text - a spelling repair of one value, never a new value.  Both
+    #: halves of the separator are covered: it may end the first final or
+    #: start the second, but exactly one of them must carry it.
+    _VALUE_TAIL_OPEN = re.compile(r"\d[.:/,]$")
+    _VALUE_TAIL_DIGIT = re.compile(r"\d$")
+    _VALUE_HEAD_DIGIT = re.compile(r"^\d")
+    _VALUE_HEAD_SEPARATOR = re.compile(r"^[.:/,]\d")
+
     def add(self, normalized_text: str, words: list[dict]) -> str | None:
         """Add one normalized final segment; return the text to inject now."""
         self.last_flags = []
         if not normalized_text:
             return None
-        if self._buffer:
-            self._buffer += " " + normalized_text
+        if self._pieces and self._joins_open_value(self._buffer, normalized_text):
+            # Same value, split by the ASR: extend the open piece in place so
+            # the buffer keeps exactly one text/evidence entry per value.
+            self._pieces[-1]["text"] += normalized_text
+            self._pieces[-1]["words"].extend(words)
+            self._buffer += normalized_text
         else:
-            self._buffer = normalized_text
-        self._pieces.append({"text": normalized_text, "words": list(words)})
+            self._buffer = (
+                self._buffer + " " + normalized_text if self._buffer
+                else normalized_text
+            )
+            self._pieces.append({"text": normalized_text, "words": list(words)})
         return self._emit(self._safe_cut())
+
+    @classmethod
+    def _joins_open_value(cls, buffer: str, addition: str) -> bool:
+        """Whether ``addition`` continues a value the buffer left open."""
+        if cls._VALUE_TAIL_OPEN.search(buffer):
+            return bool(cls._VALUE_HEAD_DIGIT.match(addition))
+        return bool(cls._VALUE_TAIL_DIGIT.search(buffer)
+                    and cls._VALUE_HEAD_SEPARATOR.match(addition))
+
+    def _has_open_value_tail(self) -> bool:
+        """Whether the buffer ends on a separator awaiting the rest of a value."""
+        return bool(self._VALUE_TAIL_OPEN.search(self._buffer))
 
     def flush(self) -> str | None:
         """Emit everything still buffered (end of session)."""
@@ -228,29 +259,101 @@ class FinalStreamCanonicalizer:
         if self._medical is None or not tokens:
             return len(self._buffer)
 
-        numeric_start = self._numeric_tail_start(tokens)
+        # The buffer ends on a value separator ("ساعت 10:"): the digits that
+        # complete it are in the next final. Emitting now would paste a
+        # half-written time and the fold could never repair it.
+        if self._has_open_value_tail():
+            if len(tokens) == 1:
+                return 0
+            return sum(len(t) + 1 for t in tokens[:-1]) - 1
+
+        # Project the buffer through the lexical pass once: token indices that
+        # are INSIDE a complete rule match (never at its start), and the
+        # canonical spelling each match produces.
+        #
+        # Cutting inside a match would hand the two halves to separate
+        # canonicalization passes, which loses the term ("سی بی سی" -> "CBC"
+        # plus a stray "سی") or lets a shorter rule fire on the fragment
+        # ("سی سی یو" -> "mL یو" instead of CCU).  The canonical projection
+        # additionally makes a raw "بیپی" count as the "BP" numeric anchor it
+        # becomes, so a value arriving in the next final is still recognized.
+        match_start: dict[int, int] = {}
+        projected: list[str] = []
+        cursor = 0
+        while cursor < len(tokens):
+            end, canonical = self._medical.rule_match_at(
+                tokens, cursor, preserve_narrative=True
+            )
+            if end > cursor:
+                for position in range(cursor + 1, end):
+                    match_start[position] = cursor
+                canonical_tokens = canonical.split()
+                # Anchors are single tokens, so only the match's LAST canonical
+                # token can anchor a value that follows it.
+                projected.extend([""] * (end - cursor - 1))
+                projected.append(canonical_tokens[-1] if canonical_tokens else "")
+                cursor = end
+            else:
+                projected.append(tokens[cursor])
+                cursor += 1
+        inside_match = set(match_start)
+
+        numeric_start = self._numeric_tail_start(projected)
+        # An anchor is the last token of its match, so holding the value means
+        # holding the whole phrase that anchors it ("اچ آر" + "شانزده").
+        if numeric_start is not None and numeric_start in match_start:
+            numeric_start = match_start[numeric_start]
         if numeric_start is not None:
             # Keep a context-sensitive multi-token lead with its fragmented
             # value ("فشار خون" + "صد ..."), otherwise the phrase would be
             # emitted separately and could no longer become BP 120/80.
             for i in range(numeric_start):
+                if i in inside_match:
+                    continue
                 if self._medical.is_strict_rule_token_prefix(
                     tokens[i:numeric_start], preserve_narrative=True
                 ):
                     numeric_start = i
                     break
         for i in range(len(tokens)):
-            lexical_prefix = (
-                self._medical is not None
-                and self._medical.is_strict_rule_token_prefix(
-                    tokens[i:], preserve_narrative=True
-                )
+            if i in inside_match:
+                continue
+            lexical_prefix = self._medical.is_strict_rule_token_prefix(
+                tokens[i:], preserve_narrative=True
             )
             if lexical_prefix or i == numeric_start:
+                i = self._keep_number_with_its_unit(tokens, i)
                 if i == 0:
                     return 0
                 return sum(len(t) + 1 for t in tokens[:i]) - 1
         return len(self._buffer)
+
+    def _keep_number_with_its_unit(self, tokens: list[str], cut: int) -> int:
+        """Move ``cut`` back when the held text is the UNIT of the number before it.
+
+        The tokens from ``cut`` on are held because they might still grow into
+        a longer rule.  When the rule they start canonicalizes to a unit that
+        can follow a value ("سی سی" -> "mL"), the number in front of it is part
+        of the same measurement: emitting "دو" on its own strands it as a word
+        and the pair can never become "2 mL".  A held phrase that is not a unit
+        (a new measurement phrase such as "اشباع اکسیژن" -> "SpO2") starts its
+        own expression, so the completed value before it is emitted normally.
+        """
+        if cut <= 0 or cut >= len(tokens):
+            return cut
+        _, canonical = self._medical.rule_match_at(
+            tokens, cut, preserve_narrative=True
+        )
+        head = canonical.split()[0].casefold() if canonical.split() else ""
+        if head not in NUMERIC_CONTEXT.after:
+            return cut
+        # Bounded by the same 12-token window as ``_numeric_tail_start`` so a
+        # stream of numeral-only finals still drains.
+        while (cut > 0
+               and tokens[cut - 1] in SPOKEN_NUMERALS
+               and len(tokens) - (cut - 1) <= 12):
+            cut -= 1
+        return cut
 
     @staticmethod
     def _numeric_tail_start(tokens: list[str]) -> int | None:
@@ -618,10 +721,15 @@ async def main() -> int:
                 )
         if worker is None:
             return []
-        if not worker_armed:
+        if tail and not worker_armed:
+            # Nothing was injected during the session, so no target was ever
+            # armed. Arming HERE would arm whatever has focus at shutdown -
+            # normally the terminal the user just pressed Ctrl+C in - and the
+            # whole transcript would be pasted into it. Leave the guard
+            # unarmed instead: the paste still goes to the focused field (the
+            # documented behavior when no target was selected), and the report
+            # keeps the text either way.
             worker_armed = True
-            if not args.no_focus_guard:
-                injector.arm_target()
         if tail:
             worker.submit(tail)
         worker.shutdown()

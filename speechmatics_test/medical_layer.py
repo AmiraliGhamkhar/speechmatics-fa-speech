@@ -72,6 +72,14 @@ class MedicalLayer:
             tokens, preserve_narrative=preserve_narrative
         )
 
+    def rule_match_at(
+        self, tokens: list[str], index: int, *, preserve_narrative: bool = False
+    ) -> tuple[int, str]:
+        """Longest complete rule form at ``index`` (see MedicalMatcher)."""
+        return self.fst.rule_match_at(
+            tokens, index, preserve_narrative=preserve_narrative
+        )
+
     def canonicalize(
         self,
         normalized_text: str,

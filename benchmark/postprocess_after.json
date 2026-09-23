@@ -1,0 +1,308 @@
+{
+  "case_count": 22,
+  "single_pass": {
+    "case_count": 19,
+    "exact_match": 1.0,
+    "wer": 0.0,
+    "errors": 0,
+    "reference_tokens": 130,
+    "entity_precision": 1.0,
+    "entity_recall": 1.0,
+    "entity_correct": 15,
+    "entity_detected": 15,
+    "entity_expected": 15
+  },
+  "streamed": {
+    "case_count": 22,
+    "exact_match": 1.0,
+    "wer": 0.0,
+    "errors": 0,
+    "reference_tokens": 140,
+    "entity_precision": 1.0,
+    "entity_recall": 1.0,
+    "entity_correct": 17,
+    "entity_detected": 17,
+    "entity_expected": 17
+  },
+  "cases": [
+    {
+      "id": "reference_sentence",
+      "segments": [
+        "مددجو آقای ۵۸ ساله با شکایت درد قفسه سینه در ساعت ۱۰:۳۰ وارد بخش قلب شد."
+      ],
+      "expected": "مددجو آقای 58 ساله با شکایت درد قفسه سینه در ساعت 10:30 وارد بخش قلب شد.",
+      "single_pass": "مددجو آقای 58 ساله با شکایت درد قفسه سینه در ساعت 10:30 وارد بخش قلب شد.",
+      "streamed": "مددجو آقای 58 ساله با شکایت درد قفسه سینه در ساعت 10:30 وارد بخش قلب شد.",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "reference_sentence_fragmented",
+      "segments": [
+        "مددجو آقای",
+        "پنجاه",
+        "و هشت",
+        "ساله با شکایت درد قفسه سینه",
+        "در ساعت ده و سی دقیقه وارد بخش قلب شد."
+      ],
+      "expected": "مددجو آقای 58 ساله با شکایت درد قفسه سینه در ساعت 10:30 وارد بخش قلب شد.",
+      "single_pass": "مددجو آقای 58 ساله با شکایت درد قفسه سینه در ساعت 10:30 وارد بخش قلب شد.",
+      "streamed": "مددجو آقای 58 ساله با شکایت درد قفسه سینه در ساعت 10:30 وارد بخش قلب شد.",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "vitals_written",
+      "segments": [
+        "BP 145/90 و SpO2 96% و T 36.7 و PR 88"
+      ],
+      "expected": "BP 145/90 و SpO2 96% و T 36.7 و PR 88",
+      "single_pass": "BP 145/90 و SpO2 96% و T 36.7 و PR 88",
+      "streamed": "BP 145/90 و SpO2 96% و T 36.7 و PR 88",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "vitals_spoken",
+      "segments": [
+        "فشار خون صد و چهل و پنج روی نود",
+        "اشباع اکسیژن نود و شش درصد"
+      ],
+      "expected": "BP 145/90 SpO2 96 %",
+      "single_pass": "BP 145/90 SpO2 96 %",
+      "streamed": "BP 145/90 SpO2 96 %",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "vitals_fragmented",
+      "segments": [
+        "فشار خون",
+        "صد و چهل",
+        "روی هشتاد",
+        "ثبت شد"
+      ],
+      "expected": "BP 140/80 ثبت شد",
+      "single_pass": "BP 140/80 ثبت شد",
+      "streamed": "BP 140/80 ثبت شد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "clock_split_at_separator",
+      "segments": [
+        "ساعت 10:",
+        "30"
+      ],
+      "expected": "ساعت 10:30",
+      "single_pass": "ساعت 10: 30",
+      "streamed": "ساعت 10:30",
+      "single_pass_ok": false,
+      "streamed_ok": true,
+      "streaming_only": true
+    },
+    {
+      "id": "bp_split_at_separator",
+      "segments": [
+        "فشار خون 145",
+        "/90"
+      ],
+      "expected": "BP 145/90",
+      "single_pass": "BP 145 /90",
+      "streamed": "BP 145/90",
+      "single_pass_ok": false,
+      "streamed_ok": true,
+      "streaming_only": true
+    },
+    {
+      "id": "concentration_split_at_separator",
+      "segments": [
+        "نرمال سالین 0.",
+        "9 درصد"
+      ],
+      "expected": "نرمال سالین 0.9 %",
+      "single_pass": "نرمال سالین 0. 9 %",
+      "streamed": "نرمال سالین 0.9 %",
+      "single_pass_ok": false,
+      "streamed_ok": true,
+      "streaming_only": true
+    },
+    {
+      "id": "iv_line_and_saline",
+      "segments": [
+        "IV-Line 20G و نرمال سالین 0.9%"
+      ],
+      "expected": "IV-Line 20G و نرمال سالین 0.9%",
+      "single_pass": "IV-Line 20G و نرمال سالین 0.9%",
+      "streamed": "IV-Line 20G و نرمال سالین 0.9%",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "saline_without_concentration",
+      "segments": [
+        "نرمال سالین وصل شد"
+      ],
+      "expected": "نرمال سالین وصل شد",
+      "single_pass": "نرمال سالین وصل شد",
+      "streamed": "نرمال سالین وصل شد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "saline_other_concentration",
+      "segments": [
+        "normal saline 0.45%"
+      ],
+      "expected": "Normal Saline 0.45%",
+      "single_pass": "Normal Saline 0.45%",
+      "streamed": "Normal Saline 0.45%",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "scales_written",
+      "segments": [
+        "Morse 45 و Braden 20"
+      ],
+      "expected": "Morse 45 و Braden 20",
+      "single_pass": "Morse 45 و Braden 20",
+      "streamed": "Morse 45 و Braden 20",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "scales_spoken_fragmented",
+      "segments": [
+        "مورس",
+        "چهل و پنج"
+      ],
+      "expected": "مورس 45",
+      "single_pass": "مورس 45",
+      "streamed": "مورس 45",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "lab_terms",
+      "segments": [
+        "سی بی سی و ای بی جی"
+      ],
+      "expected": "CBC و ABG",
+      "single_pass": "CBC و ABG",
+      "streamed": "CBC و ABG",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "coagulation_terms",
+      "segments": [
+        "پی تی و پی تی تی"
+      ],
+      "expected": "PT و PTT",
+      "single_pass": "PT و PTT",
+      "streamed": "PT و PTT",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "imaging_term_mid_sentence",
+      "segments": [
+        "بیمار ام آر آی شد"
+      ],
+      "expected": "بیمار MRI شد",
+      "single_pass": "بیمار MRI شد",
+      "streamed": "بیمار MRI شد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "imaging_term_across_finals",
+      "segments": [
+        "هرچیزی رو که نمیفهمه",
+        "ام آر آی مینویسه"
+      ],
+      "expected": "هرچیزی رو که نمیفهمه MRI مینویسه",
+      "single_pass": "هرچیزی رو که نمیفهمه MRI مینویسه",
+      "streamed": "هرچیزی رو که نمیفهمه MRI مینویسه",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "resuscitation_unit_terms",
+      "segments": [
+        "بیمار سی پی آر شد و به سی سی یو منتقل شد"
+      ],
+      "expected": "بیمار CPR شد و به CCU منتقل شد",
+      "single_pass": "بیمار CPR شد و به CCU منتقل شد",
+      "streamed": "بیمار CPR شد و به CCU منتقل شد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "skin_terms",
+      "segments": [
+        "Pressure Sore و Ecchymosis مشاهده شد"
+      ],
+      "expected": "Pressure Sore و Ecchymosis مشاهده شد",
+      "single_pass": "Pressure Sore و Ecchymosis مشاهده شد",
+      "streamed": "Pressure Sore و Ecchymosis مشاهده شد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "chained_ratio_is_not_a_bp",
+      "segments": [
+        "فشار خون 120 روی 80 روی 60"
+      ],
+      "expected": "BP 120 روی 80 روی 60",
+      "single_pass": "BP 120 روی 80 روی 60",
+      "streamed": "BP 120 روی 80 روی 60",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "two_numbers_are_not_one_dose",
+      "segments": [
+        "دوز نهصد سیصد mg"
+      ],
+      "expected": "دوز نهصد سیصد mg",
+      "single_pass": "دوز نهصد سیصد mg",
+      "streamed": "دوز نهصد سیصد mg",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "unrelated_speech_is_preserved",
+      "segments": [
+        "مددجو آقای پنجاه و هشت ساله",
+        "الان میخوام برم ناهار بخورم"
+      ],
+      "expected": "مددجو آقای 58 ساله الان میخوام برم ناهار بخورم",
+      "single_pass": "مددجو آقای 58 ساله الان میخوام برم ناهار بخورم",
+      "streamed": "مددجو آقای 58 ساله الان میخوام برم ناهار بخورم",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    }
+  ],
+  "streaming_agrees_with_single_pass": 22
+}

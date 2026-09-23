@@ -1,6 +1,7 @@
 """App-level tests: in-memory audio source and wiring helpers."""
 
 import asyncio
+import functools
 from pathlib import Path
 
 import pytest
@@ -415,3 +416,153 @@ def test_overlay_abort_destroys_root_created_after_shutdown():
     overlay._closed = False
     assert overlay._abort_if_closed(Root()) is False
     assert destroyed == [True]  # live overlay: nothing destroyed
+
+
+# ------------------------------- cross-segment integrity (safety pass)
+# The streamed transcript must equal the single-pass canonicalization of the
+# same words. Where it did not, the buffer cut through a medical term and the
+# halves canonicalized separately - losing ABG, turning PTT into PT and CCU
+# into the unit "mL".
+
+
+@functools.lru_cache(maxsize=1)
+def _shared_layer():
+    from speechmatics_test.medical_layer import MedicalLayer
+
+    return MedicalLayer(app_module.ROOT)
+
+
+def _stream(*segments):
+    from speechmatics_test.text import normalize_text
+
+    acc = app_module.FinalStreamCanonicalizer(_shared_layer())
+    pieces = [acc.add(normalize_text(segment), []) for segment in segments]
+    pieces.append(acc.flush())
+    return acc, [piece for piece in pieces if piece]
+
+
+def _single_pass(*segments):
+    from speechmatics_test.text import normalize_text
+
+    joined = normalize_text(" ".join(segments))
+    return _shared_layer().canonicalize(joined, preserve_narrative=True)[0]
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("سی بی سی و ای بی جی", "CBC و ABG"),
+    ("پی تی و پی تی تی", "PT و PTT"),
+    ("بیمار سی سی یو", "بیمار CCU"),          # was "بیمار mL یو"
+    ("بیمار سی پی آر", "بیمار CPR"),          # was "بیمار سی PR"
+    ("بیمار ام آر آی", "بیمار MRI"),
+    ("بیمار ای بی جی", "بیمار ABG"),
+    ("ده ال اف تی نود", "ده LFT نود"),
+    ("بیمار جی سی اس", "بیمار GCS"),
+    ("بیمار آی سی یو", "بیمار ICU"),
+])
+def test_emission_never_cuts_through_a_medical_term(text, expected):
+    acc, _ = _stream(text)
+    assert acc.canonical_text == expected
+    assert acc.canonical_text == _single_pass(text)
+
+
+def test_every_multi_token_narrative_rule_streams_like_a_single_pass():
+    """Exhaustive: no rule may be destroyed by a segment boundary in front."""
+    from speechmatics_test.matcher import _is_narrative_rule_candidate
+
+    layer = _shared_layer()
+    forms = [
+        rule.form for rule in layer.fst.rules
+        if _is_narrative_rule_candidate(rule) and len(rule.form.split()) > 1
+    ]
+    assert len(forms) > 200  # the sweep is meaningful only if it is broad
+    broken = []
+    for form in forms:
+        text = f"بیمار {form}"
+        acc, _ = _stream(text)
+        if acc.canonical_text != _single_pass(text):
+            broken.append(form)
+    assert broken == []
+
+
+@pytest.mark.parametrize("segments,expected", [
+    # ASR splits a written value at its separator; the halves are one value.
+    (("ساعت 10:", "30"), "ساعت 10:30"),
+    (("ساعت 10:", "30 شب"), "ساعت 10:30 شب"),
+    (("فشار خون 145", "/90"), "BP 145/90"),
+    (("نرمال سالین 0.", "9 درصد"), "نرمال سالین 0.9 %"),
+    (("T 36.", "7"), "T 36.7"),
+    # Two complete numbers in a row are NOT one value.
+    (("دوز 20", "30 mg"), "دوز 20 30 mg"),
+    (("مددجو آقای 5", "8 ساله"), "مددجو آقای 5 8 ساله"),
+])
+def test_value_split_across_finals_is_rejoined(segments, expected):
+    acc, _ = _stream(*segments)
+    assert acc.canonical_text == expected
+
+
+@pytest.mark.parametrize("segments,expected", [
+    (("مورس", "چهل و پنج"), "مورس 45"),
+    (("برادن", "بیست"), "برادن 20"),
+    (("Morse", "45"), "Morse 45"),
+])
+def test_scale_score_arriving_in_the_next_final_still_folds(segments, expected):
+    acc, _ = _stream(*segments)
+    assert acc.canonical_text == expected
+
+
+@pytest.mark.parametrize("segments", [
+    ("ام آر آی بیمار",),
+    ("بیمار ام آر آی شد",),
+    ("ال اف تی نرمال",),
+    ("ای سی جی گرفته شد",),
+    ("اس پی او دو نود و شش درصد",),
+    ("فشار خون صد و چهل و پنج روی نود",),
+    ("ساعت ده و چهل دقیقه",),
+    ("ساعت ده", "و چهل دقیقه"),
+    ("هرچیزی رو که نمیفهمه", "ام آر آی مینویسه"),
+    ("فشار خون", "صد و چهل", "روی هشتاد", "ثبت شد"),
+])
+def test_streaming_matches_single_pass_and_loses_nothing(segments):
+    acc, pieces = _stream(*segments)
+    assert acc.canonical_text == _single_pass(*segments)
+    # Every emitted piece survives exactly once, in order.
+    assert " ".join(piece.strip() for piece in pieces).strip() == acc.canonical_text
+
+
+def test_overlay_close_leaves_no_root_reference_on_the_calling_thread():
+    """Regression: the Tcl interpreter must not be deallocated off-thread.
+
+    ``close()`` used to bind the root to a local and hold it across
+    ``thread.join(...)``. When the UI thread had already dropped ``self._root``,
+    the caller's frame held the last reference, so ``Tkapp.__del__`` ran on the
+    wrong thread and Tcl reported the interpreter as leaked.
+    """
+    import gc
+    import weakref
+
+    from overlay import TranscriptOverlay
+
+    class Root:
+        def after(self, delay, callback):
+            # A real UI thread runs this later; here it simply never fires,
+            # which is the exact situation that stranded the reference.
+            pass
+
+        def destroy(self):
+            pass
+
+    overlay = TranscriptOverlay.__new__(TranscriptOverlay)
+    root = Root()
+    overlay._root = root
+    overlay._label = None
+    overlay._status = None
+    overlay._closed = False
+    overlay._thread = None
+
+    alive = weakref.ref(root)
+    overlay.close()
+    # Only the overlay (owned by the UI thread) may still reference the root.
+    overlay._root = None
+    del root
+    gc.collect()
+    assert alive() is None

@@ -77,6 +77,7 @@ day-part words (`صبح`, `ظهر`, `عصر`, `شب`) stay Persian.
 | `اشباع اکسیژن نود و هشت درصد` | `SpO2 98 %` |
 | `ساعت هشت`, `ساعت هشت و نیم`, `ساعت هشت وربع` | `ساعت 8`, `ساعت 8:30`, `ساعت 8:15` |
 | `ساعت هشت صبح`, `ساعت دو بعد از ظهر` | `ساعت 8 صبح`, `ساعت 2 بعد از ظهر` |
+| `مورس چهل و پنج`, `برادن بیست` | `مورس 45`, `برادن 20` |
 | `ای ام`, `پی ام`, `A.M.`, `P.M.` | `AM`, `PM` |
 
 Deliberate limits:
@@ -89,6 +90,14 @@ Deliberate limits:
   The connector `روی` only anchors a right-hand number when a numeric left
   side exists, so a corrupt ASR fragment such as `MRI روی هشتاد و پنج` is not
   silently reinterpreted as a measurement.
+* A numeral run must descend by magnitude class (hundreds -> tens -> units),
+  which is how Persian numbers are built. Two numerals of the same class
+  spoken back to back are two separate numbers and are never added together:
+  `دوز نهصد سیصد` stays spoken instead of becoming a `1200` nobody dictated,
+  and neither half is digitized on its own.
+* A ratio is exactly two numbers. A chain (`120 روی 80 روی 60`) is not a blood
+  pressure, its middle value belongs to both halves, and it is left exactly as
+  dictated rather than folded into a fabricated `120/8080/60`.
 * Durations are not clock readings: `دو و نیم ساعت` and `ساعت هشت و نیم ساعت`
   stay as spoken; `دقیقه` alone never anchors a number.
 * Existing charting notation is never reformatted: `08:30`, `120/80`, `20 mg`,
@@ -100,6 +109,8 @@ Deliberate limits:
 Clinical abbreviations that collide with common English words require stronger evidence, such as uppercase charting forms.
 
 Cross-segment matching is supported for phrases and numeric expressions that span finalized ASR segments. Only a bounded, potentially extendable suffix is retained (for example `پنجاه` + `و هشت` + `ساله`); ordinary text is emitted immediately, and the tail is always flushed at session end.
+
+An emission is never cut *inside* a complete dictionary match, so a term that straddles a Speechmatics final boundary still canonicalizes as one unit (`سی بی سی و ای بی جی` -> `CBC و ABG`, not `CBC و ای بی جی`). A final that ends in the middle of a written value is rejoined with its continuation (`ساعت 10:` + `30` -> `ساعت 10:30`, `145` + `/90` -> `145/90`); two complete numbers in a row are left as two numbers.
 
 ## Aho-Corasick Matcher
 
@@ -283,7 +294,10 @@ The injector provides:
 * ZWNJ/whitespace cleanup.
 * Clipboard restoration.
 * Modifier-key protection.
-* Focus protection.
+* Focus protection. The target window is armed from the first injected segment
+  and every later paste verifies it is still focused. The app's own console is
+  never armed: it is not a dictation target, and arming it would skip every
+  subsequent paste.
 * Honest per-segment `success: false` reporting when focus protection or paste fails.
 * Windows clipboard retry/ownership handling.
 
@@ -370,6 +384,15 @@ Run matcher benchmarks:
 .\.venv\Scripts\python.exe benchmark\benchmark_matcher.py
 ```
 
+Run the post-processing integrity benchmark (no audio, no credentials). Every
+case is a transcript the ASR got right, so any error it reports was introduced
+by the deterministic layer itself; it scores the single-pass and the streamed
+path separately and checks that they agree:
+
+```powershell
+.\.venv\Scripts\python.exe benchmark\benchmark_postprocess.py --show-failures
+```
+
 or:
 
 ```powershell
@@ -432,8 +455,13 @@ tests/
 
 benchmark/
     benchmark_matcher.py
+    benchmark_asr.py
+    benchmark_postprocess.py
+    postprocess_cases.json
     results_before.json
     results_after.json
+    postprocess_before.json
+    postprocess_after.json
 ```
 
 ## Design Constraints

@@ -280,6 +280,11 @@ _DOSAGE_UNIT_TOKENS = frozenset(
 NUMERIC_CONTEXT = NumericContext(
     before=(frozenset({
         "ساعت", "سن", "نمره", "روی", "عدد", "دوز", "وزن", "saturation",
+        # Named nursing scales are always followed by their score, in both the
+        # spoken Persian form and the canonical English one the lexical pass
+        # writes. Without them "مورس چهل و پنج" stayed spoken and the entity
+        # guard's Morse/Braden range check never saw a value to validate.
+        "مورس", "برادن", "morse", "braden", "scale",
     }) | _VITAL_SIGN_TOKENS),
     # "دقیقه"/"ثانیه" are deliberately NOT here: a bare "هشت و سی دقیقه" is
     # either a clock reading or a duration, and folding only one side of it
@@ -633,6 +638,11 @@ class MedicalMatcher:
     _narrative_strict_form_prefixes: set = field(
         default_factory=set, init=False, repr=False
     )
+    #: Complete rule forms (token tuple -> canonical text).
+    _complete_forms: dict = field(default_factory=dict, init=False, repr=False)
+    _narrative_complete_forms: dict = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     # ---------------------------------------------------------------- load
 
@@ -787,14 +797,20 @@ class MedicalMatcher:
         strict_prefixes: set[tuple[str, ...]] = set()
         narrative_prefixes: set[tuple[str, ...]] = set()
         narrative_strict_prefixes: set[tuple[str, ...]] = set()
+        complete_forms: dict[tuple[str, ...], str] = {}
+        narrative_complete_forms: dict[tuple[str, ...], str] = {}
         for rule in rules:
             form_tokens = rule.match_form.split()
             for take in range(1, len(form_tokens) + 1):
                 prefixes.add(tuple(form_tokens[:take]))
             for take in range(1, len(form_tokens)):
                 strict_prefixes.add(tuple(form_tokens[:take]))
+            complete_forms.setdefault(tuple(form_tokens), rule.canonical)
 
             if _is_narrative_rule_candidate(rule):
+                narrative_complete_forms.setdefault(
+                    tuple(form_tokens), rule.canonical
+                )
                 for take in range(1, len(form_tokens) + 1):
                     narrative_prefixes.add(tuple(form_tokens[:take]))
                 for take in range(1, len(form_tokens)):
@@ -808,6 +824,8 @@ class MedicalMatcher:
         self._strict_form_prefixes = strict_prefixes
         self._narrative_form_prefixes = narrative_prefixes
         self._narrative_strict_form_prefixes = narrative_strict_prefixes
+        self._complete_forms = complete_forms
+        self._narrative_complete_forms = narrative_complete_forms
         return rules
 
     # -------------------------------------------------------------- automaton
@@ -1147,6 +1165,36 @@ class MedicalMatcher:
             if preserve_narrative else self._strict_form_prefixes
         )
         return tuple(casefold_preserving(token) for token in tokens) in prefixes
+
+    def rule_match_at(
+        self, tokens: list[str], index: int, *, preserve_narrative: bool = False
+    ) -> tuple[int, str]:
+        """``(end, canonical)`` of the longest complete rule form at ``index``.
+
+        ``(index, "")`` when no rule form starts there.  Longest-match-wins,
+        exactly like the scanner.
+
+        The cross-segment buffer uses this for two things.  It must not emit a
+        cut that falls INSIDE a match: splitting "سی بی سی" after two tokens
+        canonicalized the halves separately and lost the term, and splitting
+        "سی سی یو" (CCU) let a shorter rule fire on the fragment and produced
+        "mL یو".  It also needs the canonical spelling, because numeric anchors
+        name the vocabulary the fold sees ("BP", "oxygen saturation") while a
+        buffered ASR token is still raw ("بیپی", "O2 sat").
+        """
+        if not tokens or index >= len(tokens):
+            return index, ""
+        forms = (
+            self._narrative_complete_forms
+            if preserve_narrative else self._complete_forms
+        )
+        folded = [casefold_preserving(token) for token in tokens]
+        limit = min(len(tokens), index + self.max_rule_tokens)
+        for end in range(limit, index, -1):
+            canonical = forms.get(tuple(folded[index:end]))
+            if canonical is not None:
+                return end, canonical
+        return index, ""
 
     def canonicalize(
         self, text: str, word_results: Optional[list[dict[str, Any]]] = None,
