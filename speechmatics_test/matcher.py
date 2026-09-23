@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -139,7 +140,7 @@ _NARRATIVE_MEASUREMENT_FORMS = frozenset({
     "تعداد تنفس", "تعدادتنفس", "دمای بدن", "دمایبدن",
     "حرارت بدن", "حرارتبدن",
 })
-_NARRATIVE_CHART_CODE_RE = __import__("re").compile(r"^[A-Za-z0-9%°]+(?:[-/][A-Za-z0-9%°]+)*$")
+_NARRATIVE_CHART_CODE_RE = re.compile(r"^[A-Za-z0-9%°]+(?:[-/][A-Za-z0-9%°]+)*$")
 
 
 def _contains_persian(text: str) -> bool:
