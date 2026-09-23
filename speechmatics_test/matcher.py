@@ -144,8 +144,8 @@ _NARRATIVE_CHART_CODE_RE = re.compile(r"^[A-Za-z0-9%°]+(?:[-/][A-Za-z0-9%°]+)*
 
 
 def _contains_persian(text: str) -> bool:
-    return any("\\u0600" <= ch <= "\\u06ff" or "\\u0750" <= ch <= "\\u077f" or
-               "\\ufb50" <= ch <= "\\ufdff" or "\\ufe70" <= ch <= "\\ufeff"
+    return any("\u0600" <= ch <= "\u06ff" or "\u0750" <= ch <= "\u077f" or
+               "\ufb50" <= ch <= "\ufdff" or "\ufe70" <= ch <= "\ufeff"
                for ch in text or "")
 
 
