@@ -3,7 +3,7 @@
 Format per change: **FILE / BUG / FIX / WHY SAFE / TEST ADDED**.
 
 > The **Numeric / time consolidation pass** at the end of this file supersedes
-> the counts below: **447 passed, 0 failed**, 960 dictionary terms, 134 vocab entries.
+> the counts below: **522 passed, 0 failed**, 960 dictionary terms, 134 vocab entries.
 
 Final result of the earlier pass: **315 passed, 0 failed** (`pytest -q`), `compileall` OK, `pip check` OK,
 `scripts/export_additional_vocab.py --check` OK (942 dictionary terms, 98 vocab entries),
@@ -225,6 +225,10 @@ Sections 5-8 below follow the same **FILE / BUG / FIX / WHY SAFE / TEST ADDED** 
   `test_standalone_fold_stage_matches_the_pipeline`,
   `test_minute_word_is_a_tail_marker_not_an_anchor`,
   `test_numeric_fold_is_engine_independent`,
+  `test_the_fold_only_rewrites_number_spans` (a token-level invariant: the fold
+  may only remove number text and may never introduce a word, verified to fail
+  when the ratio fold is deliberately mutated to eat one extra word),
+  `test_clinical_paragraph_end_to_end`,
   `test_number_and_meridiem_rows_are_single_sourced`.
 
 ## 7. Structural duplicates and mis-mappings in the dictionary
@@ -287,7 +291,7 @@ Sections 5-8 below follow the same **FILE / BUG / FIX / WHY SAFE / TEST ADDED** 
 ## Validation after this pass
 
 ```
-pytest -q                                        -> 447 passed, 0 failed
+pytest -q                                        -> 522 passed, 0 failed
 python -m compileall -q speechmatics_test        -> OK
 scripts/export_additional_vocab.py --check        -> OK (960 terms, 134 vocab, in sync)
 benchmark/benchmark_matcher.py                    -> OK (see below)

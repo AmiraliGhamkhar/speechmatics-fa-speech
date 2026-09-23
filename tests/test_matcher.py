@@ -22,6 +22,8 @@ from speechmatics_test.matcher import (
     TIER_ORDER,
 )
 from speechmatics_test.text import (
+    SPOKEN_NUMERAL_JOINER,
+    SPOKEN_NUMERALS,
     fold_clock_times,
     fold_numeric_expressions,
     fold_spoken_numbers,
@@ -879,6 +881,63 @@ def test_numeric_fold_is_engine_independent():
     for raw, _expected in NUMERIC_CASES + SAFE_CASES:
         text = normalize_text(raw)
         assert matcher.canonicalize(text) == MedicalMatcher(ROOT).canonicalize(text)
+
+
+
+_FOLD_PUNCTUATION = ".,:;!?،؛؟«»()[]{}""'"
+
+
+def _fold_tokens(text: str) -> list[str]:
+    """Tokens of ``text`` without the punctuation the fold deliberately leaves."""
+    return [token.strip(_FOLD_PUNCTUATION) for token in text.split(" ")]
+
+
+@pytest.mark.parametrize("raw,_expected", NUMERIC_CASES + SAFE_CASES)
+def test_the_fold_only_rewrites_number_spans(fst, raw, _expected):
+    """Anti-hallucination invariant for the fold stage.
+
+    Every token the fold removes from the lexical output must be number text -
+    a numeral word, the "و" joiner (possibly glued to what follows it), a
+    half/quarter word, the ratio connector it consumed, or digits it joined -
+    and the fold may introduce no word the lexical pass did not already
+    contain, only digits and the colon notation. A fold that silently ate a
+    clinical word fails here even if the expected strings above were updated to
+    match it.
+    """
+    removable = (set(SPOKEN_NUMERALS)
+                 | {SPOKEN_NUMERAL_JOINER, NUMERIC_CONTEXT.ratio_connector}
+                 | NUMERIC_CONTEXT.half_words | NUMERIC_CONTEXT.quarter_words)
+    removable |= {SPOKEN_NUMERAL_JOINER + word
+                  for word in NUMERIC_CONTEXT.half_words | NUMERIC_CONTEXT.quarter_words}
+    lexical, _hits = fst._scan(normalize_text(raw))
+    source = _fold_tokens(lexical)
+    folded = _fold_tokens(fold_numeric_expressions(lexical, NUMERIC_CONTEXT))
+    left = list(source)
+    for token in folded:
+        if token in left:
+            left.remove(token)
+    assert [t for t in left if t not in removable and not t.isdigit()] == [], raw
+    for token in folded:
+        if any(character.isdigit() or character == ":" for character in token):
+            continue
+        assert token in source, (raw, token)
+
+
+def test_clinical_paragraph_end_to_end(fst):
+    """One realistic mixed-language paragraph: pinned, and stable on a re-run."""
+    paragraph = (
+        "بیمار مرد شصت و هفت ساله ساعت دو بعد از ظهر مراجعه کرد. فشار "
+        "خون صد و پنجاه روی نود، اشباع اکسیژن نود و پنج درصد، سن بیمار "
+        "۴۲ سال. دوز پانصد میلی گرم داده شد. ساعت هشت و نیم صبح CXR "
+        "گرفته شد."
+    )
+    expected = (
+        "بیمار male 67 ساله ساعت 2 PM مراجعه کرد. BP 150/90، SpO2 95 %، "
+        "سن بیمار 42 سال. دوز 500 mg داده شد. ساعت 8:30 AM CXR گرفته "
+        "شد."
+    )
+    assert canon(fst, paragraph) == expected
+    assert canon(fst, expected) == expected
 
 
 def test_number_and_meridiem_rows_are_single_sourced():
