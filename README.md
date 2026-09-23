@@ -101,6 +101,8 @@ Clinical abbreviations that collide with common English words require stronger e
 
 Cross-segment matching is supported for phrases and numeric expressions that span finalized ASR segments. Only a bounded, potentially extendable suffix is retained (for example `پنجاه` + `و هشت` + `ساله`); ordinary text is emitted immediately, and the tail is always flushed at session end.
 
+Chart notation split by Speechmatics across two finals is reassembled at the boundary before the fold passes run: a final ending in `digits + ':'` or `digits + '.'` is joined (without spaces) to the next final's leading digits (`۱۰:` + `۳۰` -> `10:30`, `۳۶.` + `۷` -> `36.7`), and a final ending in digits is joined to a next final starting with `/digits` (`۱۴۵` + `/۹۰` -> `145/90`). The join is boundary-only and vocabulary-free: prose before or after the value is untouched, and a fragment whose continuation never arrives is flushed verbatim.
+
 ## Aho-Corasick Matcher
 
 ```text
@@ -296,6 +298,8 @@ Disable it with:
 ## Overlay
 
 The overlay renders **logical Unicode text** rather than pre-shaped visual text.
+
+On Windows the overlay window is created with `WS_EX_NOACTIVATE` and hands the foreground focus back to the window that was focused before it appeared. It follows the cursor for readability but never becomes the keyboard-focus window, so the injector's focus guard arms the real dictation target and `[injector] focus changed - paste skipped` is not triggered by the overlay itself.
 
 Direction is determined from the Persian/Arabic-to-Latin character ratio, with the first strong character used as a tiebreaker.
 

@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import queue
+import re
 import signal
 import threading
 import time
@@ -190,11 +191,24 @@ class FinalStreamCanonicalizer:
         self.last_flags = []
         if not normalized_text:
             return None
-        if self._buffer:
-            self._buffer += " " + normalized_text
+        if self._pieces:
+            # A chart value split across finals ("10:" + "30", "36." + "7",
+            # "145" + "/90") is reassembled before any cut is computed, so
+            # the fold passes see the complete notation.
+            glued = self._glue_chart_fragments(
+                self._pieces[-1]["text"], normalized_text
+            )
+            if glued is not None:
+                tail_text, normalized_text = glued
+                self._pieces[-1]["text"] = tail_text
+        if normalized_text:
+            self._pieces.append({"text": normalized_text, "words": list(words)})
         else:
-            self._buffer = normalized_text
-        self._pieces.append({"text": normalized_text, "words": list(words)})
+            # The whole final was consumed by the join (e.g. a lone "/90"):
+            # its word evidence annotates the token it completed.
+            tail = self._pieces[-1]
+            tail["words"] = list(tail["words"]) + list(words)
+        self._buffer = " ".join(piece["text"] for piece in self._pieces)
         return self._emit(self._safe_cut())
 
     def flush(self) -> str | None:
@@ -203,6 +217,48 @@ class FinalStreamCanonicalizer:
         return self._emit(len(self._buffer))
 
     # ------------------------------------------------------------ internals
+
+    #: Final-chunk endings that open a chart value: a trailing clock/decimal
+    #: separator means the digits after the boundary complete it.
+    _TRAILING_SEPARATOR_RE = re.compile(r"(?:^|[\s:،])([0-9]+[.:])$")
+    #: A final that opens with bare digits (optionally decimal/percent) can
+    #: continue the previous final's chart value.
+    _LEADING_CONTINUATION_RE = re.compile(r"([0-9]+(?:[.,][0-9]+)?%?)(?:\s|$)")
+    #: A trailing ``digits + ':'|'.'`` token is an open chart value whose
+    #: remainder may arrive with the next final.
+    _CHART_FRAGMENT_TAIL_RE = re.compile(r"[0-9]+[.:]$")
+
+    def _glue_chart_fragments(
+        self, tail: str, text: str
+    ) -> tuple[str, str] | None:
+        """Join a chart value that Speechmatics split across two finals.
+
+        Deterministic and vocabulary-free: a previous final ending in
+        ``digits + ':'`` or ``digits + '.'`` is joined (without spaces) to a
+        next final that starts with the continuation digits, and a previous
+        final ending in bare digits is joined to a next final starting with
+        ``/digits``. Only the boundary is touched, so "ساعت 10:" + "30",
+        "36." + "7" and "145" + "/90" reassemble into exactly the strings the
+        fold passes already leave intact when they arrive unsplit.
+
+        Returns ``(new_tail, remainder)``; ``None`` when nothing joins. The
+        joiner "و" is deliberately NOT consumed here - spoken numbers are the
+        existing numeric-tail mechanism's business, not chart notation.
+        """
+        trailing = self._TRAILING_SEPARATOR_RE.search(tail)
+        if trailing:
+            cont = self._LEADING_CONTINUATION_RE.match(text)
+            if cont:
+                return tail + cont.group(1), text[cont.end(1):].strip()
+            return None
+        leading = re.match(r"^/([0-9]+(?:[.,][0-9]+)?)(\s|$)", text)
+        if leading:
+            # A ratio tail ("/90") belongs to the digits right before the
+            # boundary; anything earlier in the tail is independent prose.
+            m = re.search(r"([0-9]+)$", tail)
+            if m and (m.start() == 0 or tail[m.start() - 1].isspace()):
+                return tail + "/" + leading.group(1), text[leading.end(1):].strip()
+        return None
 
     def _safe_cut(self) -> int:
         """Character length of the longest prefix safe to emit now.
@@ -239,6 +295,15 @@ class FinalStreamCanonicalizer:
                 ):
                     numeric_start = i
                     break
+        # A trailing "10:" / "36." token is an open chart value: hold it back
+        # so the next final's continuation digits can be joined to it
+        # (_glue_chart_fragments) instead of emitting "10: 30". It is the LAST
+        # token only, so any later final without a continuation releases the
+        # hold and the fragment is emitted verbatim.
+        fragment_start = (
+            len(tokens) - 1
+            if self._CHART_FRAGMENT_TAIL_RE.search(tokens[-1]) else None
+        )
         for i in range(len(tokens)):
             lexical_prefix = (
                 self._medical is not None
@@ -246,7 +311,7 @@ class FinalStreamCanonicalizer:
                     tokens[i:], preserve_narrative=True
                 )
             )
-            if lexical_prefix or i == numeric_start:
+            if lexical_prefix or i == numeric_start or i == fragment_start:
                 if i == 0:
                     return 0
                 return sum(len(t) + 1 for t in tokens[:i]) - 1

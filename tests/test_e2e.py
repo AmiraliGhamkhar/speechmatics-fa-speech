@@ -404,7 +404,10 @@ def test_ctrl_c_preserves_transcript_and_report(tmp_path, monkeypatch):
             yield b"\x00" * 6400
         if not sigint_sent.is_set():
             sigint_sent.set()
-            os.kill(os.getpid(), signal.SIGINT)
+            # raise_signal() delivers SIGINT through Python's signal machinery
+            # (works on Windows); os.kill(pid, SIGINT) is TerminateProcess
+            # there and would hard-kill the whole pytest process.
+            signal.raise_signal(signal.SIGINT)
         while True:
             if stop_event is not None and stop_event.is_set():
                 return

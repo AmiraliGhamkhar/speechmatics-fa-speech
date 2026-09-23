@@ -113,6 +113,21 @@ class TranscriptOverlay:
 
         self._ready = threading.Event()
         self._closed = False
+        # Foreground window before the overlay existed, captured BEFORE the
+        # UI thread can create any window. Creating the overlay makes the
+        # process activate its new top-level window while it still owns
+        # foreground rights (even with WS_EX_NOACTIVATE), so the overlay
+        # hands this window its focus back once it is visible.
+        self._previous_fg_hwnd: Optional[int] = None
+        if self.enabled and _SYSTEM == "windows":
+            try:
+                import ctypes
+
+                self._previous_fg_hwnd = (
+                    int(ctypes.windll.user32.GetForegroundWindow()) or None
+                )
+            except Exception:
+                pass
 
         if not self.enabled:
             log.info("Overlay GUI disabled or Tkinter unavailable — running in console-only mode")
@@ -150,6 +165,73 @@ class TranscriptOverlay:
             return False
         self._destroy_root(root)
         return True
+
+    def _prevent_focus_steal(self) -> None:
+        """Never let the overlay become the foreground window (Windows).
+
+        WS_EX_NOACTIVATE stops the always-on-top window from taking focus
+        when it is created or moved by the 40 ms follow tick.  Without it
+        the overlay held foreground focus at dictation start, so
+        ``injector.arm_target()`` armed the overlay itself and every paste
+        was skipped by the focus guard ("[injector] focus changed - paste
+        skipped").  The window still renders and updates normally; it just
+        never accepts focus (clicks pass through to the window underneath
+        as far as activation is concerned).
+        """
+        if _SYSTEM != "windows":
+            return
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32
+            GWL_EXSTYLE = -20
+            WS_EX_NOACTIVATE = 0x08000000
+            WS_EX_TOPMOST = 0x00000008
+            # For a Tk root the extended styles live on the wrapper window.
+            hwnd = user32.GetParent(wintypes.HWND(self._root.winfo_id()))
+            if not hwnd:
+                hwnd = self._root.winfo_id()
+            style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+            user32.SetWindowLongPtrW(
+                hwnd, GWL_EXSTYLE, style | WS_EX_NOACTIVATE | WS_EX_TOPMOST
+            )
+        except Exception as exc:  # best effort: presentation only
+            log.debug("overlay could not set WS_EX_NOACTIVATE: %s", exc)
+
+    def _restore_foreground(self) -> None:
+        """Hand the foreground focus back to the window the user was in.
+
+        Called on the UI thread right after the window is mapped - exactly
+        the moment this thread still OWNS the foreground window (the overlay
+        it just activated), which is the one situation in which
+        ``SetForegroundWindow`` reliably succeeds. Without this, the overlay
+        remained the foreground window after startup and
+        ``injector.arm_target()`` armed the overlay instead of the field
+        being dictated into, so every paste landed in the void.
+        """
+        if _SYSTEM != "windows" or not self._previous_fg_hwnd:
+            return
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32
+            if self._root is None:
+                return
+            wrapper = user32.GetParent(self._root.winfo_id())
+            current = user32.GetForegroundWindow()
+            if current not in (wrapper, self._root.winfo_id()):
+                # The user (or something else) already switched focus after
+                # the overlay appeared; their choice wins.
+                return
+            hwnd = wintypes.HWND(self._previous_fg_hwnd)
+            if user32.IsWindow(hwnd):
+                user32.SetForegroundWindow(hwnd)
+        except Exception as exc:  # best effort: presentation only
+            log.debug(
+                "overlay could not restore the previous foreground window: %s", exc
+            )
 
     def _run(self) -> None:
         try:
@@ -207,6 +289,15 @@ class TranscriptOverlay:
             self._root.geometry("+100+100")
             if self._abort_if_closed(self._root):
                 return
+            # The extended style must be set AFTER the window is mapped: with
+            # overrideredirect(True), Tk finalizes (re)creating the wrapper
+            # window at map time and discards earlier style changes.
+            try:
+                self._root.wait_visibility()
+            except Exception:
+                pass
+            self._prevent_focus_steal()
+            self._restore_foreground()
             self._tick_follow()
             # Ready only once the event loop is actually processing
             # callbacks: marking ready before mainloop() let other threads
@@ -373,19 +464,28 @@ class TranscriptOverlay:
         self._closed = True
 
         if root is not None:
-            def destroy() -> None:
-                self._destroy_root(root)
-
             # Do not use _ui() here: it correctly rejects callbacks once the
             # overlay is closed.  Tk's queued callback makes destruction occur
             # on the UI thread rather than racing mainloop from the ASR thread.
+            # The bound method (not a closure capturing ``root``) plus the
+            # explicit ``root = None`` below hand the LAST reference to the
+            # UI thread: the Tk object is then deallocated on the thread that
+            # created it, instead of raising Tcl's leaked-interpreter warning
+            # when close()'s local reference dies on the calling thread.
             try:
-                root.after(0, destroy)
+                root.after(0, self._destroy_scheduled_root)
             except Exception:
                 # Never destroy a Tcl interpreter from this caller thread.
                 # _tick_follow() is already scheduled on the UI thread and
                 # observes _closed within 40 ms.
                 pass
 
+        root = None
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=1.0)
+
+    def _destroy_scheduled_root(self) -> None:
+        """UI-thread callback: destroy whatever root is currently owned."""
+        root = self._root
+        if root is not None:
+            self._destroy_root(root)

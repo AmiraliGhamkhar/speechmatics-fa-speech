@@ -423,7 +423,11 @@ def run_benchmark(
     effective_mode = "offline" if dry_run else mode
     guard = ClinicalEntityGuard()
     reports: list[dict[str, Any]] = []
-    key = api_key or os.getenv("SPEECHMATICS_API_KEY", "").strip()
+    # An explicitly supplied key (including empty) wins; the environment is
+    # only a fallback when no key argument was given at all.
+    key = api_key if api_key is not None else os.getenv("SPEECHMATICS_API_KEY", "").strip()
+    if isinstance(key, str):
+        key = key.strip()
     if effective_mode == "live" and not key:
         raise RuntimeError("SPEECHMATICS_API_KEY is required for --mode live")
 

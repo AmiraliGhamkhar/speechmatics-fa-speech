@@ -1,0 +1,488 @@
+{
+  "engine": "aho-corasick (pyahocorasick)",
+  "sizes": [
+    100,
+    500,
+    1000,
+    2000
+  ],
+  "repeats_per_sentence": 30,
+  "results": [
+    {
+      "terms": 100,
+      "rules_loaded": 100,
+      "engine": "aho-corasick (pyahocorasick)",
+      "build_time_seconds": {
+        "min": 0.007008,
+        "median": 0.01585
+      },
+      "build_peak_traced_memory_mb": 0.155,
+      "match_repeats_per_sentence": 30,
+      "latency_us_per_sentence": {
+        "بیمار مرد شصت ساله با درد قفسه سینه از ساعت سه بامداد مراجعه کرده است": {
+          "mean": 55.36,
+          "min": 53.5,
+          "max": 65.9
+        },
+        "در معاینه شکم حساسیت در ربع بالایی راست وجود دارد و صدای روده کاهش یافته است": {
+          "mean": 50.26,
+          "min": 49.4,
+          "max": 54.1
+        },
+        "The patient was admitted for observation overnight and reassessed in the morning": {
+          "mean": 31.36,
+          "min": 30.1,
+          "max": 43.5
+        },
+        "سابقه آلرژی دارویی و جراحی قبلی در پرونده ثبت شده و مورد بررسی قرار گرفت": {
+          "mean": 48.55,
+          "min": 48.1,
+          "max": 51.3
+        },
+        "نام بیمار و شماره پرونده و تاریخ پذیرش در سیستم ثبت شد": {
+          "mean": 37.86,
+          "min": 36.4,
+          "max": 49.7
+        },
+        "Family history is significant for coronary artery disease in a first degree relative": {
+          "mean": 33.15,
+          "min": 32.0,
+          "max": 43.2
+        },
+        "بیمار توضیح داد که علائم از هفته گذشته شروع شده و به تدریج بدتر شده است": {
+          "mean": 51.21,
+          "min": 48.6,
+          "max": 80.2
+        },
+        "Vital signs were stable and the patient was comfortable at rest without distress": {
+          "mean": 35.29,
+          "min": 31.6,
+          "max": 98.4
+        },
+        "بیمار دارای سندرم خاص و بیماری خاص و ناهنجاری خاص و تزریق خاص ارزیابی شد": {
+          "mean": 50.36,
+          "min": 47.3,
+          "max": 91.6
+        },
+        "patient shows Synth-سندرم-خاص-0 under review": {
+          "mean": 21.55,
+          "min": 20.4,
+          "max": 33.4
+        },
+        "بیمار دارای بخش خاص و درمان خاص و بررسی خاص و پیگیری خاص ارزیابی شد": {
+          "mean": 46.25,
+          "min": 45.0,
+          "max": 53.5
+        },
+        "patient shows Synth-بخش-خاص-4 under review": {
+          "mean": 20.3,
+          "min": 20.0,
+          "max": 22.6
+        },
+        "بیمار دارای گزارش خاص و اندازه گیری خاص و پایش خاص و مشاوره خاص ارزیابی شد": {
+          "mean": 49.85,
+          "min": 48.4,
+          "max": 58.7
+        },
+        "patient shows Synth-گزارش-خاص-8 under review": {
+          "mean": 20.8,
+          "min": 20.4,
+          "max": 22.7
+        },
+        "بیمار دارای سندرم مزمن و بیماری مزمن و ناهنجاری مزمن و تزریق مزمن ارزیابی شد": {
+          "mean": 47.66,
+          "min": 46.9,
+          "max": 51.7
+        },
+        "patient shows Synth-سندرم-مزمن-12 under review": {
+          "mean": 22.14,
+          "min": 21.1,
+          "max": 33.8
+        },
+        "بیمار دارای بخش مزمن و درمان مزمن و بررسی مزمن و پیگیری مزمن ارزیابی شد": {
+          "mean": 48.24,
+          "min": 46.2,
+          "max": 59.6
+        },
+        "patient shows Synth-بخش-مزمن-16 under review": {
+          "mean": 20.83,
+          "min": 20.4,
+          "max": 25.4
+        },
+        "بیمار دارای گزارش مزمن و اندازه گیری مزمن و پایش مزمن و مشاوره مزمن ارزیابی شد": {
+          "mean": 50.79,
+          "min": 49.6,
+          "max": 64.7
+        },
+        "patient shows Synth-گزارش-مزمن-20 under review": {
+          "mean": 21.09,
+          "min": 20.8,
+          "max": 22.9
+        }
+      },
+      "latency_us_summary": {
+        "mean": 38.15,
+        "p50": 45.25,
+        "max": 98.4,
+        "mean_per_character": 0.591
+      }
+    },
+    {
+      "terms": 500,
+      "rules_loaded": 500,
+      "engine": "aho-corasick (pyahocorasick)",
+      "build_time_seconds": {
+        "min": 0.022893,
+        "median": 0.023788
+      },
+      "build_peak_traced_memory_mb": 0.787,
+      "match_repeats_per_sentence": 30,
+      "latency_us_per_sentence": {
+        "بیمار مرد شصت ساله با درد قفسه سینه از ساعت سه بامداد مراجعه کرده است": {
+          "mean": 56.75,
+          "min": 54.9,
+          "max": 68.2
+        },
+        "در معاینه شکم حساسیت در ربع بالایی راست وجود دارد و صدای روده کاهش یافته است": {
+          "mean": 51.6,
+          "min": 50.8,
+          "max": 54.3
+        },
+        "The patient was admitted for observation overnight and reassessed in the morning": {
+          "mean": 33.43,
+          "min": 31.0,
+          "max": 52.2
+        },
+        "سابقه آلرژی دارویی و جراحی قبلی در پرونده ثبت شده و مورد بررسی قرار گرفت": {
+          "mean": 50.38,
+          "min": 48.3,
+          "max": 62.9
+        },
+        "نام بیمار و شماره پرونده و تاریخ پذیرش در سیستم ثبت شد": {
+          "mean": 39.25,
+          "min": 37.4,
+          "max": 52.3
+        },
+        "Family history is significant for coronary artery disease in a first degree relative": {
+          "mean": 36.99,
+          "min": 33.5,
+          "max": 69.8
+        },
+        "بیمار توضیح داد که علائم از هفته گذشته شروع شده و به تدریج بدتر شده است": {
+          "mean": 67.18,
+          "min": 48.8,
+          "max": 362.3
+        },
+        "Vital signs were stable and the patient was comfortable at rest without distress": {
+          "mean": 31.99,
+          "min": 30.1,
+          "max": 43.5
+        },
+        "بیمار دارای سندرم خاص و بیماری خاص و ناهنجاری خاص و تزریق خاص ارزیابی شد": {
+          "mean": 44.87,
+          "min": 43.6,
+          "max": 59.8
+        },
+        "patient shows Synth-سندرم-خاص-0 under review": {
+          "mean": 20.5,
+          "min": 19.2,
+          "max": 38.9
+        },
+        "بیمار دارای بخش خاص و درمان خاص و بررسی خاص و پیگیری خاص ارزیابی شد": {
+          "mean": 42.53,
+          "min": 39.9,
+          "max": 67.3
+        },
+        "patient shows Synth-بخش-خاص-4 under review": {
+          "mean": 21.31,
+          "min": 17.6,
+          "max": 47.0
+        },
+        "بیمار دارای گزارش خاص و اندازه گیری خاص و پایش خاص و مشاوره خاص ارزیابی شد": {
+          "mean": 43.96,
+          "min": 42.9,
+          "max": 49.2
+        },
+        "patient shows Synth-گزارش-خاص-8 under review": {
+          "mean": 20.39,
+          "min": 17.8,
+          "max": 59.1
+        },
+        "بیمار دارای سندرم مزمن و بیماری مزمن و ناهنجاری مزمن و تزریق مزمن ارزیابی شد": {
+          "mean": 45.51,
+          "min": 43.4,
+          "max": 58.4
+        },
+        "patient shows Synth-سندرم-مزمن-12 under review": {
+          "mean": 20.96,
+          "min": 19.9,
+          "max": 33.4
+        },
+        "بیمار دارای بخش مزمن و درمان مزمن و بررسی مزمن و پیگیری مزمن ارزیابی شد": {
+          "mean": 49.04,
+          "min": 46.0,
+          "max": 62.7
+        },
+        "patient shows Synth-بخش-مزمن-16 under review": {
+          "mean": 20.74,
+          "min": 19.9,
+          "max": 26.3
+        },
+        "بیمار دارای گزارش مزمن و اندازه گیری مزمن و پایش مزمن و مشاوره مزمن ارزیابی شد": {
+          "mean": 50.77,
+          "min": 49.2,
+          "max": 67.1
+        },
+        "patient shows Synth-گزارش-مزمن-20 under review": {
+          "mean": 20.72,
+          "min": 20.3,
+          "max": 28.7
+        }
+      },
+      "latency_us_summary": {
+        "mean": 38.44,
+        "p50": 40.3,
+        "max": 362.3,
+        "mean_per_character": 0.596
+      }
+    },
+    {
+      "terms": 1000,
+      "rules_loaded": 1000,
+      "engine": "aho-corasick (pyahocorasick)",
+      "build_time_seconds": {
+        "min": 0.048274,
+        "median": 0.049588
+      },
+      "build_peak_traced_memory_mb": 1.608,
+      "match_repeats_per_sentence": 30,
+      "latency_us_per_sentence": {
+        "بیمار مرد شصت ساله با درد قفسه سینه از ساعت سه بامداد مراجعه کرده است": {
+          "mean": 57.14,
+          "min": 50.8,
+          "max": 82.4
+        },
+        "در معاینه شکم حساسیت در ربع بالایی راست وجود دارد و صدای روده کاهش یافته است": {
+          "mean": 51.23,
+          "min": 49.8,
+          "max": 60.9
+        },
+        "The patient was admitted for observation overnight and reassessed in the morning": {
+          "mean": 32.75,
+          "min": 29.5,
+          "max": 72.4
+        },
+        "سابقه آلرژی دارویی و جراحی قبلی در پرونده ثبت شده و مورد بررسی قرار گرفت": {
+          "mean": 49.9,
+          "min": 46.4,
+          "max": 106.7
+        },
+        "نام بیمار و شماره پرونده و تاریخ پذیرش در سیستم ثبت شد": {
+          "mean": 47.0,
+          "min": 37.4,
+          "max": 122.9
+        },
+        "Family history is significant for coronary artery disease in a first degree relative": {
+          "mean": 39.05,
+          "min": 31.5,
+          "max": 65.4
+        },
+        "بیمار توضیح داد که علائم از هفته گذشته شروع شده و به تدریج بدتر شده است": {
+          "mean": 44.21,
+          "min": 43.5,
+          "max": 50.3
+        },
+        "Vital signs were stable and the patient was comfortable at rest without distress": {
+          "mean": 28.78,
+          "min": 28.3,
+          "max": 32.1
+        },
+        "بیمار دارای سندرم خاص و بیماری خاص و ناهنجاری خاص و تزریق خاص ارزیابی شد": {
+          "mean": 42.46,
+          "min": 41.2,
+          "max": 58.3
+        },
+        "patient shows Synth-سندرم-خاص-0 under review": {
+          "mean": 22.19,
+          "min": 18.0,
+          "max": 37.8
+        },
+        "بیمار دارای بخش خاص و درمان خاص و بررسی خاص و پیگیری خاص ارزیابی شد": {
+          "mean": 46.72,
+          "min": 40.7,
+          "max": 104.6
+        },
+        "patient shows Synth-بخش-خاص-4 under review": {
+          "mean": 18.35,
+          "min": 18.1,
+          "max": 20.5
+        },
+        "بیمار دارای گزارش خاص و اندازه گیری خاص و پایش خاص و مشاوره خاص ارزیابی شد": {
+          "mean": 45.6,
+          "min": 44.2,
+          "max": 57.2
+        },
+        "patient shows Synth-گزارش-خاص-8 under review": {
+          "mean": 19.8,
+          "min": 18.8,
+          "max": 32.1
+        },
+        "بیمار دارای سندرم مزمن و بیماری مزمن و ناهنجاری مزمن و تزریق مزمن ارزیابی شد": {
+          "mean": 48.46,
+          "min": 45.9,
+          "max": 81.0
+        },
+        "patient shows Synth-سندرم-مزمن-12 under review": {
+          "mean": 21.54,
+          "min": 20.8,
+          "max": 27.1
+        },
+        "بیمار دارای بخش مزمن و درمان مزمن و بررسی مزمن و پیگیری مزمن ارزیابی شد": {
+          "mean": 46.73,
+          "min": 43.8,
+          "max": 68.7
+        },
+        "patient shows Synth-بخش-مزمن-16 under review": {
+          "mean": 21.98,
+          "min": 20.4,
+          "max": 40.4
+        },
+        "بیمار دارای گزارش مزمن و اندازه گیری مزمن و پایش مزمن و مشاوره مزمن ارزیابی شد": {
+          "mean": 53.71,
+          "min": 48.5,
+          "max": 92.0
+        },
+        "patient shows Synth-گزارش-مزمن-20 under review": {
+          "mean": 23.19,
+          "min": 20.7,
+          "max": 37.8
+        }
+      },
+      "latency_us_summary": {
+        "mean": 38.04,
+        "p50": 41.5,
+        "max": 122.9,
+        "mean_per_character": 0.59
+      }
+    },
+    {
+      "terms": 2000,
+      "rules_loaded": 2000,
+      "engine": "aho-corasick (pyahocorasick)",
+      "build_time_seconds": {
+        "min": 0.104848,
+        "median": 0.105738
+      },
+      "build_peak_traced_memory_mb": 3.398,
+      "match_repeats_per_sentence": 30,
+      "latency_us_per_sentence": {
+        "بیمار مرد شصت ساله با درد قفسه سینه از ساعت سه بامداد مراجعه کرده است": {
+          "mean": 57.95,
+          "min": 53.2,
+          "max": 91.5
+        },
+        "در معاینه شکم حساسیت در ربع بالایی راست وجود دارد و صدای روده کاهش یافته است": {
+          "mean": 48.98,
+          "min": 48.3,
+          "max": 52.6
+        },
+        "The patient was admitted for observation overnight and reassessed in the morning": {
+          "mean": 29.53,
+          "min": 29.2,
+          "max": 30.8
+        },
+        "سابقه آلرژی دارویی و جراحی قبلی در پرونده ثبت شده و مورد بررسی قرار گرفت": {
+          "mean": 50.16,
+          "min": 47.1,
+          "max": 62.5
+        },
+        "نام بیمار و شماره پرونده و تاریخ پذیرش در سیستم ثبت شد": {
+          "mean": 37.73,
+          "min": 37.1,
+          "max": 41.9
+        },
+        "Family history is significant for coronary artery disease in a first degree relative": {
+          "mean": 34.21,
+          "min": 32.6,
+          "max": 53.4
+        },
+        "بیمار توضیح داد که علائم از هفته گذشته شروع شده و به تدریج بدتر شده است": {
+          "mean": 52.08,
+          "min": 50.2,
+          "max": 63.1
+        },
+        "Vital signs were stable and the patient was comfortable at rest without distress": {
+          "mean": 33.83,
+          "min": 32.5,
+          "max": 46.6
+        },
+        "بیمار دارای سندرم خاص و بیماری خاص و ناهنجاری خاص و تزریق خاص ارزیابی شد": {
+          "mean": 53.23,
+          "min": 48.9,
+          "max": 67.8
+        },
+        "patient shows Synth-سندرم-خاص-0 under review": {
+          "mean": 23.09,
+          "min": 20.8,
+          "max": 29.6
+        },
+        "بیمار دارای بخش خاص و درمان خاص و بررسی خاص و پیگیری خاص ارزیابی شد": {
+          "mean": 48.67,
+          "min": 45.8,
+          "max": 75.8
+        },
+        "patient shows Synth-بخش-خاص-4 under review": {
+          "mean": 20.24,
+          "min": 19.8,
+          "max": 22.7
+        },
+        "بیمار دارای گزارش خاص و اندازه گیری خاص و پایش خاص و مشاوره خاص ارزیابی شد": {
+          "mean": 54.31,
+          "min": 49.3,
+          "max": 68.2
+        },
+        "patient shows Synth-گزارش-خاص-8 under review": {
+          "mean": 21.89,
+          "min": 20.9,
+          "max": 39.0
+        },
+        "بیمار دارای سندرم مزمن و بیماری مزمن و ناهنجاری مزمن و تزریق مزمن ارزیابی شد": {
+          "mean": 49.7,
+          "min": 48.5,
+          "max": 55.9
+        },
+        "patient shows Synth-سندرم-مزمن-12 under review": {
+          "mean": 21.58,
+          "min": 21.3,
+          "max": 23.4
+        },
+        "بیمار دارای بخش مزمن و درمان مزمن و بررسی مزمن و پیگیری مزمن ارزیابی شد": {
+          "mean": 49.87,
+          "min": 48.6,
+          "max": 62.3
+        },
+        "patient shows Synth-بخش-مزمن-16 under review": {
+          "mean": 21.97,
+          "min": 20.8,
+          "max": 34.0
+        },
+        "بیمار دارای گزارش مزمن و اندازه گیری مزمن و پایش مزمن و مشاوره مزمن ارزیابی شد": {
+          "mean": 56.43,
+          "min": 51.5,
+          "max": 81.9
+        },
+        "patient shows Synth-گزارش-مزمن-20 under review": {
+          "mean": 31.48,
+          "min": 21.4,
+          "max": 103.2
+        }
+      },
+      "latency_us_summary": {
+        "mean": 39.85,
+        "p50": 46.05,
+        "max": 103.2,
+        "mean_per_character": 0.618
+      }
+    }
+  ]
+}

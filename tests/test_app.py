@@ -309,6 +309,77 @@ def test_numeric_tail_buffer_is_bounded_and_preserves_every_token():
     assert joined == acc.canonical_text
 
 
+# ------------------------- cross-segment chart-fragment glue (10: / 0. / /90)
+
+def test_accumulator_glues_clock_time_split_across_finals():
+    """ASR finalized "۱۰:" and "۳۰" separately; the value must reassemble."""
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    first = acc.add(normalize_text("با پای خود در ساعت ۱۰:"), [])
+    # The cut stops before the trailing "10:" token, so only the chart
+    # fragment stays buffered; the prose is injected immediately.
+    assert first == "با پای خود در ساعت"
+    second = acc.add(normalize_text("۳۰ وارد بخش قلب شد"), [])
+    assert second == "10:30 وارد بخش قلب شد"
+    assert acc.flush() is None
+    assert acc.canonical_text == "با پای خود در ساعت 10:30 وارد بخش قلب شد"
+
+
+def test_accumulator_glues_decimal_split_across_finals():
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    assert acc.add(normalize_text("نرمال سالین ۰."), []) == "نرمال سالین"
+    assert acc.add(normalize_text("۹ درصد وصل شد"), []) == "0.9 % وصل شد"
+    assert acc.canonical_text == "نرمال سالین 0.9 % وصل شد"
+
+
+def test_accumulator_glues_bp_ratio_split_across_finals():
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    assert acc.add(normalize_text("فشار خون ۱۴۵"), []) is None
+    assert acc.add(normalize_text("/۹۰ بود"), []) == "BP 145/90 بود"
+    assert acc.canonical_text == "BP 145/90 بود"
+
+
+def test_accumulator_glued_output_equals_unsplit_output():
+    """A split value must canonicalize exactly like the unsplit one."""
+    from speechmatics_test.text import normalize_text
+
+    def run(segments):
+        acc = make_accumulator()
+        for segment in segments:
+            acc.add(normalize_text(segment), [])
+        acc.flush()
+        return acc.canonical_text
+
+    split = run(("فشار خون ۱۴۵", "/۹۰ بود"))
+    whole = run(("فشار خون ۱۴۵/۹۰ بود",))
+    assert split == whole == "BP 145/90 بود"
+
+
+def test_accumulator_dangling_chart_fragment_flushes_verbatim():
+    """A value whose continuation never arrives is not invented or dropped."""
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    assert acc.add(normalize_text("ساعت ۱۰:"), []) == "ساعت"
+    assert acc.flush() == "10:"
+    assert acc.canonical_text == "ساعت 10:"
+
+
+def test_accumulator_does_not_glue_prose_after_a_value():
+    """A plain spoken time followed by a word must not be touched."""
+    acc = make_accumulator()
+    from speechmatics_test.text import normalize_text
+
+    assert acc.add(normalize_text("قرص را ساعت 8"), []) == "قرص را"
+    assert acc.add(normalize_text("خورد"), []) == "ساعت 8 خورد"
+    assert acc.canonical_text == "قرص را ساعت 8 خورد"
+
+
 # ---------------------------------------------- InjectionWorker (H2 fix)
 
 class FakeInjector:

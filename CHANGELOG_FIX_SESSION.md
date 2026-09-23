@@ -13,6 +13,69 @@ runs all fail gracefully on the missing API key (no crash).
 
 ---
 
+## 0. Chart notation split across final segments was emitted fragmented (10: / 0. / /90)
+
+- **FILE**: `app.py`, `tests/test_app.py`
+- **BUG**: `FinalStreamCanonicalizer` retained only *spoken* numeric tails, so chart
+  values that Speechmatics finalized in pieces were emitted fragmented and could never
+  be re-folded: `۱۰:` + `۳۰` -> `10: 30`, `۰.` + `۹ درصد` -> `0. 9 %`,
+  `۳۶.` + `۷` -> `36. 7`, `۱۴۵` + `/۹۰` -> `145 /90`.
+- **FIX**: two bounded, vocabulary-free mechanisms inside `FinalStreamCanonicalizer`:
+  (a) `_glue_chart_fragments` reattaches a continuation final (leading digits, or
+  `/digits`) to the previous piece at the boundary only, before any cut is computed;
+  (b) `_safe_cut` additionally retains a LAST token matching `digits + ':'|'.'` so the
+  join can happen on the next final. Only the boundary characters are touched; the
+  joiner "و" is deliberately not consumed (spoken numbers stay with the existing
+  numeric-tail mechanism).
+- **WHY SAFE**: the reassembly is deterministic boundary splicing, not inference: the
+  glued string is exactly what the fold passes already produce when the same value
+  arrives unsplit (verified equal for all four cases). Prose is never glued
+  (`ساعت 10` + `بعد از ظهر` stays separate; `قرص را ساعت 8` + `خورد` stays separate),
+  a dangling fragment is flushed verbatim, and a lone `/90` first final is passed
+  through unchanged. Existing spoken-number/ratio/fragment tests still pass.
+- **TEST ADDED**: `tests/test_app.py::test_accumulator_glues_clock_time_split_across_finals`,
+  `::test_accumulator_glues_decimal_split_across_finals`,
+  `::test_accumulator_glues_bp_ratio_split_across_finals`,
+  `::test_accumulator_glued_output_equals_unsplit_output`,
+  `::test_accumulator_dangling_chart_fragment_flushes_verbatim`,
+  `::test_accumulator_does_not_glue_prose_after_a_value`.
+
+## 0b. Env-dependent benchmark API-key fallback and Windows SIGINT test hang
+
+- **FILE**: `benchmark/benchmark_asr.py`, `tests/test_e2e.py`
+- **BUG 1**: `run_benchmark(api_key="")` fell back to the environment through
+  `key = api_key or os.getenv(...)`, so after importing `app.py` (which loads `.env`)
+  `test_live_mode_requires_explicit_api_key` received a REAL key and attempted a live
+  run - a suite-order-dependent failure. **FIX**: only `api_key is None` falls back to
+  the environment; an explicit string (including empty) wins.
+- **BUG 2**: the Ctrl+C regression test used `os.kill(os.getpid(), signal.SIGINT)`,
+  which on Windows is `TerminateProcess` and hard-killed the entire pytest run
+  (the "suite hangs at 23%"). **FIX**: `signal.raise_signal(signal.SIGINT)` delivers
+  SIGINT through Python's signal machinery on every platform.
+
+## 0c. Overlay stole foreground focus and leaked the Tcl interpreter
+
+- **FILE**: `overlay.py`
+- **BUG 1 (focus)**: the always-on-top overlay became the foreground window at
+  creation (the process still owns foreground rights at that moment, even with
+  WS_EX_NOACTIVATE - verified 25/25 samples before the fix) and after a click that
+  landed on it; `injector.arm_target()` then armed the overlay itself and every paste
+  was skipped ("[injector] focus changed - paste skipped"). **FIX**: `WS_EX_NOACTIVATE
+  | WS_EX_TOPMOST` is set on the wrapper window AFTER the window is mapped (an early
+  style change is discarded by Tk's overrideredirect wrapper creation), and the focus
+  is handed back to the window that was foreground before the overlay was created,
+  on the UI thread while that thread still owns the foreground window.
+  Verified 0/30 + 0/40 foreground samples and `arm_target` would arm the real target.
+- **BUG 2 (Tcl leak)**: `close()` scheduled a destroy **closure that captured the
+  `tk.Tk` object**; after the UI thread destroyed the window, that closure-local
+  reference survived on the calling thread, so `Tkapp.__del__` ran on the wrong thread
+  and Tcl printed its leaked-interpreter warning on every clean shutdown. **FIX**:
+  `close()` schedules the bound method `_destroy_scheduled_root` (no captured root)
+  and drops its own local reference before joining the UI thread, so the UI thread
+  always releases the last reference. No warning is printed anymore.
+
+---
+
 ## 1. Cross-segment buffering held complete, non-extendable phrases forever (§7)
 
 - **FILE**: `speechmatics_test/matcher.py`, `speechmatics_test/medical_layer.py`, `app.py`
@@ -413,11 +476,12 @@ app.py --help and missing-key startup for fa/en, --no-vocab,
 
 ```text
 python -m pytest -q
-  -> 600 passed
+  -> 628 passed (this session: cross-segment chart-fragment glue + focus/Tcl fixes;
+     the suite no longer hangs and no longer fails suite-order-dependently)
 python -m compileall -q app.py injector.py overlay.py speechmatics_test tests benchmark scripts
   -> OK
 python scripts/export_additional_vocab.py --check
-  -> OK (951 terms, 135 eligible entries; artifact in sync)
+  -> OK (952 terms, 146 eligible entries; artifact in sync)
 git diff --check
   -> OK
 ```
