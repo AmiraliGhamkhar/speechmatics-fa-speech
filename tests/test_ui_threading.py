@@ -16,6 +16,7 @@ import gc
 import inspect
 import textwrap
 import threading
+import time
 
 import pytest
 
@@ -362,3 +363,65 @@ def test_desktop_app_ui_helper_contains_no_direct_tk_call():
     method = desktop_app.FloatingDictationApp._ui
     assert not _tk_calls_in(method)
     assert _called_names(method) & {"submit"}
+
+
+# ------------------------------------------------- real Tk interpreter
+
+
+def test_real_tk_round_trip_from_a_foreign_thread():
+    """The same round trip against a REAL Tcl interpreter.
+
+    The other tests use a fake root that enforces the threading rule; this
+    one proves the whole path works with the interpreter the app actually
+    ships with - queue hand-off, the ``after`` pump, and a widget update
+    driven from a foreign thread.
+
+    Skipped wherever a window cannot be created (no tkinter module, or no
+    display). It DOES run on the Windows CI runner, where Tk needs no X
+    server, so the threading fix is verified on its real target platform.
+    """
+    tkinter = pytest.importorskip("tkinter")
+    try:
+        root = tkinter.Tk()
+    except Exception as exc:  # pragma: no cover - environment dependent
+        pytest.skip(f"no usable Tk display: {exc}")
+
+    dispatcher = TkUiDispatcher(root)
+    try:
+        root.withdraw()
+        label = tkinter.Label(root, text="")
+        label.pack()
+        dispatcher.start()
+
+        errors = []
+
+        def worker():
+            try:
+                for index in range(5):
+                    dispatcher.submit(
+                        lambda i=index: label.config(text=str(i))
+                    )
+            except BaseException as exc:  # pragma: no cover - failure detail
+                errors.append(exc)
+
+        thread = threading.Thread(target=worker, name="real-tk-producer")
+        thread.start()
+        thread.join()
+
+        assert errors == []
+        # The Tk thread never ran while the producer was submitting, so the
+        # widget cannot have been touched from the other thread.
+        assert dispatcher.pending == 5
+        assert label.cget("text") == ""
+
+        # Drive the event loop the way mainloop() would, until the pump has
+        # drained everything.
+        deadline = time.time() + 5.0
+        while dispatcher.pending and time.time() < deadline:
+            root.update()
+
+        assert dispatcher.pending == 0
+        assert label.cget("text") == "4"
+    finally:
+        dispatcher.stop()
+        root.destroy()
