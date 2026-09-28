@@ -187,22 +187,19 @@ class FinalStreamCanonicalizer:
         return " ".join(self.parts).strip()
 
     #: A final split in the middle of a written value: ASR cut it at the
-    #: separator ("ساعت 10:" + "30", "145" + "/90", "0." + "9 درصد").  The
-    #: fragments are rejoined WITHOUT a space because the separator is already
-    #: in the text - a spelling repair of one value, never a new value.  Both
-    #: halves of the separator are covered: it may end the first final or
-    #: start the second, but exactly one of them must carry it.
+    #: separator ("ساعت 10:" + "30", "0." + "9 درصد").  The buffer then ends
+    #: on a separator awaiting the rest of the value, so ``_safe_cut`` holds
+    #: the open fragment back until the continuation (or the flush) arrives;
+    #: the halves are rejoined WITHOUT a space by ``_glue_chart_fragments``
+    #: because the separator is already in the text - a spelling repair of
+    #: one value, never a new value.
     _VALUE_TAIL_OPEN = re.compile(r"\d[.:/,]$")
-    _VALUE_TAIL_DIGIT = re.compile(r"\d$")
-    _VALUE_HEAD_DIGIT = re.compile(r"^\d")
-    _VALUE_HEAD_SEPARATOR = re.compile(r"^[.:/,]\d")
 
     def add(self, normalized_text: str, words: list[dict]) -> str | None:
         """Add one normalized final segment; return the text to inject now."""
         self.last_flags = []
         if not normalized_text:
             return None
-<<<<<<< HEAD
         if self._pieces:
             # A chart value split across finals ("10:" + "30", "36." + "7",
             # "145" + "/90") is reassembled before any cut is computed, so
@@ -221,29 +218,7 @@ class FinalStreamCanonicalizer:
             tail = self._pieces[-1]
             tail["words"] = list(tail["words"]) + list(words)
         self._buffer = " ".join(piece["text"] for piece in self._pieces)
-=======
-        if self._pieces and self._joins_open_value(self._buffer, normalized_text):
-            # Same value, split by the ASR: extend the open piece in place so
-            # the buffer keeps exactly one text/evidence entry per value.
-            self._pieces[-1]["text"] += normalized_text
-            self._pieces[-1]["words"].extend(words)
-            self._buffer += normalized_text
-        else:
-            self._buffer = (
-                self._buffer + " " + normalized_text if self._buffer
-                else normalized_text
-            )
-            self._pieces.append({"text": normalized_text, "words": list(words)})
->>>>>>> 19ea4506b281e9bb2f9f3996a800177994fec120
         return self._emit(self._safe_cut())
-
-    @classmethod
-    def _joins_open_value(cls, buffer: str, addition: str) -> bool:
-        """Whether ``addition`` continues a value the buffer left open."""
-        if cls._VALUE_TAIL_OPEN.search(buffer):
-            return bool(cls._VALUE_HEAD_DIGIT.match(addition))
-        return bool(cls._VALUE_TAIL_DIGIT.search(buffer)
-                    and cls._VALUE_HEAD_SEPARATOR.match(addition))
 
     def _has_open_value_tail(self) -> bool:
         """Whether the buffer ends on a separator awaiting the rest of a value."""
@@ -393,12 +368,8 @@ class FinalStreamCanonicalizer:
             lexical_prefix = self._medical.is_strict_rule_token_prefix(
                 tokens[i:], preserve_narrative=True
             )
-<<<<<<< HEAD
             if lexical_prefix or i == numeric_start or i == fragment_start:
-=======
-            if lexical_prefix or i == numeric_start:
                 i = self._keep_number_with_its_unit(tokens, i)
->>>>>>> 19ea4506b281e9bb2f9f3996a800177994fec120
                 if i == 0:
                     return 0
                 return sum(len(t) + 1 for t in tokens[:i]) - 1

@@ -110,11 +110,9 @@ Clinical abbreviations that collide with common English words require stronger e
 
 Cross-segment matching is supported for phrases and numeric expressions that span finalized ASR segments. Only a bounded, potentially extendable suffix is retained (for example `پنجاه` + `و هشت` + `ساله`); ordinary text is emitted immediately, and the tail is always flushed at session end.
 
-<<<<<<< HEAD
-Chart notation split by Speechmatics across two finals is reassembled at the boundary before the fold passes run: a final ending in `digits + ':'` or `digits + '.'` is joined (without spaces) to the next final's leading digits (`۱۰:` + `۳۰` -> `10:30`, `۳۶.` + `۷` -> `36.7`), and a final ending in digits is joined to a next final starting with `/digits` (`۱۴۵` + `/۹۰` -> `145/90`). The join is boundary-only and vocabulary-free: prose before or after the value is untouched, and a fragment whose continuation never arrives is flushed verbatim.
-=======
-An emission is never cut *inside* a complete dictionary match, so a term that straddles a Speechmatics final boundary still canonicalizes as one unit (`سی بی سی و ای بی جی` -> `CBC و ABG`, not `CBC و ای بی جی`). A final that ends in the middle of a written value is rejoined with its continuation (`ساعت 10:` + `30` -> `ساعت 10:30`, `145` + `/90` -> `145/90`); two complete numbers in a row are left as two numbers.
->>>>>>> 19ea4506b281e9bb2f9f3996a800177994fec120
+An emission is never cut *inside* a complete dictionary match, so a term that straddles a Speechmatics final boundary still canonicalizes as one unit (`سی بی سی و ای بی جی` -> `CBC و ABG`, not `CBC و ای بی جی`).
+
+Chart notation split by Speechmatics across two finals is reassembled at the boundary before the fold passes run: a final ending in `digits + ':'` or `digits + '.'` is joined (without spaces) to the next final's leading digits (`۱۰:` + `۳۰` -> `10:30`, `۳۶.` + `۷` -> `36.7`), and a final ending in digits is joined to a next final starting with `/digits` (`۱۴۵` + `/۹۰` -> `145/90`). The join is boundary-only and vocabulary-free: prose before or after the value is untouched, a fragment whose continuation never arrives is flushed verbatim, and two complete numbers in a row are left as two numbers.
 
 ## Aho-Corasick Matcher
 
