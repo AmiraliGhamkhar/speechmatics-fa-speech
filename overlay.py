@@ -473,14 +473,6 @@ class TranscriptOverlay:
         # which the UI thread owns for the lifetime of the interpreter.
         root = self._root
         if root is not None:
-<<<<<<< HEAD
-=======
-            def destroy() -> None:
-                current = self._root
-                if current is not None:
-                    self._destroy_root(current)
-
->>>>>>> 19ea4506b281e9bb2f9f3996a800177994fec120
             # Do not use _ui() here: it correctly rejects callbacks once the
             # overlay is closed.  Tk's queued callback makes destruction occur
             # on the UI thread rather than racing mainloop from the ASR thread.
@@ -499,7 +491,7 @@ class TranscriptOverlay:
             finally:
                 # Drop this frame's reference before waiting, so the UI thread
                 # holds the only one and releases it where it was created.
-                del root, destroy
+                del root
 
         root = None
         if thread is not None and thread is not threading.current_thread():
