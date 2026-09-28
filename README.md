@@ -234,6 +234,56 @@ Set your API key:
 SPEECHMATICS_API_KEY=YOUR_SPEECHMATICS_API_KEY
 ```
 
+## Windows floating-button desktop app
+
+The repository also includes a Windows desktop entry point intended for a
+folder-bundled `.exe`. When launched, it shows only a small floating **Start**
+button. While recording it expands to show **Stop** plus a live transcript;
+clicking Stop ends recording, drains already-finalized injection jobs, and
+returns to the Start state.
+
+Desktop configuration is read from:
+
+```text
+%APPDATA%\SwiftMedics\config.json
+```
+
+Press Start once with no config to create a template, or create it manually:
+
+```json
+{
+  "speechmatics_api_key": "YOUR_SPEECHMATICS_API_KEY",
+  "language": "fa",
+  "model": "enhanced",
+  "max_delay": 2.0,
+  "max_delay_mode": "flexible",
+  "domain": "auto",
+  "inject": true,
+  "medical_layer": true,
+  "medical_vocab": true,
+  "focus_guard": true,
+  "entity_guard": true,
+  "device_index": null,
+  "save_report": false
+}
+```
+
+Build the Windows folder bundle from Windows PowerShell:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\build_windows.ps1
+```
+
+Output:
+
+```text
+dist\SwiftMedics\SwiftMedics.exe
+```
+
+The Speechmatics API key is not embedded in the executable. Logs are written
+to `%APPDATA%\SwiftMedics\logs\swiftmedics.log`.
+
 ## Run
 
 ### Persian

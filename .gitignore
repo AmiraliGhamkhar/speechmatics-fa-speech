@@ -3,4 +3,7 @@
 __pycache__/
 .pytest_cache/
 *.pyc
+*.log
+build/
+dist/
 results/*.json

@@ -12,7 +12,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional in lightweight/dev imports
+    def load_dotenv(*_args, **_kwargs):
+        return False
 
 from speechmatics_test.cleanliness import inspect_text
 from speechmatics_test.entity_guard import ClinicalEntityGuard
