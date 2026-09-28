@@ -502,7 +502,14 @@ class SpeechmaticsRealtime:
                             "far is preserved)"
                         ) from exc
                 except Exception as exc:
-                    self.result.error = f"{type(exc).__name__}: {exc}"
+                    # Never clobber an error the service already reported. The
+                    # SDK only logs an Error message and marks the session done,
+                    # so the teardown that follows a server error ("your API
+                    # key has expired", quota, rejected session) usually fails
+                    # too - and recording THAT instead replaced the actionable
+                    # reason in the report with a meaningless transport error.
+                    if self.result.error is None:
+                        self.result.error = f"{type(exc).__name__}: {exc}"
                     raise
 
         finally:

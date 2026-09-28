@@ -656,6 +656,45 @@ def test_server_error_mid_stream_stops_after_at_most_one_chunk(monkeypatch):
     assert result.final_text == ""
 
 
+def test_server_error_survives_a_failing_teardown(monkeypatch):
+    """The service's reason must not be replaced by the teardown's error.
+
+    The SDK only logs an Error message and marks the session done, so a server
+    error is normally followed by a failing ``stop_session`` - the transport is
+    already going away. Recording that transport error over the reason replaced
+    the one actionable message ("your API key has expired", quota, rejected
+    session) in the report and the UI with a meaningless transport failure.
+    """
+    registry = install_fake_sdk(monkeypatch, {
+        "server_error": "Your API key has expired",
+        "fail_stop": RuntimeError("websocket closed"),
+    })
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    audio = FakeAudio([b"a", b"b"])
+
+    with pytest.raises(RuntimeError):
+        # The transport failure is still raised to the caller...
+        asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
+
+    # ...but the report keeps the reason the service actually gave.
+    assert stt.result.error == "server error: Your API key has expired"
+    assert registry["clients"][0].stopped is False
+    assert audio.closed is True
+    assert stt.result.ended_at is not None
+
+
+def test_transport_error_is_still_recorded_without_a_server_error(monkeypatch):
+    """The guard must not swallow a real transport failure on its own."""
+    install_fake_sdk(monkeypatch, {"fail_stop": RuntimeError("eof")})
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    audio = FakeAudio([b"a"])
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
+
+    assert stt.result.error == "RuntimeError: eof"
+
+
 def test_server_error_before_any_audio_still_completes(monkeypatch):
     registry = install_fake_sdk(monkeypatch, {"server_error": "rejected"})
     stt = SpeechmaticsRealtime(api_key="k", language="en")
