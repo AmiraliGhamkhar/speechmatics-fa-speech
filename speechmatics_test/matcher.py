@@ -643,6 +643,11 @@ class MedicalMatcher:
     _narrative_complete_forms: dict = field(
         default_factory=dict, init=False, repr=False
     )
+    #: Cached longest rule form in whitespace tokens. Computed once here:
+    #: ``rule_match_at`` reads it on every lookup, and recomputing it walked
+    #: all ~2500 rules (one ``str.split`` each) per call - by far the hottest
+    #: path in the cross-segment cut.
+    _max_rule_tokens: int = field(default=0, init=False, repr=False)
 
     # ---------------------------------------------------------------- load
 
@@ -655,6 +660,9 @@ class MedicalMatcher:
                 "medical canonicalization layer has no rules; it is a no-op"
             )
         self._build_automaton()
+        self._max_rule_tokens = max(
+            (len(rule.form.split()) for rule in self.rules), default=0
+        )
         self.additional_vocab = _build_additional_vocab(self.terms)
 
     def _compile_rules(self, terms: list[DictionaryTerm]) -> list[MedicalRule]:
@@ -1120,8 +1128,12 @@ class MedicalMatcher:
 
     @property
     def max_rule_tokens(self) -> int:
-        """Longest rule form measured in whitespace tokens (0 without rules)."""
-        return max((len(rule.form.split()) for rule in self.rules), default=0)
+        """Longest rule form measured in whitespace tokens (0 without rules).
+
+        Measured once when the rules are compiled; the rule set is immutable
+        afterwards, so this is a constant-time read.
+        """
+        return self._max_rule_tokens
 
     def is_rule_token_prefix(
         self, tokens: list[str], *, preserve_narrative: bool = False
@@ -1188,10 +1200,14 @@ class MedicalMatcher:
             self._narrative_complete_forms
             if preserve_narrative else self._complete_forms
         )
-        folded = [casefold_preserving(token) for token in tokens]
         limit = min(len(tokens), index + self.max_rule_tokens)
+        # Fold only the window this lookup can possibly match. The longest
+        # rule is ``max_rule_tokens`` tokens, so folding the whole buffer on
+        # every call made the cross-segment cut O(n^2) in characters; the
+        # result is identical because tokens past ``limit`` are never read.
+        window = [casefold_preserving(token) for token in tokens[index:limit]]
         for end in range(limit, index, -1):
-            canonical = forms.get(tuple(folded[index:end]))
+            canonical = forms.get(tuple(window[:end - index]))
             if canonical is not None:
                 return end, canonical
         return index, ""

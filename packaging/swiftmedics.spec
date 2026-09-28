@@ -52,7 +52,11 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    # UPX packing is a well-known source of antivirus false positives, and a
+    # packed binary cannot be reliably code-signed. Hospitals and EMR
+    # environments block unsigned/unknown exes aggressively, so the bundle
+    # ships unpacked and can be signed instead.
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -66,7 +70,7 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name="SwiftMedics",
 )

@@ -33,6 +33,7 @@ from speechmatics_test.presentation import (
     strip_bidi_controls,
     wrap_for_direction,
 )
+from speechmatics_test.ui_queue import TkUiDispatcher
 
 log = logging.getLogger("medical-stt.overlay")
 _SYSTEM = platform.system().lower()
@@ -113,6 +114,10 @@ class TranscriptOverlay:
 
         self._ready = threading.Event()
         self._closed = False
+        #: Cross-thread UI hand-off, created on the UI thread once the Tk
+        #: root exists. ``None`` until then (updates are dropped, exactly as
+        #: when ``_root`` was still ``None``).
+        self._ui_dispatcher: Optional[TkUiDispatcher] = None
         # Foreground window before the overlay existed, captured BEFORE the
         # UI thread can create any window. Creating the overlay makes the
         # process activate its new top-level window while it still owns
@@ -149,6 +154,11 @@ class TranscriptOverlay:
         # Widgets retain the Tcl interpreter.  Dropping these references here,
         # before the UI thread exits, prevents Tkapp.__del__ from running later
         # on the ASR/main thread (the source of Tcl's leaked-interpreter warning).
+        dispatcher = getattr(self, "_ui_dispatcher", None)
+        if dispatcher is not None:
+            # Stop the pump before the widgets it updates disappear; its
+            # weak reference to the root is released with the root.
+            dispatcher.stop()
         self._label = None
         self._status = None
         try:
@@ -299,10 +309,16 @@ class TranscriptOverlay:
             self._prevent_focus_steal()
             self._restore_foreground()
             self._tick_follow()
+            # The dispatcher is created and started HERE, on the UI thread
+            # that owns the Tcl interpreter. Every later update - from the
+            # Speechmatics receive thread or the injection worker - only does
+            # queue.put; the pump below is the only thing that touches Tk.
+            self._ui_dispatcher = TkUiDispatcher(self._root, logger=log)
             # Ready only once the event loop is actually processing
             # callbacks: marking ready before mainloop() let other threads
             # schedule UI updates into a window that was still starting up.
             self._root.after(0, self._ready.set)
+            self._ui_dispatcher.start()
             self._root.mainloop()
         except Exception as e:
             log.warning("Failed to initialize overlay window: %s", e)
@@ -354,12 +370,25 @@ class TranscriptOverlay:
             self._root.after(40, self._tick_follow)
 
     def _ui(self, fn) -> None:
-        if not self.enabled or self._root is None or self._closed:
+        """Hand a UI update to the Tk thread. Safe to call from ANY thread.
+
+        Tk is not thread-safe, so this must never call into Tk itself. The
+        old implementation called ``self._root.after(0, fn)`` from the
+        Speechmatics receive thread, which can block, corrupt Tcl state or
+        raise "main thread is not in main loop" while the event loop is busy
+        or shutting down - and the blanket ``except: pass`` hid every one of
+        those failures. Now the update is queued, and the pump started by
+        ``_run`` on the UI thread executes it there.
+        """
+        if not self.enabled or self._closed:
             return
-        try:
-            self._root.after(0, fn)
-        except Exception:
-            pass
+        dispatcher = getattr(self, "_ui_dispatcher", None)
+        if dispatcher is not None:
+            dispatcher.submit(fn)
+            return
+        # No Tk root yet (or it is already gone): there is nothing to update,
+        # which is the same situation the old ``_root is None`` guard covered.
+        log.debug("overlay dropped a UI update: no dispatcher yet")
 
     def _apply_text_alignment(self, text: str, direction: Optional[str] = None) -> None:
         """Dynamically switch alignment based on the detected text direction."""

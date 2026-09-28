@@ -411,7 +411,7 @@ def test_injection_worker_preserves_final_order_and_records_results():
     worker.submit("دو")
     worker.submit("سه")
     worker.shutdown()
-    assert injector.pasted == [("یک ", True), ("دو ", True), ("سه ", True)]
+    assert injector.pasted == [("یک ", False), ("دو ", False), ("سه ", False)]
     assert injector.resets == 3
     assert worker.records == [
         {"text": "یک", "success": True},

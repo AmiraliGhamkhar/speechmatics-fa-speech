@@ -25,6 +25,7 @@ from speechmatics_test.session_controller import (
     SessionCallbacks,
     SessionSummary,
 )
+from speechmatics_test.ui_queue import TkUiDispatcher
 
 try:
     import tkinter as tk
@@ -86,11 +87,15 @@ class FloatingDictationApp:
         self._final_text = ""
         self._partial_text = ""
         self._last_error = ""
+        #: Cross-thread UI hand-off. Started here, on the Tk thread, before
+        #: mainloop(); session callbacks only ever put work on its queue.
+        self._ui_queue = TkUiDispatcher(self.root, logger=log)
 
         self._build_ui()
         self._build_menu()
         self._set_ready_ui()
         self.root.geometry("+96+96")
+        self._ui_queue.start()
         self.root.after(100, self._apply_nonactivating_styles)
         self.root.after(150, self._remember_foreground_target)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -310,10 +315,19 @@ class FloatingDictationApp:
     # ------------------------------------------------------------ callbacks
 
     def _ui(self, fn: Callable, *args) -> None:
-        try:
-            self.root.after(0, lambda: fn(*args))
-        except Exception:
-            log.exception("Failed to schedule UI callback")
+        """Hand a UI update to the Tk thread. Safe from the session thread.
+
+        Tk is not thread-safe: the old ``root.after(0, ...)`` from the
+        dictation session thread could block, corrupt Tcl state, or raise
+        "main thread is not in main loop" while the window was closing - and
+        the blanket ``except`` hid it. The update is now queued and executed
+        by the pump running on the Tk thread.
+        """
+        dispatcher = getattr(self, "_ui_queue", None)
+        if dispatcher is None:
+            log.debug("Dropped UI update: dispatcher not started")
+            return
+        dispatcher.submit(lambda: fn(*args))
 
     def _handle_status(self, status: str) -> None:
         if status == "starting":
