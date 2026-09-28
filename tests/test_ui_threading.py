@@ -123,6 +123,60 @@ def test_submit_from_a_foreign_thread_never_touches_tk(tk_thread):
     assert dispatcher.pending == 0
 
 
+def test_pump_backs_off_while_idle_and_returns_to_the_active_interval(tk_thread):
+    """An idle window must not keep a 16 ms timer alive.
+
+    Dictation is idle between phrases, so a fixed fast timer would wake the
+    Tcl event loop ~225,000 times an hour for nothing. After a few consecutive
+    empty ticks the pump lengthens its interval; the first submission puts it
+    straight back to the active rate.
+    """
+    root = FakeRoot(tk_thread)
+    dispatcher = TkUiDispatcher(
+        root, interval_ms=16, idle_interval_ms=100, idle_ticks=3
+    )
+    dispatcher.start()
+    assert root.scheduled[-1][0] == 16, "arming starts at the active rate"
+
+    # Six consecutive empty ticks: two more at the active rate, then back off.
+    delays = []
+    for _ in range(6):
+        seen = len(root.scheduled)
+        dispatcher.pump()
+        delays.append(root.scheduled[seen][0])
+
+    assert delays == [16, 16, 100, 100, 100, 100]
+
+    # Work resets the backoff, and the tick that runs it stays active.
+    ran = []
+    dispatcher.submit(lambda: ran.append("update"))
+    delays.clear()
+    seen = len(root.scheduled)
+    dispatcher.pump()
+    delays.append(root.scheduled[seen][0])
+
+    assert ran == ["update"]
+    assert delays == [16]
+
+    # ...and the following idle tick is back at the active rate too.
+    seen = len(root.scheduled)
+    dispatcher.pump()
+    assert root.scheduled[seen][0] == 16
+
+
+def test_backoff_never_goes_below_the_active_interval(tk_thread):
+    """A misconfigured idle interval must not make idle slower than active."""
+    root = FakeRoot(tk_thread)
+    dispatcher = TkUiDispatcher(
+        root, interval_ms=50, idle_interval_ms=10, idle_ticks=1
+    )
+    dispatcher.start()
+    for _ in range(4):
+        seen = len(root.scheduled)
+        dispatcher.pump()
+        assert root.scheduled[seen][0] == 50
+
+
 def test_pump_reschedules_itself_on_the_tk_thread(tk_thread):
     root = FakeRoot(tk_thread)
     dispatcher = TkUiDispatcher(root, interval_ms=16)
@@ -301,6 +355,60 @@ def test_overlay_updates_from_a_foreign_thread_are_queued_not_executed(tk_thread
     assert len(texts) == 4
     assert "بیمار" in texts[0]
     assert "CCU" in texts[1] and "CCU" in texts[2]
+
+
+def test_overlay_destroy_root_stops_the_dispatcher(tk_thread):
+    """Teardown must stop the pump before the widgets it updates are dropped.
+
+    ``_destroy_root`` runs on every overlay close, on the abort-after-timeout
+    path, and in ``_run``'s finally block. If it did not stop the dispatcher,
+    the pump would keep re-arming against a destroyed root and any callback
+    still queued would run against widgets that are already gone. The queue
+    is seeded first so the assertion proves ``stop()`` discarded it, rather
+    than merely observing an empty queue.
+    """
+    root = FakeRoot(tk_thread)
+    overlay = _overlay_with_dispatcher(root)
+    overlay._root = root
+    overlay._label = object()
+    overlay._status = object()
+
+    dispatcher = overlay._ui_dispatcher
+    dispatcher.submit(lambda: pytest.fail("queued update ran after teardown"))
+    assert dispatcher.pending == 1
+    assert dispatcher.running is True
+
+    overlay._destroy_root(root)
+
+    assert dispatcher.running is False
+    assert dispatcher.pending == 0
+    # A stray pump tick must be a no-op now, and further submissions are
+    # refused rather than queued against a dead root.
+    dispatcher.pump()
+    assert dispatcher.submit(lambda: pytest.fail("accepted after teardown")) is False
+
+    # The rest of the teardown still happened, on the Tk thread.
+    assert root.destroyed is True
+    assert root.violations == []
+    assert overlay._root is None
+    assert overlay._label is None
+    assert overlay._status is None
+
+
+def test_overlay_destroy_root_without_a_dispatcher_is_safe(tk_thread):
+    """Startup can fail before the dispatcher exists; teardown must cope."""
+    from overlay import TranscriptOverlay
+
+    root = FakeRoot(tk_thread)
+    overlay = TranscriptOverlay.__new__(TranscriptOverlay)
+    overlay._root = root
+    overlay._label = object()
+    overlay._status = object()
+
+    overlay._destroy_root(root)
+
+    assert root.destroyed is True
+    assert overlay._root is None
 
 
 def test_overlay_drops_updates_once_closed(tk_thread):
