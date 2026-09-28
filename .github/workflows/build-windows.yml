@@ -1,0 +1,58 @@
+name: build-windows
+
+# The .exe is produced with PyInstaller, which cannot cross-compile: the bundle
+# must be built on Windows. This workflow is therefore the reproducible way to
+# get dist/SwiftMedics/SwiftMedics.exe out of the repository.
+#
+# Locally, the same build is one command on Windows:
+#     .\scripts\build_windows.ps1
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # 3.12 has binary wheels for every pinned dependency
+          # (pyahocorasick==2.3.1, PyAudio, speechmatics-rt), so the build
+          # needs no C toolchain on the runner.
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install runtime and build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Test
+        run: python -m pytest -q
+
+      - name: Verify the derived Speechmatics vocabulary artifact
+        run: python scripts/export_additional_vocab.py --check
+
+      - name: Build the one-folder bundle
+        run: python -m PyInstaller --clean --noconfirm packaging/swiftmedics.spec
+
+      - name: Verify the executable exists
+        run: |
+          if (-not (Test-Path dist\SwiftMedics\SwiftMedics.exe)) {
+            throw "Build finished but dist\SwiftMedics\SwiftMedics.exe is missing."
+          }
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: SwiftMedics-windows
+          path: dist/SwiftMedics
+          if-no-files-found: error
+          retention-days: 30

@@ -302,7 +302,10 @@ def test_auto_injection_fires_per_final_segment(tmp_path, monkeypatch):
         "بیمار در CCU است ",
         "فشار خون بالا دارد ",
     ]
-    assert all(mark for _, mark in pasted)
+    # Clean logical Unicode: the live injector is built with
+    # ``add_bidi_marks=False``, so the worker must not request a panic RLM
+    # (that branch prepends a stray U+200F to every RTL segment).
+    assert not any(mark for _, mark in pasted)
     # the focus guard armed the target once, before the first paste
     assert FakeInjector.calls[0] == "arm"
     assert FakeInjector.calls[1:4] == ["reset", "paste", "reset"]

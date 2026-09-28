@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import app as app_module
-from injector import TextInjector
+from injector import RLM, TextInjector, contains_rtl
 from speechmatics_test.medical_layer import MedicalLayer
 from speechmatics_test.presentation import has_bidi_controls
 from speechmatics_test.text import normalize_text
@@ -28,6 +28,63 @@ def test_bidi_injection_remains_explicit_compatibility_opt_in():
 
     assert has_bidi_controls(payload)
     assert injector.logical_payload(payload) == "بیمار SpO2 97 % دارد"
+
+
+def test_injection_worker_pastes_clean_logical_unicode():
+    """Regression: the live path pasted a stray RLM into every RTL segment.
+
+    The worker called ``paste_text(..., add_rtl_mark=True)`` while the app
+    builds the injector with ``add_bidi_marks=False``. ``prepare_mixed_text``
+    therefore returned unwrapped text, the panic-mark branch fired, and every
+    Persian segment was pasted with a leading U+200F - exactly the stored
+    direction control the clean-injection policy exists to prevent. The
+    existing guard only covered ``prepare_mixed_text``, never the worker's
+    actual call, so this asserts on what the clipboard really receives.
+    """
+    payloads = []
+
+    class RecordingInjector:
+        def reset_partial(self):
+            pass
+
+        def paste_text(self, text, add_rtl_mark=False):
+            # The real preparation step, so the payload under test is the one
+            # the clipboard would really receive.
+            prepared = injector.prepare_mixed_text(text)
+            if add_rtl_mark and not prepared.startswith(RLM) and contains_rtl(prepared):
+                prepared = RLM + prepared
+            payloads.append(prepared)
+            return True
+
+    injector = TextInjector(dry_run=True, add_bidi_marks=False)
+    worker = app_module.InjectionWorker(RecordingInjector())
+    worker.submit("بیمار SpO2 97 % دارد")
+    worker.submit("فشار خون 120/80")
+    worker.shutdown()
+
+    assert payloads == ["بیمار SpO2 97 % دارد ", "فشار خون 120/80 "]
+    assert not any(has_bidi_controls(payload) for payload in payloads)
+
+
+def test_injection_worker_survives_a_failing_result_callback():
+    """A raising UI callback must not silently drop the remaining pastes."""
+    seen = []
+
+    def explode(_record):
+        raise RuntimeError("overlay is gone")
+
+    injector = TextInjector(dry_run=True, add_bidi_marks=False)
+    worker = app_module.InjectionWorker(
+        injector, on_result=lambda record: (seen.append(record), explode(record))
+    )
+    worker.submit("یک")
+    worker.submit("دو")
+    worker.shutdown()
+
+    # Both pastes were still performed and recorded, in order.
+    assert [record["text"] for record in worker.records] == ["یک", "دو"]
+    assert len(seen) == 2
+    assert not worker._thread.is_alive()
 
 
 def test_low_confidence_entity_is_flagged_without_changing_text():

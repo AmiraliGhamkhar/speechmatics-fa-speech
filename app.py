@@ -523,10 +523,20 @@ class InjectionWorker:
             if item is None:
                 return
             self._injector.reset_partial()
-            ok = self._injector.paste_text(item + " ", add_rtl_mark=True)
+            # No ``add_rtl_mark`` here: the live injector is built with
+            # ``add_bidi_marks=False`` so the clipboard keeps clean logical
+            # Unicode, and the panic-mark branch would otherwise prepend a
+            # stray RLM to EVERY RTL segment. Direction controls are a
+            # display concern (the overlay applies its own).
+            ok = self._injector.paste_text(item + " ")
             record = {"text": item, "success": bool(ok)}
             self.records.append(record)
-            self._on_result(record)
+            try:
+                self._on_result(record)
+            except Exception as exc:
+                # A failing UI callback must never kill the worker: every
+                # remaining queued paste would be dropped silently.
+                print(f"[injector] injection callback failed: {exc}")
 
     def shutdown(self) -> None:
         """Stop after draining everything submitted so far."""
@@ -676,9 +686,11 @@ async def main() -> int:
             overlay.set_partial(clean)
 
     def on_injection_result(record: dict):
-        # Runs on the injection worker thread.
+        # Runs on the injection worker thread. Show the whole canonical
+        # transcript (what was actually injected so far), not just the single
+        # segment that was pasted - the label is replaced, not appended to.
         if overlay and record["success"]:
-            overlay.set_done(record["text"])
+            overlay.set_done(accumulator.canonical_text)
 
     # One canonicalization state for injection AND the report: finals are
     # accumulated so medical phrases that span Speechmatics final-segment
@@ -710,7 +722,7 @@ async def main() -> int:
         # content.
         nonlocal worker_armed
         clean = normalize_text(text)
-        if not clean:
+        if not clean or stt is None or not stt.result.final_segments:
             return
         segment = stt.result.final_segments[-1]
         final_words = stt.result.word_results[

@@ -160,7 +160,7 @@ Overlay:        enabled
 
 ### Medical Domain
 
-Speechmatics documents the Enhanced Medical domain for a specific set of languages. **Persian is not currently included in that documented list.**
+Speechmatics documents the Enhanced Medical domain for a specific set of languages (Arabic English, Danish, Dutch, English, Finnish, French, German, Norwegian, Spanish, Swedish). **Persian is not currently included in that documented list**, and further languages are available only by arrangement with Speechmatics.
 
 Therefore:
 
@@ -177,6 +177,34 @@ Use:
 ```
 
 only when your Speechmatics deployment explicitly supports it.
+
+For Persian, the accuracy levers that remain are the **custom dictionary**
+(`additional_vocab`, see below) and `max_delay`.
+
+### max_delay: latency vs accuracy
+
+Speechmatics documents these trade-offs for realtime transcription (relative to
+its Batch service, which is the accuracy ceiling):
+
+| `max_delay` | Effect |
+| --- | --- |
+| 0.7-1.5s | Ultra-fast; <5% relative accuracy degradation |
+| 2.0s (default) | Recommended balance; ~1% relative degradation |
+| 4.0s | Accuracy equivalent to Batch |
+
+Because partials are enabled and rendered live, raising `max_delay` costs
+perceived latency much less than it costs real accuracy - the clinician sees
+the partial immediately, while the *final* (and therefore injected) segment
+becomes more accurate:
+
+```text
+--max-delay 3.0            # higher accuracy, finals arrive later
+--max-delay-mode fixed     # only if entity formatting must never delay a final
+```
+
+`max_delay_mode flexible` (the default here) is what lets the engine finish a
+spoken number before finalizing it, which is also why the cross-segment
+canonicalizer has to handle values split across finals such as `10:` + `30`.
 
 ## Additional Vocabulary
 
@@ -283,6 +311,24 @@ dist\SwiftMedics\SwiftMedics.exe
 
 The Speechmatics API key is not embedded in the executable. Logs are written
 to `%APPDATA%\SwiftMedics\logs\swiftmedics.log`.
+
+### Building the .exe from CI
+
+PyInstaller cannot cross-compile, so the bundle must be built **on Windows**.
+`.github/workflows/build-windows.yml` does that on `windows-latest`: it installs
+the pinned dependencies on Python 3.12, runs the test suite and the vocabulary
+artifact check as gates, builds the bundle, and uploads `dist\SwiftMedics` as
+the `SwiftMedics-windows` artifact. Push to `main`, open a pull request, or run
+the **build-windows** workflow manually.
+
+Two deployment notes for clinical environments:
+
+* UPX packing is disabled in `packaging/swiftmedics.spec` on purpose. Packed
+  executables are a common source of antivirus false positives and cannot be
+  reliably code-signed.
+* The bundle is unsigned. Hospitals and EMR desktops often require a signed
+  binary; sign `dist\SwiftMedics\SwiftMedics.exe` with your code-signing
+  certificate before distribution.
 
 ## Run
 
@@ -496,12 +542,8 @@ medical_knowledge/
 scripts/
     install.ps1
     run.ps1
-    run_fa.ps1
-    run_en.ps1
-    run_benchmark.ps1
-    run_matcher_benchmark.ps1
+    build_windows.ps1
     export_additional_vocab.py
-    test_injector.ps1
 
 tests/
     fixtures/
