@@ -14,6 +14,7 @@ from __future__ import annotations
 import ast
 import gc
 import inspect
+import logging
 import textwrap
 import threading
 import time
@@ -463,6 +464,78 @@ def test_desktop_app_updates_from_a_foreign_thread_are_queued(tk_thread):
 
     app._ui_queue.pump()
     assert seen == ["final", "partial"]   # submission order preserved
+
+
+def test_overlay_warns_once_when_the_dispatcher_stops_unexpectedly(tk_thread, caplog):
+    """A dead dispatcher must not freeze the UI without a word.
+
+    ``submit`` returning False means the pump is not running. After an
+    intentional ``close()`` that is expected and silent; while the overlay is
+    still open it means the Tk event loop went away, which is worth one
+    warning rather than endless silence.
+    """
+    root = FakeRoot(tk_thread)
+    overlay = _overlay_with_dispatcher(root)
+    overlay._ui_dispatcher.stop()  # the event loop went away
+
+    with caplog.at_level(logging.WARNING, logger="medical-stt.overlay"):
+        overlay.set_partial("یک")
+        overlay.set_partial("دو")
+        overlay.set_final("سه")
+
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1, [r.getMessage() for r in warnings]
+    assert "dispatcher stopped unexpectedly" in warnings[0].getMessage()
+
+
+def test_overlay_does_not_warn_for_drops_after_close(tk_thread, caplog):
+    root = FakeRoot(tk_thread)
+    overlay = _overlay_with_dispatcher(root)
+    overlay._ui_dispatcher.stop()
+    overlay._closed = True
+
+    with caplog.at_level(logging.WARNING, logger="medical-stt.overlay"):
+        overlay.set_partial("بعد از بستن")
+        overlay.set_done("بعد از بستن")
+
+    assert [r for r in caplog.records if r.levelno == logging.WARNING] == []
+
+
+def test_desktop_app_warns_once_when_the_dispatcher_stops_unexpectedly(tk_thread, caplog):
+    import desktop_app
+
+    root = FakeRoot(tk_thread)
+    app = desktop_app.FloatingDictationApp.__new__(desktop_app.FloatingDictationApp)
+    app.root = root
+    app._ui_queue = TkUiDispatcher(root, logger=None)
+    app._ui_queue.start()
+    app._ui_queue.stop()
+
+    with caplog.at_level(logging.WARNING, logger="desktop_app"):
+        app._ui(lambda: None, "status")
+        app._ui(lambda: None, "partial")
+        app._ui(lambda: None, "final")
+
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1, [r.getMessage() for r in warnings]
+    assert "dispatcher stopped unexpectedly" in warnings[0].getMessage()
+
+
+def test_desktop_app_does_not_warn_after_close(tk_thread, caplog):
+    import desktop_app
+
+    root = FakeRoot(tk_thread)
+    app = desktop_app.FloatingDictationApp.__new__(desktop_app.FloatingDictationApp)
+    app.root = root
+    app._ui_queue = TkUiDispatcher(root, logger=None)
+    app._ui_queue.start()
+    app._ui_queue.stop()
+    app._closing = True  # set by _on_close before teardown
+
+    with caplog.at_level(logging.WARNING, logger="desktop_app"):
+        app._ui(lambda: None, "stopped")
+
+    assert [r for r in caplog.records if r.levelno == logging.WARNING] == []
 
 
 def test_desktop_app_ui_helper_contains_no_direct_tk_call():

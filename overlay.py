@@ -384,7 +384,17 @@ class TranscriptOverlay:
             return
         dispatcher = getattr(self, "_ui_dispatcher", None)
         if dispatcher is not None:
-            dispatcher.submit(fn)
+            if dispatcher.submit(fn) or getattr(self, "_ui_drop_warned", False):
+                return
+            # The dispatcher is not running although the overlay was never
+            # closed: the Tk event loop went away, so every later update would
+            # be dropped silently and the overlay would simply freeze. Warn
+            # once - the intentional drops after close() return above.
+            self._ui_drop_warned = True
+            log.warning(
+                "overlay UI dispatcher stopped unexpectedly; "
+                "further transcript updates are dropped"
+            )
             return
         # No Tk root yet (or it is already gone): there is nothing to update,
         # which is the same situation the old ``_root is None`` guard covered.

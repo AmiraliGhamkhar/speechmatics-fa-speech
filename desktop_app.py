@@ -87,6 +87,9 @@ class FloatingDictationApp:
         self._final_text = ""
         self._partial_text = ""
         self._last_error = ""
+        #: Set once the window is being torn down, so the UI drop warning can
+        #: tell an intentional shutdown from a dispatcher that died.
+        self._closing = False
         #: Cross-thread UI hand-off. Started here, on the Tk thread, before
         #: mainloop(); session callbacks only ever put work on its queue.
         self._ui_queue = TkUiDispatcher(self.root, logger=log)
@@ -297,6 +300,7 @@ class FloatingDictationApp:
         session.request_stop()
 
     def _on_close(self) -> None:
+        self._closing = True
         session = self._session
         if session is not None and session.is_running:
             self._set_stopping_ui()
@@ -327,7 +331,19 @@ class FloatingDictationApp:
         if dispatcher is None:
             log.debug("Dropped UI update: dispatcher not started")
             return
-        dispatcher.submit(lambda: fn(*args))
+        if dispatcher.submit(lambda: fn(*args)) or getattr(self, "_ui_drop_warned", False):
+            return
+        # Not running although the window is still open means the Tk event
+        # loop went away: every later callback would be dropped silently and
+        # the panel would freeze with no explanation. Warn once; the drops
+        # after an intentional close are filtered out by ``_closing``.
+        if getattr(self, "_closing", False):
+            return
+        self._ui_drop_warned = True
+        log.warning(
+            "UI dispatcher stopped unexpectedly; further session updates "
+            "are dropped"
+        )
 
     def _handle_status(self, status: str) -> None:
         if status == "starting":
