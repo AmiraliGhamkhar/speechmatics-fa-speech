@@ -1405,6 +1405,354 @@ def test_decimal_shapes_are_not_recognised_without_half_words():
     assert spoken_number_at("سی و نیم".split(), 0) == (1, 30)
 
 
+# ------------------------------------------- explicit fraction denominators
+#
+# REGRESSION (D3 + D4). A dictated decimal arrives in THREE shapes, and the
+# fold used to recognise only the first two:
+#
+#   implicit tenths   "یک و هشت"        -> 1.8   (unit + "و" + unit)
+#   spoken half       "سی و هشت و نیم"  -> 38.5
+#   explicit fraction "سی و هفت و هشت دهم" -> 37.8
+#
+# With the explicit shape unhandled, the denominator word was left dangling
+# next to a value the run had already mis-read: a dictated body temperature of
+# 30.8 °C was written "Temp 38 دهم" - the number 38 was FABRICATED from "سی و
+# هشت" by the implicit-tenths rule, and the word that said "tenths" (which is
+# what makes it 30.8) was stranded beside it. "قند خون صد و بیست و پنج دهم"
+# likewise became "glucose 125 دهم" for a dictated 120.5, and "هموگلوبین
+# یازده و نه دهم" became the half-converted "هموگلوبین 11 و نه دهم", which
+# breaks the all-or-nothing rule for number groups.
+#
+# An explicit denominator therefore outranks the implicit-tenths reading: the
+# speaker named the fraction, so the digits in front of it are cardinal.
+
+#: ``(raw, compat_output, live_narrative_output)``. Both scan modes are pinned
+#: because they differ in the LEXICAL pass (the narrative guard keeps the
+#: Persian analyte name instead of canonicalizing it to "Cr"), and the test has
+#: to show that the NUMBER is the same in both - the decimal path belongs to
+#: the fold, which the narrative guard must not influence.
+EXPLICIT_DENOMINATOR_CASES = [
+    # <cardinal> + joiner + <digit> + denominator word.
+    ("دمای بدن سی و هشت دهم درجه",
+     "Temp 30.8 درجه", "Temp 30.8 درجه"),
+    ("دمای بدن سی و هفت و هشت دهم درجه",
+     "Temp 37.8 درجه", "Temp 37.8 درجه"),
+    ("دمای بدن سی و نه دهم", "Temp 30.9", "Temp 30.9"),
+    ("کراتینین یک و دو دهم", "Cr 1.2", "کراتینین 1.2"),
+    ("کراتینین دو و یک دهم", "Cr 2.1", "کراتینین 2.1"),
+    ("کراتینین دو و نه دهم", "Cr 2.9", "کراتینین 2.9"),
+    ("هموگلوبین یازده و نه دهم", "hemoglobin 11.9", "هموگلوبین 11.9"),
+    ("پتاسیم سه و یک دهم", "potassium 3.1", "پتاسیم 3.1"),
+    ("پتاسیم چهار و دو دهم", "potassium 4.2", "پتاسیم 4.2"),
+    ("قند خون صد و بیست و پنج دهم", "glucose 120.5", "glucose 120.5"),
+    ("INR یک و پنج دهم", "INR 1.5", "INR 1.5"),
+    ("نمره سه و پنج دهم", "نمره 3.5", "نمره 3.5"),
+    # hundredths keep their leading zero: 3.05, never 3.5.
+    ("کراتینین سه و پنج صدم", "Cr 3.05", "کراتینین 3.05"),
+    # the denominator may be followed by a unit
+    ("کراتینین یک و دو دهم میلی گرم", "Cr 1.2 mg", "کراتینین 1.2 mg"),
+]
+
+
+@pytest.mark.parametrize("raw,expected,_narrative", EXPLICIT_DENOMINATOR_CASES)
+def test_explicit_denominator_decimals_fold_to_the_exact_value(
+    fst, raw, expected, _narrative
+):
+    assert canon(fst, raw) == expected
+
+
+@pytest.mark.parametrize("raw,_expected,narrative", EXPLICIT_DENOMINATOR_CASES)
+def test_explicit_denominator_decimals_fold_the_same_in_the_live_path(
+    fst, raw, _expected, narrative
+):
+    """The live app canonicalizes with narrative preservation."""
+    out, _ = fst.canonicalize(normalize_text(raw), preserve_narrative=True)
+    assert out == narrative
+
+
+@pytest.mark.parametrize("raw,_expected,_narrative", EXPLICIT_DENOMINATOR_CASES)
+def test_explicit_denominator_fold_is_idempotent(fst, raw, _expected, _narrative):
+    for preserve_narrative in (False, True):
+        once, _ = fst.canonicalize(
+            normalize_text(raw), preserve_narrative=preserve_narrative
+        )
+        twice, _ = fst.canonicalize(
+            normalize_text(once), preserve_narrative=preserve_narrative
+        )
+        assert twice == once
+
+
+@pytest.mark.parametrize("tokens,expected", [
+    # explicit denominator: the digits before it are CARDINAL, not tenths
+    ("سی و هشت دهم", (4, 30.8)),
+    ("سی و هفت و هشت دهم", (6, 37.8)),
+    ("سی و نه دهم", (4, 30.9)),
+    ("یک و دو دهم", (4, 1.2)),
+    ("سه و پنج صدم", (4, 3.05)),
+    ("دو و نه دهم", (4, 2.9)),
+    # implicit tenths still work where no denominator word follows
+    ("یک و هشت", (3, 1.8)),
+    ("سی و هشت", (3, 38)),
+    # spoken half still works, and outranks a cardinal continuation
+    ("سی و هشت و نیم", (5, 38.5)),
+    ("نه و نیم", (3, 9.5)),
+    # a thousands group is unaffected by the decimal paths
+    ("دو هزار و پانصد", (4, 2500)),
+])
+def test_spoken_number_run_reads_explicit_denominators(tokens, expected):
+    from speechmatics_test.text import spoken_number_at
+
+    assert spoken_number_at(tokens.split(), 0,
+                            half_words=NUMERIC_CONTEXT.half_words) == expected
+
+
+@pytest.mark.parametrize("raw", [
+    # No anchor and no unit: a denominator word stays ordinary prose. "دهم
+    # ماه رمضان" is an ORDINAL ("the tenth of Ramadan"), not 0.1 of anything.
+    "هشت دهم",
+    "سی دهم",
+    "دهم",
+    "دهم ماه رمضان بود",
+    "دو و نه دهم در خانه",
+    # A spoken half plus a denominator is not a shape anyone dictates.
+    "دوز دو و نیم دهم",
+    # The pre-existing prose guards must survive the new decimal path.
+    "هزار بار گفتم",
+    "هزار سال پیش اینجا بود",
+    "یک ضایعه در ریه",
+    "نه ممنوع است",
+    "دو و نیم ساعت",
+    "بیمار پنج و شش ساله است",
+])
+def test_denominator_words_never_digitize_prose(fst, raw):
+    """No numeral word in these may become a digit (anti-hallucination)."""
+    assert not _introduces_a_digit(canon(fst, raw), raw)
+
+
+def test_no_digit_is_ever_left_beside_a_dangling_denominator(fst):
+    """The D3 all-or-nothing invariant, stated as an output property.
+
+    A number group is converted WHOLE or not at all, so the output may never
+    contain a digit immediately followed by a denominator word - that is the
+    signature of the half-converted group ("Temp 38 دهم", "glucose 125 دهم",
+    "هموگلوبین 11 و نه دهم") that fabricated a value nobody dictated.
+    """
+    pattern = re.compile(
+        r"\d(?:[.,]\d+)?\s+(?:"
+        + "|".join(re.escape(word) for word in SPOKEN_FRACTION_DENOMINATORS)
+        + r")(?:\s|$)"
+    )
+    corpus = [raw for raw, _, _ in EXPLICIT_DENOMINATOR_CASES] + [
+        # a malformed group must be skipped WHOLE, never folded up to its head:
+        # this is the case that pins the trailing-denominator group extension
+        "دوز دو و نیم دهم",
+        "دمای بدن سی و هشت دهم درجه", "قند خون صد و بیست و پنج دهم",
+        "هموگلوبین یازده و نه دهم", "کراتینین سه و پنج صدم",
+        "دوز دو هزار و پانصد میلی گرم", "پلاکت صد و پنجاه هزار",
+        "فشار خون صد و بیست روی هشتاد", "دمای بدن سی و هشت و نیم درجه",
+    ]
+    offenders = [
+        (raw, canon(fst, raw))
+        for raw in corpus
+        if pattern.search(canon(fst, raw))
+    ]
+    assert offenders == []
+
+
+# ------------------------------------------------- canonical fixed points
+#
+# REGRESSION (D8). The scanner resolved ties by longest match, but a match that
+# rewrote nothing was DISCARDED instead of claiming its span, so shorter rules
+# were free to fire inside a phrase the dictionary already considers correct
+# output. Every multi-token canonical that contains another rule's form was
+# therefore rewritable by a second pass over the matcher's own output:
+#
+#   "vitamin B12"               -> "vitamin vitamin B12"
+#   "PEG tube"                  -> "PEG tube tube"
+#   "past surgical history"     -> "past past surgical history"
+#   "nasogastric tube in place" -> "nasogastric in place"   (a word DELETED)
+#   "blood pH 7.4"              -> "blood past medical history 7.4"
+#   "pulmonary embolism"        -> "respiratory embolism"   (COPD/PE corrupted)
+#
+# A lab value renamed to a chart-section heading is the worst class of failure
+# this layer can produce, so canonicals are now pinned as fixed points.
+
+#: Canonicals that are single tokens: the dictionary deliberately EXPANDS an
+#: abbreviation into a longer canonical ("HCO3" -> "bicarbonate"), so the
+#: canonical cannot claim itself. That is an intended rewrite, not corruption.
+SINGLE_TOKEN_CANONICAL_EXPANSIONS = {
+    "CK-MB", "HCO3", "PLT", "US", "nebulizer",
+}
+
+
+def _all_canonicals(matcher):
+    return sorted({rule.canonical for rule in matcher.rules})
+
+
+@pytest.mark.parametrize("preserve_narrative", [True, False])
+def test_every_multi_token_canonical_is_a_fixed_point(matcher, preserve_narrative):
+    """Canonicalizing the matcher's own output must not produce a third string.
+
+    Only MULTI-token canonicals are checked: a single-token canonical that is
+    also another rule's form is the dictionary expanding an abbreviation
+    ("HCO3" -> "bicarbonate"), which is the whole point of that rule. A
+    multi-token canonical rewritten by a second pass means a shorter rule fired
+    inside an already-correct phrase.
+
+    Two answers are acceptable and nothing else: the canonical itself, or the
+    unchanged normalized input - the live narrative path deliberately declines
+    Persian-form rules, so an already-spoken Persian term is left exactly as
+    recognized. Any OTHER output is corruption.
+    """
+    offenders = []
+    for canonical in _all_canonicals(matcher):
+        if len(canonical.split()) < 2 or canonical in SINGLE_TOKEN_CANONICAL_EXPANSIONS:
+            continue
+        normalized = normalize_text(canonical)
+        out, _ = matcher.canonicalize(
+            normalized, preserve_narrative=preserve_narrative
+        )
+        if out not in (canonical, normalized):
+            offenders.append((canonical, out))
+    assert offenders == []
+
+
+@pytest.mark.parametrize("raw,expected", [
+    # the specific corruptions this regression fixes
+    ("give vitamin B12 at bedtime", "give vitamin B12 at bedtime"),
+    ("PEG tube patent", "PEG tube patent"),
+    ("past surgical history reviewed", "past surgical history reviewed"),
+    ("history of present illness", "history of present illness"),
+    ("nasogastric tube in place", "nasogastric tube in place"),
+    ("chronic obstructive pulmonary disease",
+     "chronic obstructive pulmonary disease"),
+    ("pulmonary embolism", "pulmonary embolism"),
+    ("MR angiography", "MR angiography"),
+    ("CT pulmonary angiography", "CT pulmonary angiography"),
+    ("estimated GFR 45", "estimated GFR 45"),
+    ("nothing by mouth after midnight", "nothing by mouth after midnight"),
+    ("erythrocyte sedimentation rate", "erythrocyte sedimentation rate"),
+    ("physical therapy and occupational therapy consults",
+     "physical therapy and occupational therapy consults"),
+    ("continuous renal replacement therapy",
+     "continuous renal replacement therapy"),
+    ("IV line and IV access and IV push documented",
+     "IV line and IV access and IV push documented"),
+    # "blood pH" must stay a lab value, never become a chart-section heading
+    ("blood pH 7.4", "blood pH 7.4"),
+    # a device spelled out is no longer reduced to the bare route adjective
+    ("NG tube patent", "nasogastric tube patent"),
+    ("NGT in situ", "nasogastric tube in situ"),
+    # the frequency chain no longer rewrites its own canonical
+    ("once a day dosing", "once a day dosing"),
+    ("OD the medicine", "once a day the medicine"),
+])
+def test_canonical_phrases_survive_the_live_narrative_path(matcher, raw, expected):
+    out, _ = matcher.canonicalize(normalize_text(raw), preserve_narrative=True)
+    assert out == expected
+
+
+def test_canonical_claim_never_duplicates_a_word(matcher):
+    """The old corruption signature: a canonical word repeated inside itself."""
+    repeated = re.compile(r"\b(\w+)\s+\1\b", re.IGNORECASE)
+    offenders = []
+    for canonical in _all_canonicals(matcher):
+        if len(canonical.split()) < 2:
+            continue
+        normalized = normalize_text(canonical)
+        out, _ = matcher.canonicalize(normalized, preserve_narrative=True)
+        if repeated.search(out):
+            offenders.append((canonical, out))
+    assert offenders == []
+
+
+def test_at_risk_canonicals_finds_the_self_embedding_shapes(matcher):
+    """``at_risk_canonicals`` is the audit that drives the claim rules.
+
+    It must catch a canonical containing another rule's form at EVERY position,
+    including one ending at the canonical's LAST token ("at bedtime" contains
+    "bedtime", "vitamin B12" contains "B12") - a half-open range silently
+    missed those and left them rewritable.
+    """
+    from speechmatics_test.matcher import at_risk_canonicals
+
+    at_risk = at_risk_canonicals(matcher.rules)
+    # every flagged canonical really does contain another rule's form
+    forms = {rule.match_form for rule in matcher.rules}
+    for canonical in at_risk:
+        parts = casefold_preserving_tokens(canonical)
+        assert any(
+            " ".join(parts[start:end]) in forms
+            for start in range(len(parts))
+            for end in range(start + 1, len(parts) + 1)
+            if end - start < len(parts)
+        ), canonical
+    # trailing-token embeddings are included (the off-by-one this pins)
+    assert "at bedtime" in at_risk
+    assert "vitamin B12" in at_risk
+    # and each one is now a fixed point
+    for canonical in at_risk:
+        if len(canonical.split()) < 2:
+            continue
+        normalized = normalize_text(canonical)
+        assert matcher.canonicalize(
+            normalized, preserve_narrative=True
+        )[0] == normalized, canonical
+
+
+def casefold_preserving_tokens(text: str) -> list[str]:
+    """Token-level case folding, matching how the matcher indexes forms."""
+    from speechmatics_test.matcher import casefold_preserving
+
+    return [casefold_preserving(token) for token in normalize_text(text).split()]
+
+
+def test_claim_rules_do_not_buffer_ordinary_prose(matcher):
+    """A canonical's leading token must not become a hold trigger.
+
+    Claim rules are registered as complete forms only: their first token is
+    usually an ordinary English word ("at", "past", "blood"), so adding it to
+    the prefix sets would make the streaming cut wait for a continuation of
+    ordinary prose that no rule defines.
+    """
+    from speechmatics_test.matcher import CANONICAL_CLAIM_SOURCE
+
+    claims = [r for r in matcher.rules if r.source == CANONICAL_CLAIM_SOURCE]
+    assert claims, "expected canonical-claim rules to be registered"
+
+    # The prefixes a REAL rule contributes, for comparison below.
+    real_prefixes: set = set()
+    real_strict_prefixes: set = set()
+    for rule in matcher.rules:
+        if rule.source == CANONICAL_CLAIM_SOURCE:
+            continue
+        form_tokens = rule.match_form.split()
+        for take in range(1, len(form_tokens) + 1):
+            real_prefixes.add(tuple(form_tokens[:take]))
+        for take in range(1, len(form_tokens)):
+            real_strict_prefixes.add(tuple(form_tokens[:take]))
+
+    for rule in claims:
+        tokens = rule.match_form.split()
+        # the claim's own full span is not a hold trigger ...
+        assert matcher.is_rule_token_prefix(tokens) is False
+        assert matcher.is_strict_rule_token_prefix(tokens) is False
+        # ... and neither is any of its prefixes, unless a REAL rule has that
+        # prefix too. Without this, "at bedtime" would make the streaming cut
+        # wait for a continuation of the ordinary English word "at".
+        for take in range(1, len(tokens)):
+            prefix = tokens[:take]
+            assert matcher.is_rule_token_prefix(prefix) == (
+                tuple(prefix) in real_prefixes
+            ), prefix
+            assert matcher.is_strict_rule_token_prefix(prefix) == (
+                tuple(prefix) in real_strict_prefixes
+            ), prefix
+        # the claim IS a complete form, so the cut can never land inside it
+        end, canonical = matcher.rule_match_at(tokens, 0)
+        assert end == len(tokens) and canonical == rule.canonical
+
+
 # -------------------------------------------------------- numeric anchors
 #
 # Vital signs were the only anchors, so a dictated lab value with no unit

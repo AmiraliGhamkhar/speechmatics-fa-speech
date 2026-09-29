@@ -49,6 +49,40 @@ DEFAULT_MODEL = "enhanced"
 VALID_MAX_DELAY_MODES = ("fixed", "flexible")
 DEFAULT_MAX_DELAY_MODE = "flexible"
 
+#: Speechmatics applies ``sounds_like`` only in the MAIN SCRIPT of the session
+#: language (documented for the custom dictionary; the Japanese model, for
+#: example, accepts only Hiragana/Katakana). A pronunciation written in any
+#: other script is not a mild inefficiency - the service ignores it and reports
+#: it in-band as a ``validation_warning``, so the operator believes a term is
+#: pronunciation-biased when it is not. The exported vocabulary is shared by
+#: both language streams, so the script filter belongs here (where the language
+#: is known) rather than in the export.
+_VOCAB_SCRIPT_BY_LANGUAGE = {"fa": "arabic", "en": "latin"}
+_ARABIC_SCRIPT_RE = re.compile(r"[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]")
+_LATIN_SCRIPT_RE = re.compile(r"[A-Za-z]")
+
+
+def _dominant_script(text: str) -> str:
+    """``"arabic"``/``"latin"`` for a pronunciation hint, ``""`` when unclear.
+
+    Counts LETTERS only, so digits ("H B A one C"), punctuation and the Persian
+    zero-width non-joiner inside a word do not affect the verdict. A genuine
+    mix of the two scripts returns ``""`` - this decides what to SEND, so an
+    uncertain value is kept and left to the service's own validation warning
+    rather than silently discarded here.
+    """
+    arabic = len(_ARABIC_SCRIPT_RE.findall(text))
+    latin = len(_LATIN_SCRIPT_RE.findall(text))
+    if arabic and not latin:
+        return "arabic"
+    if latin and not arabic:
+        return "latin"
+    if arabic > latin:
+        return "arabic"
+    if latin > arabic:
+        return "latin"
+    return ""
+
 #: ``domain`` settings accepted from the CLI/adapter:
 #:   auto    - send ``medical`` only for languages where Speechmatics
 #:             documents the Enhanced Medical model, omit it otherwise;
@@ -187,6 +221,19 @@ class SessionResult:
     word_results: list[dict[str, Any]] = field(default_factory=list)
     #: Non-fatal parse/metadata problems (the transcript itself was kept).
     warnings: list[str] = field(default_factory=list)
+    #: Warnings the Speechmatics SERVICE sent in-band (``validation_warning``,
+    #: ``idle_timeout``, ``duration_limit_exceeded``, ``add_audio_after_eos``).
+    #: Kept apart from ``warnings`` on purpose: those describe OUR parsing of a
+    #: message, these are the provider's own statement about the session, and
+    #: an operator triaging a short or under-biased transcript needs to tell
+    #: them apart. Review-only - they never alter recognized text.
+    service_warnings: list[str] = field(default_factory=list)
+    #: ``sounds_like`` pronunciations deliberately NOT sent, because the
+    #: service applies them only in the session language's main script. The
+    #: TERM itself was still sent; only the hint that could not take effect
+    #: was dropped, and it is named here so the report cannot imply that every
+    #: exported pronunciation reached Speechmatics.
+    vocabulary_notes: list[str] = field(default_factory=list)
     started_at: Optional[float] = None
     first_partial_ms: Optional[float] = None
     ended_at: Optional[float] = None
@@ -269,14 +316,29 @@ class SpeechmaticsRealtime:
         self.result = SessionResult(language=self.language)
 
     @staticmethod
-    def _clean_vocab(vocab: list) -> list:
+    def _clean_vocab(
+        vocab: list,
+        language: Optional[str] = None,
+        dropped_pronunciations: Optional[list] = None,
+    ) -> list:
         """Return a compact valid custom-dictionary payload.
 
         Speechmatics accepts phrases in ``sounds_like`` (up to six words),
         which is important for letter-spelled abbreviations such as ``M R I``
         and Persianized pronunciations. Duplicate content is merged instead
         of consuming extra vocabulary slots.
+
+        ``language`` makes the payload script-aware: a ``sounds_like`` written
+        outside the session language's main script cannot take effect, so it is
+        removed and the TERM ITSELF IS KEPT (only the dead pronunciation hint
+        goes). Each removal is appended to ``dropped_pronunciations`` when the
+        caller passes a list, so the report can state which bias was not sent
+        instead of implying every exported pronunciation reached the service.
+        With ``language`` omitted the previous behaviour is preserved exactly.
         """
+        expected_script = _VOCAB_SCRIPT_BY_LANGUAGE.get(
+            str(language or "").strip().lower().split("-")[0]
+        )
         cleaned: list[str | dict[str, Any]] = []
         positions: dict[str, int] = {}
         for item in vocab:
@@ -300,8 +362,19 @@ class SpeechmaticsRealtime:
                 if not isinstance(sound, str):
                     continue
                 sound = sound.strip()
-                if sound and len(sound.split()) <= 6 and sound not in valid_sounds:
-                    valid_sounds.append(sound)
+                if not sound or len(sound.split()) > 6 or sound in valid_sounds:
+                    continue
+                if expected_script and (
+                    _dominant_script(sound) not in ("", expected_script)
+                ):
+                    if dropped_pronunciations is not None:
+                        dropped_pronunciations.append(
+                            f"{content!r}: sounds_like {sound!r} is not "
+                            f"{expected_script}-script, so language "
+                            f"{str(language).strip().lower()!r} cannot use it"
+                        )
+                    continue
+                valid_sounds.append(sound)
 
             index = positions.get(content)
             if index is None:
@@ -439,7 +512,13 @@ class SpeechmaticsRealtime:
             # Persian under the default ``auto`` setting.
             if self.effective_domain:
                 config_kwargs["domain"] = self.effective_domain
-            vocab = self._clean_vocab(self.additional_vocab)
+            dropped_pronunciations: list[str] = []
+            vocab = self._clean_vocab(
+                self.additional_vocab, self.language, dropped_pronunciations
+            )
+            for note in dropped_pronunciations:
+                if note not in self.result.vocabulary_notes:
+                    self.result.vocabulary_notes.append(note)
             if vocab:
                 config_kwargs["additional_vocab"] = vocab
 
@@ -470,6 +549,36 @@ class SpeechmaticsRealtime:
                         self.result.error = f"server error: {reason}"
                     print(f"\n[server error] {reason}")
                     session_error.set()
+
+                def handle_server_warning(message):
+                    # The SDK's own WARNING handler only writes to its logger,
+                    # so a service complaint never reached the session report.
+                    # The consequential one is ``validation_warning``, sent
+                    # in-band BEFORE RecognitionStarted when the service drops
+                    # an ``additional_vocab`` entry: a pronunciation bias then
+                    # silently never happened. Others (idle_timeout,
+                    # duration_limit_exceeded, add_audio_after_eos) explain a
+                    # transcript that stopped early. Review-only: warnings
+                    # never alter recognized text.
+                    if not isinstance(message, dict):
+                        return
+                    reason = str(message.get("reason") or "").strip()
+                    detail = str(message.get("message") or "").strip()
+                    text = " ".join(part for part in (reason, detail) if part)
+                    if not text:
+                        return
+                    if text in self.result.service_warnings:
+                        return  # a repeated timeout must not bury the report
+                    self.result.service_warnings.append(text)
+                    print(f"\n[server warning] {text}")
+
+                # Resolved by name, never imported directly: warning reporting
+                # is observability only, so an SDK build without the member
+                # must degrade to "no warnings surfaced" instead of failing the
+                # session and costing the clinician their transcript.
+                warning_event = getattr(ServerMessageType, "WARNING", None)
+                if warning_event is not None:
+                    client.on(warning_event, handle_server_warning)
 
                 @client.on(ServerMessageType.ADD_PARTIAL_TRANSCRIPT)
                 def handle_partial(message):

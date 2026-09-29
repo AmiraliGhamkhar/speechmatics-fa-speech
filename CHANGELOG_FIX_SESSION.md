@@ -485,3 +485,267 @@ python scripts/export_additional_vocab.py --check
 git diff --check
   -> OK
 ```
+
+---
+
+# Backend reliability and accuracy audit pass (2026-09-29)
+
+Full engineering audit of the realtime backend, the Persian number pipeline, the
+medical matcher, the exported Speechmatics vocabulary and the evaluation
+harness. Eight defects were confirmed by reproduction before any edit, and each
+is fixed below with the reproduction it came from. Architecture is unchanged:
+Speechmatics remains the ASR, post-processing remains deterministic, and no
+LLM, embedding, vector store, generative correction or new dependency was
+added.
+
+Baseline measured before the first edit: `pytest -q` -> **887 passed, 1
+skipped**; `benchmark_postprocess` -> exact 1.000 on both canonical paths,
+38/38 streaming == single-pass; `validate_dictionary` -> OK with 952 terms,
+2503 rules, 146 vocab entries and **170** loader warnings.
+
+## D1. A unit split across finals stranded its number (`app.py`, `matcher.py`, `medical_layer.py`)
+
+- **BUG**: `_keep_number_with_its_unit` asked `rule_match_at()`, which sees
+  COMPLETE rule forms only. When Speechmatics split the unit itself
+  (`پانصد میلی` + `گرم`) there was no complete rule at the cut, so the pending
+  `mg` was invisible, `پانصد` was emitted on its own and folded to a bare
+  `500`, and the dose arrived as a number plus a stray unit word.
+- **FIX**: new `MedicalMatcher.strict_prefix_canonical_heads()` (exposed on
+  `MedicalLayer`) answers what a held fragment could still grow into, and the
+  walkback now consults it alongside the complete-form head. Built from the
+  same prefix pass that already feeds `is_strict_rule_token_prefix`, so the two
+  cannot drift.
+- **WHY SAFE**: it only ever holds text back longer, never rewrites anything.
+  Claim/prefix data is compiled once; a held phrase that will become a *new
+  measurement phrase* (`اشباع اکسیژن` -> `SpO2`) still emits the completed
+  value before it, because its canonical head is not in `NUMERIC_CONTEXT.after`.
+
+## D2. A microphone OPEN failure escaped as a raw traceback (`app.py`)
+
+- **BUG**: only `MicrophoneRecorder.__init__` was inside the guarded step.
+  `__init__` merely builds the PyAudio object; the input device is opened in
+  `__enter__`, which is where a busy, unplugged or permission-denied device
+  actually fails. Reproduced with a fake PortAudio raising
+  `OSError(-9999, "Unanticipated host error")`: the exception escaped `main()`
+  as an interpreter traceback and the exit status came from Python, not from
+  the app's own error path.
+- **FIX**: `recorder.__enter__()` moved inside the existing guard, and
+  `with recorder:` replaced by `with contextlib.closing(recorder):` so the
+  stream is not entered twice. `closing()` calls `close()` on unwind, which is
+  exactly what `MicrophoneRecorder.__exit__` delegates to.
+- **WHY SAFE**: `close()` is idempotent and already released PyAudio before
+  `__enter__` re-raised, so the failure path leaks nothing (verified: 1 PyAudio
+  instance created, 1 terminated). Same message, same exit code 1, same SIGINT
+  and overlay cleanup as the already-covered `__init__` failure.
+
+## D3. A number group was half-converted when it ended in a denominator (`speechmatics_test/text.py`)
+
+- **BUG**: `_number_group_end`'s joiner branch called `spoken_number_at`
+  without `allow_single_unsafe=True` and did not extend over a trailing
+  `SPOKEN_FRACTION_DENOMINATORS` word, so a group could look complete while its
+  tail was still outstanding. The fold then digitized only the head:
+  `دوز دو و نیم دهم` -> `دوز 2.5 دهم`, a digit sitting next to the very word
+  that says the digit is a fraction. That violates the all-or-nothing rule and
+  states a value nobody dictated.
+- **FIX**: `allow_single_unsafe=True` in the joiner branch (matching the
+  numeral branch below it) plus a trailing-denominator extension in the
+  group-end loop.
+- **WHY SAFE**: the change only ever makes the group LONGER, and a longer group
+  is either folded whole or refused whole. Verified against the prose-safety
+  corpus: `هزار بار گفتم`, `هزار سال پیش`, `دهم ماه رمضان`, `دو و نیم ساعت`,
+  `پنج و شش ساله` and `یک ضایعه در ریه` all still gain no digit.
+
+## D4. An explicit fraction denominator was never read (`speechmatics_test/text.py`)
+
+- **BUG**: a dictated decimal arrives in three shapes and only two were
+  handled. `دمای بدن سی و هشت دهم` (thirty and eight tenths) was read by the
+  implicit-tenths rule as `38` with `دهم` stranded beside it -> `Temp 38 دهم`
+  for a dictated **30.8**: a hypothermic reading recorded as febrile.
+  `دمای بدن سی و هفت و هشت دهم` (37.8, the ordinary way to dictate a body
+  temperature) refused the whole group and stayed spoken, and
+  `قند خون صد و بیست و پنج دهم` became `glucose 125 دهم` for a dictated 120.5.
+- **FIX**: an explicit-denominator branch in `spoken_number_at`'s joiner path,
+  ordered ahead of the cardinal continuation and the implicit-tenths reading:
+  when the speaker named the fraction, the digits in front of it are cardinal.
+  The docstring now names all three shapes.
+- **WHY SAFE**: precedence only applies when a denominator word actually
+  follows, so `یک و هشت` is still 1.8 and `سی و هشت` is still 38. Hundredths
+  keep their leading zero (`سه و پنج صدم` -> `3.05`, never `3.5`), and an
+  unanchored `هشت دهم` or a half-plus-denominator `دوز دو و نیم دهم` stay
+  spoken rather than being guessed.
+
+## D5. A multi-thousand value was cut at its joiner (`app.py`)
+
+- **BUG**: the unit walkback crossed adjacent `SPOKEN_NUMERALS` only, so it
+  stopped at the joiner `و` and at the magnitude word `هزار`. Reproduced at
+  cut = 13 characters of `دوز دو هزار و پانصد میلی گرم`: the emission was
+  `دوز دو هزار و`, which folded to `دوز 2000 و`, and the rest arrived as
+  `500 mg`. One 2500 mg dose was injected as **two numbers, neither of them
+  2500**. `_numeric_tail_start` had the same shortened group, so a buffer
+  ending in `دو و نیم` or `... و هشت دهم` was not recognized as an open value.
+- **FIX**: one module-level `_NUMBER_GROUP_TOKENS` definition - numerals,
+  `هزار`, the joiner, explicit denominators, unfolded magnitudes, the spoken
+  half/quarter and the ratio connector, composed from `text`'s numeric grammar
+  and `NUMERIC_CONTEXT`'s domain vocabulary - now used by both the walkback and
+  the tail scan instead of two independently shortened lists.
+- **WHY SAFE**: holding is still bounded by the same 12-token window, and a new
+  test feeds 40 numeral-only finals and asserts the buffer never exceeds it and
+  that emission still happens. Verified over every WORD boundary of 22
+  clinical measurements (2- and 3-way splits, 400 fragmentations): 0
+  divergences from the single-pass output. Character-level splits inside a word
+  are out of scope - Speechmatics finalizes on word boundaries.
+
+## D6. Pronunciations in the wrong script were sent and silently ignored (`speechmatics_test/realtime.py`)
+
+- **BUG**: Speechmatics applies `sounds_like` only in the session language's
+  MAIN script. The export is a Persian-stream artifact, so 4 of its 345
+  pronunciations are Latin (`MRI`: `M R I`, `HbA1c`: `H B A one C`, `C3-C4`:
+  `C three C four`, `metformin`: `met for min`) and cannot take effect on a
+  `fa` session; the service ignores them and answers with an in-band
+  `validation_warning` that nothing surfaced (see D7). The operator believes
+  those terms are pronunciation-biased.
+- **FIX**: `_clean_vocab(vocab, language=None, dropped_pronunciations=None)`
+  filters by script, keeping the TERM and dropping only the dead hint. Each
+  removal is recorded in `SessionResult.vocabulary_notes` and in the session
+  report.
+- **WHY SAFE**: with `language` omitted the output is byte-identical to the
+  previous behaviour (asserted), so the staticmethod stays usable for
+  dictionary-side validation. A digits-only or genuinely mixed-script hint
+  returns no verdict and is KEPT, leaving it to the service's own validation -
+  this filter decides what to send, so an uncertain case must not be silently
+  discarded. Region subtags classify as their base language.
+
+## D7. Server warnings were dropped (`speechmatics_test/realtime.py`)
+
+- **BUG**: `run()` subscribed to `ERROR`, `ADD_PARTIAL_TRANSCRIPT` and
+  `ADD_TRANSCRIPT` but never to `ServerMessageType.WARNING`, and the SDK's own
+  `_on_warning` only writes to its logger. `validation_warning` (an
+  `additional_vocab` entry the service rejected, sent before
+  `RecognitionStarted`), `idle_timeout`, `duration_limit_exceeded` and
+  `add_audio_after_eos` therefore never reached the report: a bias could fail
+  to apply and a transcript could stop early with no recorded reason.
+- **FIX**: a `WARNING` handler recording each distinct message in the new
+  `SessionResult.service_warnings`, surfaced in the report under the same key.
+- **WHY SAFE**: review-only - warnings never alter recognized text. Duplicate
+  reasons are recorded once so a repeating timeout cannot bury the report.
+  `service_warnings` is kept separate from the existing `warnings` because that
+  field is documented as OUR message-parsing problems, and an operator
+  triaging a short transcript needs to tell the two apart. The event is
+  resolved with `getattr(ServerMessageType, "WARNING", None)` rather than
+  imported directly, so an SDK build without the member surfaces no warnings
+  instead of failing the session - observability must never cost a transcript.
+
+## D8. A canonical the dictionary defines as correct output was rewritable (`speechmatics_test/matcher.py`, `medical_knowledge/medical_dictionary.json`)
+
+- **BUG**: the scan resolved ties by longest match, but a match that rewrote
+  nothing was DISCARDED instead of claiming its span, so shorter rules were
+  free to fire inside an already-correct phrase. Measured on the live narrative
+  path: of 935 distinct canonicals, **51 were not fixed points and 45 were
+  visibly corrupted**. All 21 English and code-switched probe sentences were
+  damaged. The worst cases:
+
+  ```text
+  blood pH 7.4                     -> blood past medical history 7.4   (a lab value became a chart-section heading)
+  nasogastric tube in place        -> nasogastric in place             (the word "tube" deleted)
+  chronic obstructive pulmonary disease -> chronic obstructive respiratory disease
+  pulmonary embolism               -> respiratory embolism
+  MR angiography                   -> medical records angiography
+  vitamin B12                      -> vitamin vitamin B12
+  PEG tube                         -> PEG tube tube
+  past surgical history            -> past past surgical history
+  ```
+
+- **FIX**: new public `at_risk_canonicals()` detects multi-token canonicals
+  containing another rule's form by token-aligned substring check, and the
+  loader registers each as a self-mapping **claim rule** - lowest tier, highest
+  `seq`, so it can never outrank a real rule. Claims enter `_by_first` and the
+  complete-form maps but NO prefix set, and both `_scan` and `_scan_reference`
+  copy a claimed span verbatim and resume after it. Two dictionary conflicts of
+  the same class were fixed at the source, since the loader had already been
+  arbitrating them silently by tier: `nasogastric tube` / `NG tube` / `NGT`
+  were listed as forms of the *route* `nasogastric` (deleting the device noun),
+  and `once a day` was listed as a form of `every day`.
+- **WHY SAFE**: 51 non-fixed-points -> **5**, and all 5 are single-token
+  abbreviation expansions the dictionary performs on purpose (`CK-MB`, `HCO3`,
+  `PLT`, `US`, `nebulizer`); a canonical cannot claim itself, so narrowing
+  those would be a policy change, not a fix, and the ambiguous ones are already
+  guarded by `_AMBIGUOUS_SHORT_FORMS`. Engine parity re-verified after the
+  change: **0 mismatches** across native `pyahocorasick`, the pure-Python
+  automaton and `_scan_reference` over 7,462 inputs (every canonical, every
+  rule form, realistic mixed sentences and randomized token soup) x both scan
+  modes. Loader warnings fell 170 -> 167.
+
+## Evaluation harness
+
+- `benchmark/benchmark_postprocess.py` now reports **five separated stages in
+  pipeline order**: A raw, B normalized, C `medical_canonicalization_only`
+  (dictionary pass, fold disabled), D `numeric_fold_only` (fold, dictionary
+  disabled), E `canonical_single_pass`, E' `canonical_streamed`. C and D were
+  previously merged, so a destroyed term and an invented dose were
+  indistinguishable. They are also not independent - D is gated by C, because
+  the fold refuses to digitize a spoken number without an anchor and the
+  anchors come from the dictionary pass - so D scoring below E is the
+  prose-safety guarantee, and a test now pins that relationship.
+- `benchmark/postprocess_cases.json` grew 38 -> **53** cases: canonical spans
+  on the live path, a value split at its joiner and inside its unit, explicit
+  fraction denominators, ventilator settings, intake/output, nursing
+  diet/wound/mobility/isolation orders, and three kinds of ordinary
+  non-clinical Persian prose.
+- `scripts/validate_dictionary.py` gained three audits: every multi-token
+  canonical as a fixed point (a failure is a PROBLEM), the claim-rule count
+  against `at_risk_canonicals`, the loader's warnings broken down by kind (97
+  punctuation skips + 70 tier arbitrations), and every `sounds_like` reported
+  with the script Speechmatics can actually apply it in.
+- `benchmark/verify_regressions.py` gained breaks F-N, one per defect above,
+  and its B anchor was repaired (the D4 fix had moved that computation out of
+  the return statement). All **14** breaks now disable a fix and confirm the
+  pinned tests fail, restoring the files byte-identically.
+
+## Deliberately not changed
+
+- The 5 single-token canonical expansions above, and the two documented
+  ambiguous collisions (an all-caps ordinary English word such as `the US
+  report` is indistinguishable from chart notation without a semantic layer).
+- `PEEP پنج` stays spoken: `PEEP` is not in the anchor vocabulary, so the fold
+  declines to digitize it. Adding ventilator anchors is a vocabulary decision
+  with its own prose-collision risk, and leaving a value spoken is the safe
+  direction - it is reported here rather than silently "fixed".
+- `<number> سال` does take chart digits (`5 سال پیش عمل شد`), because `سال` is
+  the age/duration unit the dictionary already anchors on. A possessive or
+  adjective spelling (`سالم` = "my years" / "healthy") is deliberately NOT that
+  anchor, since the word is genuinely ambiguous; `امسال بیست و پنج سالم شد` and
+  `بیمار سالم است` both survive unchanged. Both behaviours are now pinned as
+  benchmark cases so neither can drift unnoticed.
+- `number_accuracy` keeps its exact recall-only definition and value for API
+  and report stability; `number_precision` / `number_recall` / `number_f1`
+  remain the unambiguous metrics.
+- No audio is persisted, no BiDi control is introduced, and no uncertain ASR
+  output is fabricated, inferred, translated or clinically reinterpreted.
+  Low-confidence values stay flagged for review.
+
+## Validation
+
+```text
+python -m pytest -q                                       -> 1002 passed, 1 skipped (baseline 887 passed)
+python -m compileall -q app.py injector.py overlay.py
+    speechmatics_test tests benchmark scripts             -> OK
+scripts/export_additional_vocab.py --check                -> OK (2575 rules, 952 terms, 146 entries, in sync)
+scripts/validate_dictionary.py                            -> OK (exit 0)
+benchmark/benchmark_postprocess.py                        -> canonical exact 1.000 single-pass AND streamed,
+                                                             53/53 streaming == single-pass
+benchmark/benchmark_asr.py --dry-run                      -> RAW WER 0.178571, num P/R/F1 0.375/0.375/0.375,
+                                                             entity P/R 0.375/0.375 (unchanged: no live ASR run)
+benchmark/benchmark_matcher.py                            -> match mean 36-41 us (baseline 36-39 us),
+                                                             build 3.6-78.7 ms (baseline 3.7-66 ms),
+                                                             peak mem 5.14 MB at 2000 rules (baseline 1.87 MB;
+                                                             +0.94 MB is the new prefix-head maps)
+benchmark/verify_regressions.py                           -> 14/14 breaks correctly fail, files restored exactly
+app.py --help                                             -> OK
+git diff --check                                          -> OK
+```
+
+The pre-migration behavioral snapshot (`tests/fixtures/pre_migration_canonicalization.json`)
+required a 4-line change: 2 of its 432 cases now report a LONGER hit span for
+byte-identical canonical text, because `iv line` matches the whole `IV line`
+canonical instead of only its `iv` token. A guard asserted that all 432
+canonical strings were unchanged before the fixture was touched.

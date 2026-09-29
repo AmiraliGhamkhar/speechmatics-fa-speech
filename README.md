@@ -81,6 +81,8 @@ day-part words (`صبح`, `ظهر`, `عصر`, `شب`) stay Persian.
 | `ای ام`, `پی ام`, `A.M.`, `P.M.` | `AM`, `PM` |
 | `دوز دو هزار میلی گرم`, `پلاکت صد و پنجاه هزار` | `دوز 2000 mg`, `پلاکت 150000` |
 | `هزار و دویست میلی گرم`, `دوز دو هزار و پانصد` | `1200 mg`, `دوز 2500` |
+| `دمای بدن سی و هفت و هشت دهم`, `کراتینین یک و دو دهم` | `Temp 37.8`, `کراتینین 1.2` |
+| `کراتینین سه و پنج صدم`, `دمای بدن سی و هشت و نیم` | `کراتینین 3.05`, `Temp 38.5` |
 
 Deliberate limits:
 
@@ -100,6 +102,17 @@ Deliberate limits:
   The connector `روی` only anchors a right-hand number when a numeric left
   side exists, so a corrupt ASR fragment such as `MRI روی هشتاد و پنج` is not
   silently reinterpreted as a measurement.
+* A dictated decimal arrives in three shapes and all three fold to the exact
+  value: implicit tenths (`یک و هشت` -> `1.8`, a lone unit digit followed by
+  another), a spoken half (`سی و هشت و نیم` -> `38.5`), and an explicit
+  fraction denominator (`سی و هفت و هشت دهم` -> `37.8`, `سه و پنج صدم` ->
+  `3.05`). An explicit denominator outranks the implicit reading, because the
+  speaker named the fraction: `سی و هشت دهم` is thirty and eight tenths
+  (`30.8`), not `38` with the word "tenths" stranded beside it. The
+  denominator word is consumed with the value it spells, so the output never
+  contains a digit next to `دهم`/`صدم`/`هزارم` - the self-contradictory
+  `Temp 38 دهم` and `glucose 125 دهم` were fabricated values, and the test
+  suite fails if one reappears.
 * A numeral run must descend by magnitude class (hundreds -> tens -> units),
   which is how Persian numbers are built. Two numerals of the same class
   spoken back to back are two separate numbers and are never added together:
@@ -136,6 +149,20 @@ Cross-segment matching is supported for phrases and numeric expressions that spa
 
 An emission is never cut *inside* a complete dictionary match, so a term that straddles a Speechmatics final boundary still canonicalizes as one unit (`سی بی سی و ای بی جی` -> `CBC و ABG`, not `CBC و ای بی جی`).
 
+One dictated **value** is held together the same way. A measurement is
+all-or-nothing, so the buffered suffix extends across the whole number group -
+numerals, the joiner `و`, the magnitude `هزار`, a spoken half and an explicit
+denominator - and across the unit it belongs to, whether that unit is already
+complete (`میلی گرم`) or still only a prefix of one (`میلی`, with `گرم` in the
+next final). `MedicalLayer.strict_prefix_canonical_heads` supplies the second
+half: it reports what a held fragment could still become, which is how the cut
+tells a pending *unit* (keep the number in front of it) from a pending *new
+measurement phrase* (emit the completed value before it). Without this,
+`دوز دو هزار و پانصد میلی گرم` was cut after `و` and injected as
+`دوز 2000 و 500 mg` - one 2500 mg dose reported as two numbers, neither of
+them 2500. The hold stays bounded by the same 12-token window, so a stream of
+numeral-only finals still drains instead of accumulating the session.
+
 Chart notation split by Speechmatics across two finals is reassembled at the boundary before the fold passes run: a final ending in `digits + ':'` or `digits + '.'` is joined (without spaces) to the next final's leading digits (`۱۰:` + `۳۰` -> `10:30`, `۳۶.` + `۷` -> `36.7`), and a final ending in digits is joined to a next final starting with `/digits` (`۱۴۵` + `/۹۰` -> `145/90`). The join is boundary-only and vocabulary-free: prose before or after the value is untouched, a fragment whose continuation never arrives is flushed verbatim, and two complete numbers in a row are left as two numbers.
 
 ## Aho-Corasick Matcher
@@ -164,7 +191,42 @@ speechmatics_test/matcher.py
 
 `MedicalFST` remains available as a compatibility alias.
 
-The native backend uses `pyahocorasick`. A pure-Python implementation provides equivalent output when the native package is unavailable.
+The native backend uses `pyahocorasick`. A pure-Python implementation provides equivalent output when the native package is unavailable, and a naive reference scanner implements the identical priority scheme as the verified degradation path, so an engine failure never costs the clinician a finished transcript. All three agree on every rule form, every canonical and a randomized token corpus, in both scan modes.
+
+### Canonical spans are fixed points
+
+A canonical is the dictionary's own declaration of correct output, so feeding
+it back through the matcher must return it unchanged. When a canonical
+contained another rule's form, the scan used to discard the longest match as a
+no-op instead of *claiming* its span, which let shorter rules fire inside an
+already-correct phrase:
+
+| Input (already canonical) | Before | Now |
+| --- | --- | --- |
+| `vitamin B12` | `vitamin vitamin B12` | `vitamin B12` |
+| `PEG tube` | `PEG tube tube` | `PEG tube` |
+| `nasogastric tube in place` | `nasogastric in place` (a word deleted) | `nasogastric tube in place` |
+| `chronic obstructive pulmonary disease` | `chronic obstructive respiratory disease` | unchanged |
+| `pulmonary embolism` | `respiratory embolism` | `pulmonary embolism` |
+| `blood pH 7.4` | `blood past medical history 7.4` | `blood pH 7.4` |
+| `past surgical history` | `past past surgical history` | `past surgical history` |
+| `MR angiography` | `medical records angiography` | `MR angiography` |
+
+`matcher.at_risk_canonicals` finds those canonicals and the loader registers
+each as a self-mapping **claim rule** at the lowest tier: it can never outrank
+a real rule, it contributes no prefix (so ordinary prose such as the leading
+word `at` is never held back), and the scanner copies its span verbatim and
+resumes after it. `scripts/validate_dictionary.py` reports the count and fails
+if any multi-token canonical stops being a fixed point.
+
+Two dictionary conflicts of the same class were fixed at the source, because
+the loader had already been arbitrating them silently by tier:
+`nasogastric tube`, `NG tube` and `NGT` were listed as forms of the *route*
+`nasogastric`, which deleted the device noun from correct text, and
+`once a day` was listed as a form of `every day`, which left the frequency
+chain `OD` -> `once a day` -> `every day` non-idempotent. The device spellings
+now belong to the `nasogastric tube` term and `once a day` is its own
+canonical. Loader warnings fell from 170 to 167.
 
 ## Speechmatics Configuration
 
@@ -258,6 +320,31 @@ The vocabulary focuses on high-value medical terms such as:
 A bare number is never exported (it would fight the engine's own digit output),
 and Speechmatics drops any element longer than six words, which
 `SpeechmaticsRealtime._clean_vocab` enforces locally before the config is sent.
+
+`sounds_like` is applied by Speechmatics **only in the session language's main
+script**, so the same `_clean_vocab` filters pronunciations by the language
+actually being streamed. On a Persian session the 4 Latin-script hints in the
+export (`MRI`: `M R I`, `HbA1c`: `H B A one C`, `C3-C4`: `C three C four`,
+`metformin`: `met for min`) cannot take effect and are removed, while the terms
+themselves are still sent. An `--language en` session drops the 341 Persian
+hints instead - the export is a Persian-stream artifact, so on the English
+stream it biases content only. Every removal is recorded in the session
+report's `vocabulary_notes`, so a report never implies a bias reached the ASR
+when it did not. A pronunciation that is digits-only or a genuine mix of both
+scripts is kept and left to the service's own validation: this filter decides
+what to send, and an uncertain verdict should not silently discard data.
+
+Server warnings are no longer dropped either. The SDK's own `Warning` handler
+only writes to its logger, so `validation_warning` (an `additional_vocab` entry
+the service rejected, sent in-band before `RecognitionStarted`), `idle_timeout`
+and `duration_limit_exceeded` never reached the session report - a
+pronunciation bias could silently fail to happen and a transcript could stop
+early with no recorded reason. The adapter now subscribes to
+`ServerMessageType.WARNING` and records each distinct warning in
+`result.service_warnings`, kept separate from `result.warnings` (which is
+strictly about our own message parsing). The subscription is resolved by name
+rather than imported directly, so an SDK build without the member surfaces no
+warnings instead of failing the session.
 The list stays a bounded, curated biasing vocabulary rather than a dump of the
 dictionary, and `tests/test_dictionary.py` guards that budget.
 
@@ -501,15 +588,27 @@ are the unambiguous numeric metrics.
 a raw ASR score and a post-processing score are never conflated:
 
 ```text
-raw                 - the stored ASR segments verbatim (metric A)
-normalized          - generic normalization only (metric B)
-canonical_single_pass - the deterministic medical layer (metric C)
-canonical_streamed  - the text actually injected, end to end (metric E)
+raw                           - A: the stored ASR segments verbatim
+normalized                    - B: generic normalization only
+medical_canonicalization_only - C: the dictionary pass, numeric fold DISABLED
+numeric_fold_only             - D: the number/clock/ratio fold, dictionary DISABLED
+canonical_single_pass         - E: C then D over the whole transcript
+canonical_streamed            - E': the same through the realtime final
+                                   boundaries - the text actually injected
 ```
 
-Each stage reports exact match, WER, entity P/R, and number
-precision/recall/F1 (metric D), and the benchmark proves the streamed path is
+Every stage reports exact match, WER, entity P/R, and number
+precision/recall/F1, and the benchmark proves the streamed path is
 byte-identical to the single-pass path for every case.
+
+C and D are measured apart because the merged stage cannot say which half
+broke: a destroyed medical term and an invented dose look identical in E. They
+are also **not independent** - D is deliberately gated by C, since the fold
+refuses to digitize a spoken number without a recognized measurement anchor and
+the anchors come from the dictionary pass (`فشار خون` -> `BP`,
+`میلی گرم` -> `mg`). So `numeric_fold_only` scores below E by design, and that
+gap *is* the guarantee that ordinary prose is never converted into numbers; a
+test pins the relationship so it cannot invert unnoticed.
 
 ## Testing
 
@@ -519,9 +618,10 @@ Run the complete test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Validate the dictionary (bounded Speechmatics vocabulary, pronunciation
-limits, BiDi-free canonicals, and the guard on every English alias that could
-rewrite ordinary prose):
+Validate the dictionary (bounded Speechmatics vocabulary, pronunciation limits
+and script, BiDi-free canonicals, the guard on every English alias that could
+rewrite ordinary prose, every multi-token canonical as a fixed point of the
+matcher, and the loader's tier arbitrations broken down by kind):
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\validate_dictionary.py

@@ -20,11 +20,17 @@ score identically.  Both pipeline paths are measured:
 Reported metrics are deliberately SEPARATED by pipeline stage, because a raw
 ASR metric and a post-processing metric answer different questions:
 
-    raw        - the stored ASR segments verbatim (what Speechmatics said)
-    normalized - generic normalization only (script/digits/spacing)
-    canonical  - the deterministic medical layer, single pass
-    injected   - the streamed canonical text, i.e. what the clinician pastes
+    A raw        - the stored ASR segments verbatim (what Speechmatics said)
+    B normalized - generic normalization only (script/digits/spacing)
+    C medical    - the dictionary pass ALONE, numeric fold disabled
+    D numeric    - the number/clock/ratio fold ALONE, dictionary disabled
+    E canonical  - the deterministic medical layer, single pass (C then D)
+    E' injected  - the streamed canonical text, i.e. what the clinician pastes
                  (end-to-end for the post-processing half of the pipeline)
+
+C and D are measured separately because the merged stage cannot say which half
+broke: a destroyed term and an invented dose look identical in E. Splitting
+them is what makes a regression self-diagnosing.
 
 Each stage reports WER, exact match, and the unambiguous numeric metrics
 ``number_precision`` / ``number_recall`` / ``number_f1``.  ``number_accuracy``
@@ -52,10 +58,25 @@ from speechmatics_test.evaluation import (  # noqa: E402
     number_precision,
     number_recall,
 )
+from speechmatics_test.matcher import NUMERIC_CONTEXT  # noqa: E402
 from speechmatics_test.medical_layer import MedicalLayer  # noqa: E402
-from speechmatics_test.text import normalize_text  # noqa: E402
+from speechmatics_test.text import (  # noqa: E402
+    fold_numeric_expressions,
+    normalize_text,
+)
 
 CASES_PATH = Path(__file__).resolve().parent / "postprocess_cases.json"
+
+#: Reported in pipeline order: A raw, B normalized, C medical only, D numeric
+#: only, E end to end (single pass) and E' end to end through the stream.
+STAGE_LABELS = (
+    "raw",
+    "normalized",
+    "medical_canonicalization_only",
+    "numeric_fold_only",
+    "canonical_single_pass",
+    "canonical_streamed",
+)
 
 
 def _load_cases(path: Path) -> list[dict]:
@@ -65,6 +86,32 @@ def _load_cases(path: Path) -> list[dict]:
 def _single_pass(layer: MedicalLayer, segments: list[str]) -> str:
     text = normalize_text(" ".join(segments))
     return layer.canonicalize(text, preserve_narrative=True)[0]
+
+
+def _lexical_only(layer: MedicalLayer, segments: list[str]) -> str:
+    """Stage C: the dictionary pass with the numeric fold DISABLED.
+
+    ``MedicalMatcher.canonicalize`` is the lexical scan followed by
+    ``fold_numeric_expressions``; running only the scan is what separates a
+    destroyed medical TERM from an invented NUMBER, which the merged
+    end-to-end stage cannot tell apart. Uses the same private entry point the
+    test suite uses for this split (``tests/test_matcher.py`` calls ``_scan``
+    directly for the same reason), and the same narrative policy as the live
+    single-pass stage.
+    """
+    text = normalize_text(" ".join(segments))
+    return layer.fst._scan(text, None, preserve_narrative=True)[0]
+
+
+def _numeric_only(layer: MedicalLayer, segments: list[str]) -> str:
+    """Stage D: the numeric fold with the dictionary pass DISABLED.
+
+    The mirror image of stage C, so a case that scores badly here and well in
+    stage C is a number-pipeline defect (a fabricated dose, a half-converted
+    group) and not a dictionary one.
+    """
+    text = normalize_text(" ".join(segments))
+    return fold_numeric_expressions(text, NUMERIC_CONTEXT)
 
 
 def _streamed(layer: MedicalLayer, segments: list[str]) -> str:
@@ -143,6 +190,8 @@ def run(cases: list[dict]) -> dict:
     # form, so it is excluded there and reported on the streamed path only).
     raw = [" ".join(case["segments"]) for case in cases]
     normalized = [normalize_text(text) for text in raw]
+    lexical = [_lexical_only(layer, case["segments"]) for case in cases]
+    numeric = [_numeric_only(layer, case["segments"]) for case in cases]
     # A "streaming_only" case reproduces a final boundary INSIDE a written
     # value ("ساعت 10:" + "30"). Joining its segments with a space is not a
     # transcript the app ever produces, so it is scored on the streamed path
@@ -156,17 +205,28 @@ def run(cases: list[dict]) -> dict:
     stage_subset = [
         (case, text) for case, text in zip(cases, raw) if id(case) in scored_ids
     ]
+    lexical_subset = [
+        (case, text) for case, text in zip(cases, lexical) if id(case) in scored_ids
+    ]
+    numeric_subset = [
+        (case, text) for case, text in zip(cases, numeric) if id(case) in scored_ids
+    ]
     report = {
         "case_count": len(cases),
         "single_pass": _score([c for c, _ in scored], [t for _, t in scored]),
         "streamed": _score(cases, streamed),
-        # The five separated metrics this benchmark exists to expose:
-        #   raw        -> how good the stored ASR output is as delivered
-        #   normalized -> generic normalization only (no medical knowledge)
-        #   single_pass-> medical canonicalization over the whole transcript
-        #   streamed   -> the same through the realtime final boundaries,
-        #                 which is the text actually injected (end to end for
-        #                 this half of the pipeline)
+        # The five separated stages this benchmark exists to expose, in
+        # pipeline order. A and B carry no medical knowledge at all; C and D
+        # are the two halves of the deterministic layer measured ALONE, so a
+        # regression names its own cause instead of hiding inside E; E is what
+        # the clinician actually receives.
+        #   A raw        -> how good the stored ASR output is as delivered
+        #   B normalized -> generic normalization only (script/digits/spacing)
+        #   C medical    -> the dictionary pass, numeric fold disabled
+        #   D numeric    -> the number/clock/ratio fold, dictionary disabled
+        #   E canonical  -> both, over the whole transcript (single pass)
+        #   E' streamed  -> both, through the realtime final boundaries, which
+        #                   is the text actually injected
         "stages": {
             "raw": _score([c for c, _ in stage_subset], [
                 text for _, text in stage_subset
@@ -174,6 +234,14 @@ def run(cases: list[dict]) -> dict:
             "normalized": _score(
                 [c for c, _ in stage_subset],
                 [normalize_text(text) for _, text in stage_subset],
+            ),
+            "medical_canonicalization_only": _score(
+                [c for c, _ in lexical_subset],
+                [text for _, text in lexical_subset],
+            ),
+            "numeric_fold_only": _score(
+                [c for c, _ in numeric_subset],
+                [text for _, text in numeric_subset],
             ),
             "canonical_single_pass": _score(
                 [c for c, _ in scored], [t for _, t in scored]
@@ -211,8 +279,7 @@ def main(argv: list[str] | None = None) -> int:
     cases = _load_cases(args.cases)
     report = run(cases)
 
-    for label in ("raw", "normalized", "canonical_single_pass",
-                  "canonical_streamed"):
+    for label in STAGE_LABELS:
         score = report["stages"][label]
         number = (
             f"num P {score['number_precision']:.3f} "
@@ -220,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
             if score["number_f1"] is not None else "num n/a"
         )
         print(
-            f"{label:19} | exact {score['exact_match']:.3f} "
+            f"{label:29} | exact {score['exact_match']:.3f} "
             f"| WER {score['wer']:.6f} "
             f"| {number} "
             f"| entity P {score['entity_precision']:.3f} "

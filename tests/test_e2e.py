@@ -16,21 +16,32 @@ from tests.test_realtime import install_fake_sdk
 
 
 class FakeMic:
-    """Stands in for MicrophoneRecorder (no hardware)."""
+    """Stands in for MicrophoneRecorder (no hardware).
+
+    Mirrors the real class's release surface: ``close()`` is the idempotent
+    release operation and ``__exit__`` only delegates to it, which is what
+    ``app.main()`` relies on (it enters the recorder inside a guarded step and
+    releases it with ``contextlib.closing``).
+    """
 
     instances = []
 
     def __init__(self, device_index=None, pyaudio_module=None):
         self.device_index = device_index
         self.closed = False
+        self.enter_calls = 0
         FakeMic.instances.append(self)
 
     def __enter__(self):
+        self.enter_calls += 1
         return self
 
     def __exit__(self, exc_type, exc, tb):
-        self.closed = True
+        self.close()
         return False
+
+    def close(self):
+        self.closed = True
 
     def read(self):
         return b"\x00" * 6400
@@ -645,6 +656,75 @@ def test_microphone_failure_cleans_up_and_exits_with_error(
     assert signal.getsignal(signal.SIGINT) is before
     assert fake_overlay.closed is True
     assert "[microphone error]" in capsys.readouterr().out
+
+
+def test_microphone_open_failure_is_reported_not_a_traceback(
+    tmp_path, monkeypatch, capsys
+):
+    """REGRESSION (D2): only ``__init__`` was guarded.
+
+    ``MicrophoneRecorder.__init__`` merely builds the PyAudio object; the input
+    device is opened in ``__enter__``, and that is where a busy, unplugged or
+    permission-denied device actually fails. That failure escaped ``main()`` as
+    a raw PortAudio traceback, so the operator got a stack dump instead of the
+    actionable message - and the exit status came from the interpreter, not
+    from the app's own error path.
+    """
+    import signal
+
+    class RecorderThatCannotOpen:
+        """Constructs fine; opening the stream fails like a real device does."""
+
+        instances = []
+
+        def __init__(self, device_index=None, pyaudio_module=None):
+            self.device_index = device_index
+            self.released = False
+            RecorderThatCannotOpen.instances.append(self)
+
+        def __enter__(self):
+            self.close()          # the real class releases PyAudio first
+            raise OSError(-9999, "Unanticipated host error")
+
+        def __exit__(self, exc_type, exc, tb):
+            self.close()
+            return False
+
+        def close(self):
+            self.released = True
+
+        def read(self):           # pragma: no cover - never reached
+            raise AssertionError("audio was read after the device failed")
+
+    class FakeOverlay:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    fake_overlay = FakeOverlay()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(
+        microphone_module, "MicrophoneRecorder", RecorderThatCannotOpen
+    )
+    monkeypatch.setattr(app_module, "create_overlay", lambda disabled: fake_overlay)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-inject",
+    ])
+
+    before = signal.getsignal(signal.SIGINT)
+    assert asyncio.run(app_module.main()) == 1
+    out = capsys.readouterr().out
+    # a clear message naming the failure, not an interpreter traceback
+    assert "[microphone error] OSError" in out
+    assert "A microphone is required for dictation" in out
+    assert "Traceback (most recent call last)" not in out
+    # the device was released and the cleanup boundary still ran
+    assert RecorderThatCannotOpen.instances[0].released is True
+    assert signal.getsignal(signal.SIGINT) is before
+    assert fake_overlay.closed is True
 
 
 # ------------------------------------------------- shutdown/failure containment
