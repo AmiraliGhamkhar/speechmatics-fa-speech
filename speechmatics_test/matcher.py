@@ -277,6 +277,37 @@ _DOSAGE_UNIT_TOKENS = frozenset(
     {"mg", "mcg", "ml", "l", "g", "kg", "cc", "cm", "mmhg", "meq", "%"}
 )
 
+#: Single-token lab analytes that are always reported with a number, so the
+#: analyte name is a numeric anchor in front of a value ("Hb 12.5", "Cr 1.8").
+#:
+#: Deliberately a curated SUBSET of the 152 ``type: "lab"`` dictionary terms,
+#: not the whole category. The qualitative ones - ``HIV``, ``wound culture``,
+#: ``not detected``, ``urinalysis``, ``blood culture`` - take no value, and
+#: anchoring them would let prose fold: "کشت خون دو روز بعد" must stay a
+#: duration, not "blood culture 2 days". Multi-word canonicals ("platelet
+#: count") are omitted because an anchor is matched against a single token.
+_LAB_ANALYTE_TOKENS = frozenset({
+    "hemoglobin", "haemoglobin", "hematocrit", "haematocrit", "platelet",
+    "erythrocyte", "reticulocyte", "leukocyte", "lymphocyte", "monocyte",
+    "neutrophil", "eosinophil", "basophil",
+    "glucose", "glycemia", "glycated", "a1c", "hba1c", "creatinine", "urea",
+    "uric", "calcium", "magnesium", "phosphate", "phosphorus", "potassium",
+    "sodium", "chloride", "bicarbonate", "hco3", "albumin", "troponin",
+    "myoglobin", "fibrinogen", "lactate", "lipase", "amylase", "cortisol",
+    "prolactin", "ferritin", "transferrin", "folate", "bilirubin", "ck-mb",
+    "inr", "aptt", "ptt", "cholesterol", "triglycerides", "hdl", "ldl",
+    "vitamin", "gfr", "cr", "k", "na", "ca", "mg", "bpm", "mmhg",
+})
+
+#: Persian words for a measured quantity that the dictionary does NOT already
+#: rewrite to a canonical abbreviation, so they never reached the anchor set
+#: and their values stayed spoken ("نبض هفتاد و دو" was left verbatim).
+_PERSIAN_MEASUREMENT_TOKENS = frozenset({
+    "نبض", "تنفس", "دما", "دمای", "فشار", "قند", "کراتینین", "اوره",
+    "اسید", "پتاسیم", "سدیم", "کلسیم", "منیزیم", "آهن", "فریتین",
+    "هموگلوبین", "هماتوکریت", "پلاکت", "تروپونین", "قندخون",
+})
+
 NUMERIC_CONTEXT = NumericContext(
     before=(frozenset({
         "ساعت", "سن", "نمره", "روی", "عدد", "دوز", "وزن", "saturation",
@@ -285,10 +316,14 @@ NUMERIC_CONTEXT = NumericContext(
         # writes. Without them "مورس چهل و پنج" stayed spoken and the entity
         # guard's Morse/Braden range check never saw a value to validate.
         "مورس", "برادن", "morse", "braden", "scale",
-    }) | _VITAL_SIGN_TOKENS),
+    }) | _VITAL_SIGN_TOKENS | _LAB_ANALYTE_TOKENS | _PERSIAN_MEASUREMENT_TOKENS),
     # "دقیقه"/"ثانیه" are deliberately NOT here: a bare "هشت و سی دقیقه" is
     # either a clock reading or a duration, and folding only one side of it
     # would corrupt both. The clock pass below handles them as a pair.
+    #
+    # "%" and "درجه" are deliberately NOT repeated here: "%" already arrives
+    # through _DOSAGE_UNIT_TOKENS, and both were measured to change no output.
+    # Keeping one source for a token is what stops the anchor sets drifting.
     after=frozenset({"سال", "ساله", "درصد", "بار", "روی"}) | _DOSAGE_UNIT_TOKENS,
     # Persian "روی" ("over"): the only spoken blood-pressure form that is a
     # value and not a diagnosis, e.g. "فشار خون صد و بیست روی هشتاد".
@@ -303,6 +338,13 @@ NUMERIC_CONTEXT = NumericContext(
     }),
     # Latin meridiem tags already written out after a spoken hour.
     meridiem_words=frozenset({"am", "pm"}),
+    # A spoken decimal followed by one of these is part of a larger
+    # construction, not a measurement: "پنج و شش ساله" is a five-to-six
+    # year-old (an age RANGE) and "ساعت هشت و نیم ساعت" is a duration. Writing
+    # either as "5.6" / "8.5" would assert a value nobody dictated.
+    decimal_blockers=frozenset({
+        "سال", "ساله", "ماه", "ماهه", "هفته", "روز", "ساعت", "دقیقه",
+    }),
 )
 
 
