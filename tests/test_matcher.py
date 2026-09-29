@@ -852,8 +852,11 @@ SAFE_CASES = [
     # "هزار" is deliberately not in the numeral lexicon: no half-thousands.
     ("هزار میلی لیتر", "هزار mL"),
     # A duration is not a clock reading, and half an hour of it stays spoken.
+    # "ساعت هشت و نیم ساعت" used to come out as "ساعت 8 و نیم ساعت": the
+    # integer head was folded and the half orphaned, which was the decimal
+    # bug itself. It is now left exactly as dictated, like the other durations.
     ("دو و نیم ساعت", "دو و نیم ساعت"),
-    ("ساعت هشت و نیم ساعت", "ساعت 8 و نیم ساعت"),
+    ("ساعت هشت و نیم ساعت", "ساعت هشت و نیم ساعت"),
     ("هر دو ساعت داده شد", "q2h داده شد"),
     # Units keep their own canonical spelling.
     ("دوز 20 mg", "دوز 20 mg"),
@@ -1208,6 +1211,147 @@ def test_two_adjacent_numbers_are_never_added_together(fst, raw, expected):
 ])
 def test_named_nursing_scales_anchor_their_score(fst, raw, expected):
     assert canon(fst, raw) == expected
+
+
+# ------------------------------------------------------ spoken decimal halves
+#
+# A spoken half ("نیم") used to be invisible to the numeral lexicon, so the
+# run stopped at the integer head and the ANCHOR still folded it: a dictated
+# 30.5 °C was written "30" and the ".5" was orphaned next to it. That is a
+# fabricated clinical value, not a formatting difference, so each case below
+# pins the exact decimal.
+
+@pytest.mark.parametrize("raw,expected", [
+    # <integer> و نیم -> the exact decimal, never a truncated integer.
+    ("دمای بدن سی و نیم درجه", "Temp 30.5 درجه"),
+    ("دمای بدن سی و هشت و نیم درجه", "Temp 38.5 درجه"),
+    ("دمای بدن سی و دو و نیم درجه", "Temp 32.5 درجه"),
+    # "نه" alone is the word "no", but "نه و نیم" is unambiguously 9.5.
+    ("دمای بدن نه و نیم درجه", "Temp 9.5 درجه"),
+    ("کلسیم نه و نیم", "calcium 9.5"),
+    # Recognition glues the joiner to the next word; same value.
+    ("دمای بدن سی و هشت ونیم درجه", "Temp 38.5 درجه"),
+    # unit + "و" + unit is the spoken decimal, not a sum: 1.8, not 18.
+    ("کراتینین یک و هشت میلی گرم", "Cr 1.8 mg"),
+    ("کراتینین یک و هشت", "Cr 1.8"),
+    ("پتاسیم سه و پنج", "potassium 3.5"),
+    ("دمای بدن پنج و نیم", "Temp 5.5"),
+    # "نیمه" is the formal spelling of the same half.
+    ("دمای بدن سی و نیمه درجه", "Temp 30.5 درجه"),
+])
+def test_spoken_decimal_halves_fold_to_the_exact_value(fst, raw, expected):
+    assert canon(fst, raw) == expected
+
+
+@pytest.mark.parametrize("raw", [
+    # An age RANGE, not 5.6 years: "پنج و شش ساله" is a five-to-six-year-old.
+    "بیمار پنج و شش ساله است",
+    "کودک پنج و شش ساله",
+    # Durations, not clock readings and not decimals.
+    "دو و نیم ساعت",
+    "هشت و نیم ساعت دیگر",
+    "ساعت هشت و نیم ساعت",
+    "سی و نیم ساعت بعد از عمل",
+    # Prose that merely contains a numeral word.
+    "یک ضایعه در ریه",
+    "نه ممنوع است",
+    # An unanchored decimal has no measurement context at all.
+    "او سی و نیم سال از این کار استفاده کرد",
+])
+def test_spoken_decimals_never_fold_without_a_measurement(fst, raw):
+    """No numeral word in these may become a digit.
+
+    Compared on the NUMERALS rather than on the whole string: some of
+    these carry unrelated dictionary rewrites, and this test is about
+    the number layer, not the lexical one.
+    """
+    assert not _introduces_a_digit(canon(fst, raw), raw)
+
+
+def _introduces_a_digit(output: str, source: str) -> bool:
+    """Whether ``output`` states a number that ``source`` did not."""
+    if any(character.isdigit() for character in source):
+        return False
+    return any(character.isdigit() for character in output)
+
+
+def test_a_plain_integer_is_never_rendered_as_a_float(fst):
+    """Only a real decimal gains a dot; "45" must never become "45.0"."""
+    assert canon(fst, "سن پنجاه و هشت سال") == "سن 58 سال"
+    assert canon(fst, "نمره چهل و پنج") == "نمره 45"
+
+
+def test_spoken_decimal_fold_is_idempotent(fst):
+    once = canon(fst, "دمای بدن سی و هشت و نیم درجه")
+    assert canon(fst, once) == once
+
+
+@pytest.mark.parametrize("tokens,expected", [
+    # <integer> + spoken half.
+    ("سی و نیم", (3, 30.5)),
+    ("سی و هشت و نیم", (5, 38.5)),
+    ("سی و دو و نیم", (5, 32.5)),
+    ("نه و نیم", (3, 9.5)),
+    ("یک و نیم", (3, 1.5)),
+    # unit + "و" + unit is a decimal tenths digit, not a sum.
+    ("یک و هشت", (3, 1.8)),
+    ("نه و پنج", (3, 9.5)),
+    # The glued joiner recognition actually produces.
+    ("سی و هشت ونیم", (4, 38.5)),
+    # A half must be introduced by the joiner.
+    ("سی نیم", (1, 30)),
+])
+def test_spoken_number_run_reads_decimal_shapes(tokens, expected):
+    from speechmatics_test.text import spoken_number_at
+
+    assert spoken_number_at(tokens.split(), 0,
+                            half_words=NUMERIC_CONTEXT.half_words) == expected
+
+
+def test_decimal_shapes_are_not_recognised_without_half_words():
+    """The vocabulary is the caller's, so a bare run stays cardinal-only."""
+    from speechmatics_test.text import spoken_number_at
+
+    assert spoken_number_at("سی و نیم".split(), 0) == (1, 30)
+
+
+# -------------------------------------------------------- numeric anchors
+#
+# Vital signs were the only anchors, so a dictated lab value with no unit
+# ("نبض هفتاد و دو", "کراتینین یک و هشت") stayed spoken. The anchors below
+# are a curated subset of the numeric analytes; the qualitative lab terms
+# stay out of it.
+
+@pytest.mark.parametrize("raw,expected", [
+    ("نبض هفتاد و دو", "نبض 72"),
+    ("تنفس بیست و چهار", "تنفس 24"),
+    ("کراتینین یک و هشت", "Cr 1.8"),
+    ("قند خون صد و بیست و پنج", "glucose 125"),
+    # "%" is an anchor because the lexical pass rewrites "درصد" to "%".
+    ("HBA1C هشت و دو درصد", "HBA1C 8.2 %"),
+    ("پتاسیم سه و پنج", "potassium 3.5"),
+])
+def test_measurement_words_anchor_the_value_that_follows(fst, raw, expected):
+    assert canon(fst, raw) == expected
+
+
+@pytest.mark.parametrize("raw", [
+    # A qualitative lab term takes no value, so its number stays a word.
+    "کشت خون دو روز بعد",
+    "تست HIV مثبت است",
+    "بیمار سه روز بعد مراجعه کرد",
+    "عفونت دو هفته دیگر بهتر می‌شود",
+    "نمونه خون دیروز گرفته شد",
+    "دو مورد از ده مورد",
+])
+def test_qualitative_lab_context_never_invents_a_value(fst, raw):
+    """A number may not appear in a context with no value to report.
+
+    These sentences do contain numeral words, so only the introduction
+    of a digit is asserted - the point is that none is a measurement.
+    """
+    assert not _introduces_a_digit(canon(fst, raw), raw)
+
 
 
 @pytest.mark.parametrize("raw,expected", [

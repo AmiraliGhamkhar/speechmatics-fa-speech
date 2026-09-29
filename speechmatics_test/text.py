@@ -149,6 +149,33 @@ _SPOKEN_NUMERAL_TRANSITIONS = frozenset({(3, 2), (3, 1), (3, 0), (2, 0)})
 #: Meaningless as a measurement on their own - never folded as a whole run.
 SPOKEN_NUMERAL_UNSAFE_ALONE = frozenset({"یک", "نه"})
 
+
+def _is_unit(value: Optional[int]) -> bool:
+    """Whether ``value`` is a single-digit numeral (0-9)."""
+    return value is not None and 0 <= value <= 9
+
+
+def _half_tail(tokens: list[str], index: int,
+               half_words: frozenset[str]) -> Optional[int]:
+    """Index just past a spoken half ("و نیم" / "ونیم"), or ``None``.
+
+    A bare "نیم" straight after a number is not a decimal in Persian ("هشت نیم"
+    is not a reading anyone dictates), so the joiner is required - either as
+    its own token or glued to the word, which recognition output does
+    ("هشت ونیم").
+    """
+    if not half_words or index >= len(tokens):
+        return None
+    head = _bare(tokens[index])
+    if head == SPOKEN_NUMERAL_JOINER:
+        if index + 1 < len(tokens) and _bare(tokens[index + 1]) in half_words:
+            return index + 2
+        return None
+    if head.startswith(SPOKEN_NUMERAL_JOINER) and len(head) > 1:
+        if head[len(SPOKEN_NUMERAL_JOINER):] in half_words:
+            return index + 1
+    return None
+
 #: Punctuation stripped from a token before it is compared with a table. The
 #: trimmed characters are never consumed by a replacement, so a sentence stop
 #: or a comma always survives the fold.
@@ -181,6 +208,11 @@ class NumericContext:
     #: Latin meridiem tags, used only to notice that a time is already written
     #: out numerically right after the spoken hour ("دوازده 12 PM").
     meridiem_words: frozenset[str] = frozenset({"am", "pm"})
+    #: Words that turn a spoken decimal into part of a LARGER construction, so
+    #: it must not be written as a decimal: an age range ("پنج و شش ساله" is
+    #: "5-6 years old", not 5.6), a duration ("ساعت هشت و نیم ساعت") or a
+    #: clock reading. Integers are unaffected - "سن سه سال" still folds to 3.
+    decimal_blockers: frozenset[str] = frozenset()
 
 
 def _bare(token: str) -> str:
@@ -241,7 +273,9 @@ def _continues_number(previous: int, value: int) -> bool:
 
 
 def spoken_number_at(tokens: list[str], index: int, *,
-                     allow_single_unsafe: bool = False) -> Optional[tuple[int, int]]:
+                     allow_single_unsafe: bool = False,
+                     half_words: frozenset[str] = frozenset(),
+                     ) -> Optional[tuple[int, float]]:
     """``(tokens_consumed, value)`` of the maximal valid numeral run at ``index``.
 
     ``None`` when no valid number starts there. A run interrupted by anything
@@ -252,36 +286,60 @@ def spoken_number_at(tokens: list[str], index: int, *,
     how Persian numbers are actually built. Two same-class numerals spoken back
     to back ("نهصد سیصد", "هشت سه") are two separate numbers and are never
     added together: reporting their sum would invent a dose or a score.
+
+    Two decimal shapes are recognised, and only these two:
+
+    * a single unit digit, "و", another single unit digit - "یک و هشت" (1.8),
+      "نه و پنج" (9.5). Magnitude order alone rejects this, because two units
+      never sum in a cardinal, but a doctor dictates it for a decimal;
+    * a whole number followed by a spoken half - "سی و هشت و نیم" (38.5).
+
+    Both need the half/decimal words, which are supplied by the caller as
+    ``half_words`` so this module keeps no domain vocabulary of its own. A
+    value is ``int`` unless a decimal shape was actually consumed, so an
+    ordinary integer still renders as "45" and never as "45.0".
     """
-    total = 0
-    count = 0
+    parts: list[int] = []
     previous: Optional[int] = None
     cursor = index
     while cursor < len(tokens):
         token = tokens[cursor]
         if token == SPOKEN_NUMERAL_JOINER:
-            if not count or cursor + 1 >= len(tokens):
+            if not parts or cursor + 1 >= len(tokens):
                 break
             follower = _numeral(tokens[cursor + 1])
-            if follower is None or (previous is not None
-                                    and not _continues_number(previous, follower)):
+            if follower is None:
                 break
+            if previous is None or not _continues_number(previous, follower):
+                # Only a lone unit digit may take a unit tenths digit this
+                # way: "یک و هشت" is 1.8, while "نهصد و سیصد" stays two
+                # separate numbers.
+                if (len(parts) != 1 or not _is_unit(previous)
+                        or not _is_unit(follower)):
+                    break
+                return (cursor + 2 - index, parts[0] + follower / 10)
             value, cursor = follower, cursor + 2
         else:
             value = _numeral(token)
             if value is None:
                 break
-            if not count:
-                if not allow_single_unsafe and token in SPOKEN_NUMERAL_UNSAFE_ALONE:
-                    break
-            elif previous is None or not _continues_number(previous, value):
+            if parts and (previous is None or not _continues_number(previous, value)):
                 break
             cursor += 1
-        total += value
+        parts.append(value)
         previous = value
-        count += 1
-    if not count or (count == 1 and not allow_single_unsafe
-                     and tokens[index] in SPOKEN_NUMERAL_UNSAFE_ALONE):
+    if not parts:
+        return None
+    total = sum(parts)
+    if half_words:
+        tail = _half_tail(tokens, cursor, half_words)
+        if tail is not None:
+            # A half makes the value a decimal whatever the integer part was,
+            # so "یک و نیم" (1.5) and "نه و نیم" (9.5) are measurements even
+            # though a bare "یک"/"نه" is the ordinary word.
+            return tail - index, total + 0.5
+    if (len(parts) == 1 and not allow_single_unsafe
+            and tokens[index] in SPOKEN_NUMERAL_UNSAFE_ALONE):
         return None
     return cursor - index, total
 
@@ -293,11 +351,16 @@ def _number_at(tokens: list[str], index: int, maximum: int, *,
     if token.isdigit() and len(token) <= 3:
         value = int(token)
         return (value, 1) if value <= maximum else (None, 0)
+    # No ``half_words`` here on purpose: this helper feeds the CLOCK pass,
+    # which reads a half as minutes ("ساعت هشت و نیم" -> "8:30"). Letting a
+    # decimal through would give an hour field of "8.5".
     run = spoken_number_at(tokens, index,
                            allow_single_unsafe=allow_single_unsafe)
     if run is None:
         return None, 0
     consumed, value = run
+    if isinstance(value, float):
+        return None, 0
     return (value, consumed) if value <= maximum else (None, 0)
 
 
@@ -331,7 +394,7 @@ def fold_spoken_numbers(text: str, context: NumericContext) -> str:
     edits: list[tuple[int, int, str]] = []
     index = 0
     while index < len(tokens):
-        run = spoken_number_at(tokens, index)
+        run = spoken_number_at(tokens, index, half_words=context.half_words)
         if run is None:
             index += 1
             continue
@@ -374,6 +437,13 @@ def fold_spoken_numbers(text: str, context: NumericContext) -> str:
             context.after,
         )
         if _meridiem_restated(tokens, group_end, context):
+            anchored = False
+        if isinstance(value, float) and _anchor(
+                tokens[group_end] if group_end < len(tokens) else None,
+                context.decimal_blockers):
+            # "پنج و شش ساله" is a five-to-six-year-old, not 5.6 years; a
+            # decimal followed by one of these belongs to a range, a duration
+            # or a clock reading, so it is left exactly as dictated.
             anchored = False
         if not incomplete and anchored:
             edits.append((spans[index][0], _span_end(spans, tokens, end - 1), str(value)))
