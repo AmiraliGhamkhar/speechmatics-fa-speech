@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import os
 import queue
@@ -34,6 +35,8 @@ from speechmatics_test.realtime import (
     resolve_domain,
 )
 from speechmatics_test.text import (
+    SPOKEN_FRACTION_DENOMINATORS,
+    SPOKEN_LARGE_MULTIPLIERS,
     SPOKEN_NUMERAL_JOINER,
     SPOKEN_NUMERALS,
     SPOKEN_THOUSANDS,
@@ -43,6 +46,29 @@ from speechmatics_test.text import (
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
+
+#: Every token that can appear INSIDE one spoken number. A value is only
+#: all-or-nothing when its whole group is held together, so both the numeric
+#: tail scan and the unit walkback use this one definition instead of each
+#: keeping its own shorter list - the shorter lists stopped at the joiner "و"
+#: and at the spoken half "نیم", which split one dictated measurement across an
+#: emission boundary and folded only the part that had already been emitted
+#: ("دوز دو هزار و پانصد میلی گرم" -> "دوز 2000 و 500 mg", a dose nobody said).
+#:
+#: Composed from the numeric grammar in ``text`` (numerals, the magnitude word
+#: "هزار", the joiner, explicit fraction denominators, unfolded magnitudes) and
+#: the domain vocabulary carried by ``NUMERIC_CONTEXT`` (the spoken half/quarter
+#: and the ratio connector). ``text`` deliberately owns no clinical vocabulary,
+#: so the union is built here where both are already imported.
+_NUMBER_GROUP_TOKENS: frozenset[str] = (
+    frozenset(SPOKEN_NUMERALS)
+    | frozenset(SPOKEN_THOUSANDS)
+    | frozenset(SPOKEN_FRACTION_DENOMINATORS)
+    | SPOKEN_LARGE_MULTIPLIERS
+    | NUMERIC_CONTEXT.half_words
+    | NUMERIC_CONTEXT.quarter_words
+    | {SPOKEN_NUMERAL_JOINER, NUMERIC_CONTEXT.ratio_connector}
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -396,13 +422,27 @@ class FinalStreamCanonicalizer:
         _, canonical = self._medical.rule_match_at(
             tokens, cut, preserve_narrative=True
         )
-        head = canonical.split()[0].casefold() if canonical.split() else ""
-        if head not in NUMERIC_CONTEXT.after:
+        heads = {canonical.split()[0].casefold()} if canonical.split() else set()
+        # ``rule_match_at`` only sees COMPLETE forms, so it misses the case
+        # where Speechmatics splits the unit itself: "پانصد میلی" + "گرم".
+        # The pending head ("میلی" can still become mg/mL/mcg) counts too -
+        # otherwise "پانصد" is emitted alone, folds to a bare 500, and the
+        # dose arrives as "500" plus a stray "میلی گرم" instead of "500 mg".
+        heads |= self._medical.strict_prefix_canonical_heads(
+            tokens[cut:], preserve_narrative=True
+        )
+        if not heads & NUMERIC_CONTEXT.after:
             return cut
+        # Walk back over the WHOLE number group, not just adjacent numerals.
+        # The joiner, the magnitude word and the spoken half are part of the
+        # value, so "دوز دو هزار و پانصد میلی" + "گرم" must hold from "دو":
+        # emitting "دو هزار و" first folds it to "2000 و" and the same dose
+        # then reads "دوز 2000 و 500 mg" - a fabricated second number.
         # Bounded by the same 12-token window as ``_numeric_tail_start`` so a
         # stream of numeral-only finals still drains.
         while (cut > 0
-               and tokens[cut - 1] in SPOKEN_NUMERALS
+               and (tokens[cut - 1] in _NUMBER_GROUP_TOKENS
+                    or tokens[cut - 1].isdigit())
                and len(tokens) - (cut - 1) <= 12):
             cut -= 1
         return cut
@@ -412,10 +452,12 @@ class FinalStreamCanonicalizer:
         """Start of a potentially extendable numeric suffix (maximum 12 tokens)."""
         # Spoken thousands belong to the numeric tail too: a final ending in
         # "پلاکت صد و پنجاه" must stay buffered so the "هزار" that gives it its
-        # magnitude (or a continuation like "و دویست") can still arrive.
-        number_tokens = set(SPOKEN_NUMERALS) | set(SPOKEN_THOUSANDS) | {
-            SPOKEN_NUMERAL_JOINER, NUMERIC_CONTEXT.ratio_connector,
-        }
+        # magnitude (or a continuation like "و دویست") can still arrive.  So do
+        # the joiner, the spoken half and the fraction denominators: a final
+        # ending in "دو و نیم" or "سی و هفت و هشت دهم" is an unfinished decimal,
+        # and emitting it before its unit arrives leaves the fold with a number
+        # it must not convert on its own.
+        number_tokens = _NUMBER_GROUP_TOKENS
         # 12 covers a complete bounded BP expression while preventing a stream
         # of malformed numeral-only finals from growing the buffer forever.
         for i in range(max(0, len(tokens) - 12), len(tokens)):
@@ -897,6 +939,14 @@ async def main() -> int:
             # failure (no device, PyAudio missing) must still remove the
             # SIGINT handler and close the overlay below.
             recorder = MicrophoneRecorder(device_index=args.device_index)
+            # Entering is part of the same guarded step. __init__ only builds
+            # the PyAudio object; the input device is opened in __enter__, and
+            # that is where a missing, busy or unplugged device actually fails.
+            # Entering outside the guard escaped as a raw PortAudio traceback
+            # instead of the message below, with a non-zero exit code nobody
+            # chose. __enter__ releases PyAudio itself before re-raising, so a
+            # failure here leaks nothing.
+            recorder.__enter__()
         except Exception as exc:
             print(f"\n[microphone error] {type(exc).__name__}: {exc}")
             print(
@@ -905,7 +955,10 @@ async def main() -> int:
                 "(Linux: sudo apt install portaudio19-dev python3-dev first)."
             )
             return 1
-        with recorder:
+        # Already entered above, so ``closing`` (which calls close() on unwind,
+        # exactly what MicrophoneRecorder.__exit__ does) replaces ``with
+        # recorder:`` without entering the stream a second time.
+        with contextlib.closing(recorder):
             stt = SpeechmaticsRealtime(
                 api_key=api_key,
                 language=args.language,
@@ -1033,6 +1086,15 @@ async def main() -> int:
             "first_partial_latency_ms": getattr(result, "first_partial_ms", None),
             "session_error": getattr(result, "error", None),
             "parse_warnings": getattr(result, "warnings", []) if result else [],
+            # Provider-side statements about the session and the pronunciation
+            # hints the adapter chose not to send. Separate from
+            # parse_warnings, which is strictly about our own message parsing.
+            "service_warnings": (
+                getattr(result, "service_warnings", []) if result else []
+            ),
+            "vocabulary_notes": (
+                getattr(result, "vocabulary_notes", []) if result else []
+            ),
             "audio_overflow_events": getattr(recorder, "overflow_events", None),
             "partials": getattr(result, "partials", []),
             "final_segments": getattr(result, "final_segments", []),

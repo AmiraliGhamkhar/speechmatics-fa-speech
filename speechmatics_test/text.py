@@ -232,13 +232,14 @@ _WEAK_THOUSAND_ANCHORS = frozenset({"سال", "ساله", "بار"})
 def _number_group_end(tokens: list[str], index: int, end: int) -> int:
     """End of the number GROUP that starts at ``index`` (folds nothing).
 
-    A group is the run itself plus every ``و <run>`` behind it and every
-    numeral or thousand the run refused to absorb. It is computed separately
-    from ``spoken_number_at`` so a malformed sequence can be skipped as a whole
-    even when the run itself was refused: folding only its head (or leaving its
-    tail for the next loop iteration to fold) would report part of a number
-    nobody dictated - "نمره هشت سه" must not become "نمره 8 سه", and a refused
-    "دو هزار هزار" must not digitize its trailing "هزار".
+    A group is the run itself plus every ``و <run>`` behind it, every numeral
+    or thousand the run refused to absorb, and any trailing fraction
+    denominator. It is computed separately from ``spoken_number_at`` so a
+    malformed sequence can be skipped as a whole even when the run itself was
+    refused: folding only its head (or leaving its tail for the next loop
+    iteration to fold) would report part of a number nobody dictated -
+    "نمره هشت سه" must not become "نمره 8 سه", and a refused "دو هزار هزار"
+    must not digitize its trailing "هزار".
     """
     group_end = end
     while group_end < len(tokens):
@@ -247,8 +248,23 @@ def _number_group_end(tokens: list[str], index: int, end: int) -> int:
             # fold): "چهار میلیون" must not come out as "4 میلیون".
             group_end += 1
             continue
+        if _bare(tokens[group_end]) in SPOKEN_FRACTION_DENOMINATORS:
+            # A denominator the run did not consume belongs to the group:
+            # emitting the number without it wrote the self-contradictory
+            # "دوز 5 دهم" / "Temp 38 دهم" (a digit next to the word that says
+            # the digit is a fraction). Skipping the whole group instead is
+            # the all-or-nothing direction.
+            group_end += 1
+            continue
         if tokens[group_end] == SPOKEN_NUMERAL_JOINER:
-            following = spoken_number_at(tokens, group_end + 1)
+            # ``allow_single_unsafe`` matters here exactly as it does in the
+            # numeral branch below: a dangling "و نه" / "و یک" is part of the
+            # group even though those words are refused on their own. Without
+            # it the group looked complete and only its head was folded, so
+            # "دوز سی و شش و نه میلی گرم" came out as the fabricated dose
+            # "دوز 36 و نه mg".
+            following = spoken_number_at(tokens, group_end + 1,
+                                         allow_single_unsafe=True)
             if following is None:
                 break
             group_end = group_end + 1 + following[0]
@@ -375,17 +391,24 @@ def spoken_number_at(tokens: list[str], index: int, *,
     to back ("نهصد سیصد", "هشت سه") are two separate numbers and are never
     added together: reporting their sum would invent a dose or a score.
 
-    Two decimal shapes are recognised, and only these two:
+    Two decimal shapes are recognised without a denominator word, and one
+    with:
 
     * a single unit digit, "و", another single unit digit - "یک و هشت" (1.8),
       "نه و پنج" (9.5). Magnitude order alone rejects this, because two units
       never sum in a cardinal, but a doctor dictates it for a decimal;
-    * a whole number followed by a spoken half - "سی و هشت و نیم" (38.5).
+    * a whole number followed by a spoken half - "سی و هشت و نیم" (38.5);
+    * a whole number, "و", a single unit digit and an EXPLICIT fraction
+      denominator - "یک و دو دهم" (1.2), "سی و هفت و هشت دهم" (37.8),
+      "بیست و دو و پنج صدم" (22.05). The denominator names the divisor, so
+      unlike the first shape this is unambiguous for any integer part - which
+      matters because a body temperature is always a two-part integer plus
+      tenths.
 
-    Both need the half/decimal words, which are supplied by the caller as
-    ``half_words`` so this module keeps no domain vocabulary of its own. A
-    value is ``int`` unless a decimal shape was actually consumed, so an
-    ordinary integer still renders as "45" and never as "45.0".
+    The first two need the half/decimal words, which are supplied by the
+    caller as ``half_words`` so this module keeps no domain vocabulary of its
+    own. A value is ``int`` unless a decimal shape was actually consumed, so
+    an ordinary integer still renders as "45" and never as "45.0".
 
     A spoken thousand multiplies the parts in front of it and must stay inside
     ONE group: a run that meets a thousand it cannot consume refuses the whole
@@ -409,6 +432,21 @@ def spoken_number_at(tokens: list[str], index: int, *,
                 if _bare(tokens[cursor + 1]) in SPOKEN_THOUSANDS:
                     return None
                 break
+            # An EXPLICIT denominator word ("... و هشت دهم") names what the
+            # spoken digit divides by, so it is unambiguous whatever the
+            # integer part was - and it takes precedence over reading the
+            # digit as another cardinal part. Without this the denominator was
+            # only consulted on the single-unit-digit exception below, which
+            # left the two shapes Persian actually dictates for a decimal
+            # vital sign broken: "سی و هشت دهم" folded to the contradictory
+            # "38 دهم" (30.8 dictated) and "سی و هفت و هشت دهم" (37.8, the
+            # ordinary way to say a body temperature) refused the whole group.
+            if _is_unit(follower):
+                fraction = _fraction_denominator(tokens, cursor + 2)
+                if fraction is not None:
+                    denominator, extra = fraction
+                    return (cursor + 2 + extra - index,
+                            sum(parts) + follower / denominator)
             if previous is None or not _continues_number(previous, follower):
                 # Only a lone unit digit may take a unit tenths digit this
                 # way: "یک و هشت" is 1.8, while "نهصد و سیصد" stays two

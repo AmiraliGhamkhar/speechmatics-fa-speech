@@ -72,6 +72,21 @@ class MedicalLayer:
             tokens, preserve_narrative=preserve_narrative
         )
 
+    def strict_prefix_canonical_heads(
+        self, tokens: list[str], *, preserve_narrative: bool = False
+    ) -> frozenset[str]:
+        """First canonical tokens ``tokens`` could still grow into.
+
+        See ``MedicalMatcher.strict_prefix_canonical_heads``: the companion to
+        ``is_strict_rule_token_prefix`` that also says *what* the held fragment
+        would become, so the streaming cut can tell a pending UNIT ("میلی" ->
+        mg, keep the number in front) from a pending new measurement phrase
+        ("اشباع اکسیژن" -> SpO2, emit the completed value before it).
+        """
+        return self.fst.strict_prefix_canonical_heads(
+            tokens, preserve_narrative=preserve_narrative
+        )
+
     def rule_match_at(
         self, tokens: list[str], index: int, *, preserve_narrative: bool = False
     ) -> tuple[int, str]:

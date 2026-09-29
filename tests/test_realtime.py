@@ -53,10 +53,16 @@ def install_fake_sdk(monkeypatch, behavior=None):
     behavior = behavior or {}
     registry = {"configs": [], "clients": []}
 
-    class ServerMessageType(Enum):
-        ADD_PARTIAL_TRANSCRIPT = "AddPartialTranscript"
-        ADD_TRANSCRIPT = "AddTranscript"
-        ERROR = "Error"
+    # Built functionally so a test can model an SDK release with no WARNING
+    # member at all (see test_warning_subscription_degrades...).
+    _message_types = {
+        "ADD_PARTIAL_TRANSCRIPT": "AddPartialTranscript",
+        "ADD_TRANSCRIPT": "AddTranscript",
+        "ERROR": "Error",
+    }
+    if not behavior.get("no_warning_event"):
+        _message_types["WARNING"] = "Warning"
+    ServerMessageType = Enum("ServerMessageType", _message_types)
 
     class Model(Enum):
         STANDARD = "standard"
@@ -122,7 +128,13 @@ def install_fake_sdk(monkeypatch, behavior=None):
             self.closed = True
             return False
 
-        def on(self, event):
+        def on(self, event, callback=None):
+            # Mirrors the real EventEmitter, which accepts both the decorator
+            # form and a direct (event, callback) registration.
+            if callback is not None:
+                self.handlers[event] = callback
+                return callback
+
             def decorator(callback):
                 self.handlers[event] = callback
                 return callback
@@ -136,6 +148,10 @@ def install_fake_sdk(monkeypatch, behavior=None):
                 handler = self.handlers.get(ServerMessageType.ERROR)
                 if handler:
                     handler({"message": "Error", "reason": behavior["server_error"]})
+            for warning in behavior.get("server_warnings") or ():
+                handler = self.handlers.get(ServerMessageType.WARNING)
+                if handler:
+                    handler(warning)
 
         async def send_audio(self, chunk):
             if behavior.get("hang_send_after") is not None and \
@@ -245,7 +261,12 @@ def test_config_values_sent(monkeypatch):
     registry = install_fake_sdk(monkeypatch, {"script": []})
     stt = SpeechmaticsRealtime(
         api_key="k", language="en",
-        additional_vocab=["CT scan", {"content": "lesion", "sounds_like": ["لیژن"]}],
+        # same-script pronunciation: this test is about the config that gets
+        # sent, not about the script filter (see
+        # test_wrong_script_pronunciations_are_dropped_and_reported).
+        additional_vocab=[
+            "CT scan", {"content": "lesion", "sounds_like": ["lee zhun"]},
+        ],
     )
     audio = FakeAudio([b"a"])
     asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
@@ -257,7 +278,7 @@ def test_config_values_sent(monkeypatch):
     assert cfg["max_delay"] == 2.0
     assert cfg["max_delay_mode"] == "flexible"
     assert cfg["additional_vocab"] == [
-        "CT scan", {"content": "lesion", "sounds_like": ["لیژن"]}
+        "CT scan", {"content": "lesion", "sounds_like": ["lee zhun"]}
     ]
     # deprecated operating_point must not be used
     assert "operating_point" not in cfg
@@ -306,7 +327,9 @@ def test_vocab_cleaning(monkeypatch):
         api_key="k", language="fa",
         additional_vocab=[
             "  CT scan  ", "", "CT scan",          # dupes / empty
-            {"content": "lesion", "sounds_like": ["لیژن", "lesion spoken form"]},
+            # two same-script pronunciations: both must survive the merge
+            {"content": "lesion",
+             "sounds_like": ["لیژن", "لزیون"]},
             {"content": "  "},                      # no usable content
             42,                                     # junk
         ],
@@ -314,8 +337,147 @@ def test_vocab_cleaning(monkeypatch):
     audio = FakeAudio([b"a"])
     asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
     assert registry["configs"][0]["additional_vocab"] == [
-        "CT scan", {"content": "lesion", "sounds_like": ["لیژن", "lesion spoken form"]}
+        "CT scan",
+        {"content": "lesion", "sounds_like": ["لیژن", "لزیون"]},
     ]
+
+
+def test_wrong_script_pronunciations_are_dropped_and_reported(monkeypatch):
+    """REGRESSION (D6): ``sounds_like`` only works in the language's own script.
+
+    Speechmatics documents that a custom-dictionary pronunciation is applied
+    only in the MAIN SCRIPT of the session language, so a Latin ``sounds_like``
+    on a Persian session (and a Persian one on an English session) cannot take
+    effect: the service ignores it and answers with an in-band
+    ``validation_warning``. The exported vocabulary is shared by both language
+    streams and carries 345 pronunciations, 4 of which are Latin - so the
+    filter has to live where the language is known.
+
+    The TERM itself must still be sent (only the dead hint goes), and the drop
+    must be REPORTED: silently discarding it would let the operator believe a
+    term is pronunciation-biased when it is not.
+    """
+    registry = install_fake_sdk(monkeypatch, {"script": []})
+    vocab = [
+        {"content": "MRI", "sounds_like": ["M R I", "ام آر آی"]},
+        {"content": "پنی سیلین", "sounds_like": ["پنیسیلین"]},
+    ]
+
+    stt = SpeechmaticsRealtime(api_key="k", language="fa", additional_vocab=vocab)
+    asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+    # Persian session: the Latin hint goes, the Persian one and BOTH terms stay
+    assert registry["configs"][0]["additional_vocab"] == [
+        {"content": "MRI", "sounds_like": ["ام آر آی"]},
+        {"content": "پنی سیلین", "sounds_like": ["پنیسیلین"]},
+    ]
+    assert len(stt.result.vocabulary_notes) == 1
+    assert "'MRI'" in stt.result.vocabulary_notes[0]
+    assert "'M R I'" in stt.result.vocabulary_notes[0]
+    # a configuration note is not a message-parsing problem
+    assert stt.result.warnings == []
+
+    registry = install_fake_sdk(monkeypatch, {"script": []})
+    stt = SpeechmaticsRealtime(api_key="k", language="en", additional_vocab=vocab)
+    asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+    # English session: the mirror image - Persian hints go, both terms stay
+    assert registry["configs"][0]["additional_vocab"] == [
+        {"content": "MRI", "sounds_like": ["M R I"]},
+        "پنی سیلین",
+    ]
+    # both Persian hints are unusable on an English session
+    assert len(stt.result.vocabulary_notes) == 2
+
+    # A region subtag must classify the same way as its base language.
+    registry = install_fake_sdk(monkeypatch, {"script": []})
+    stt = SpeechmaticsRealtime(api_key="k", language="fa-IR", additional_vocab=vocab)
+    asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+    assert len(stt.result.vocabulary_notes) == 1
+
+    # No language -> exactly the legacy behaviour (nothing is filtered), so the
+    # staticmethod stays usable for dictionary-side validation.
+    assert SpeechmaticsRealtime._clean_vocab(vocab) == [
+        {"content": "MRI", "sounds_like": ["M R I", "ام آر آی"]},
+        {"content": "پنی سیلین", "sounds_like": ["پنیسیلین"]},
+    ]
+
+
+def test_unclassifiable_pronunciations_are_kept(monkeypatch):
+    """A digits/punctuation-only or genuinely mixed hint is NOT dropped.
+
+    The filter decides what to SEND, so an uncertain verdict is left to the
+    service's own validation instead of being silently discarded here.
+    """
+    registry = install_fake_sdk(monkeypatch, {"script": []})
+    vocab = [{"content": "B12", "sounds_like": ["12", "B12 بی تولف", "C3-C4"]}]
+    stt = SpeechmaticsRealtime(api_key="k", language="fa", additional_vocab=vocab)
+    asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+    sent = registry["configs"][0]["additional_vocab"][0]["sounds_like"]
+    assert "12" in sent                      # no letters at all: no opinion
+    assert "B12 بی تولف" in sent           # a real mix: kept
+    assert "C3-C4" not in sent               # unambiguously Latin: dropped
+    assert len(stt.result.vocabulary_notes) == 1
+
+
+def test_server_warnings_are_recorded_not_only_logged(monkeypatch):
+    """REGRESSION (D7): the SDK's own WARNING handler only writes to its logger.
+
+    A service complaint therefore never reached the session report. The one
+    that matters most is ``validation_warning``, sent in-band BEFORE
+    RecognitionStarted when an ``additional_vocab`` entry is rejected - a
+    pronunciation bias that silently never happened. ``idle_timeout`` /
+    ``duration_limit_exceeded`` explain a transcript that stopped early.
+    """
+    registry = install_fake_sdk(monkeypatch, {
+        "script": [("final", "سی تی اسکن")],
+        "server_warnings": [
+            {"message": "additional_vocab entry ignored",
+             "reason": "validation_warning", "type": "Warning"},
+            {"message": "idle timeout reached",
+             "reason": "idle_timeout", "type": "Warning"},
+            # a repeated reason must not bury the report
+            {"message": "idle timeout reached",
+             "reason": "idle_timeout", "type": "Warning"},
+            {},                                    # no reason/message: ignored
+            "not a dict",                          # malformed: ignored
+        ],
+    })
+    stt = SpeechmaticsRealtime(api_key="k", language="fa")
+    result = asyncio.run(
+        stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None)
+    )
+    assert result.service_warnings == [
+        "validation_warning additional_vocab entry ignored",
+        "idle_timeout idle timeout reached",
+    ]
+    # warnings are review-only: the transcript and its parse state are untouched
+    assert result.final_text == "سی تی اسکن"
+    assert result.warnings == []
+    assert result.error is None
+    assert registry["clients"][0].stopped is True
+
+
+def test_warning_subscription_degrades_when_the_sdk_has_no_warning(monkeypatch):
+    """Observability must never cost a session.
+
+    ``ServerMessageType.WARNING`` is resolved by name, not imported directly:
+    on an SDK build without that member the adapter surfaces no warnings
+    instead of raising inside ``run()`` and discarding the transcript.
+    """
+    registry = install_fake_sdk(monkeypatch, {
+        "script": [("final", "CT scan")],
+        "no_warning_event": True,
+    })
+    import speechmatics.rt as rt
+
+    assert "WARNING" not in rt.ServerMessageType.__members__
+    stt = SpeechmaticsRealtime(api_key="k", language="fa")
+    result = asyncio.run(
+        stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None)
+    )
+    assert result.final_text == "CT scan"      # session still completed
+    assert result.service_warnings == []       # and simply reported none
+    assert result.error is None
+    assert registry["clients"][0].stopped is True
 
 
 def test_final_word_results_preserve_confidence_language_and_timing(monkeypatch):

@@ -1,5 +1,5 @@
 {
-  "description": "Post-processing integrity cases. Every 'segments' value is a transcript Speechmatics recognized CORRECTLY, split the way the realtime API finalizes it. 'expected' is that same clinical content after deterministic normalization. Any mismatch is a defect introduced by our own pipeline, never an ASR error. Cases marked 'streaming_only' reproduce an ASR final boundary inside a written value; joining them with a space (the single-pass view) is not the scenario, so they are scored on the streamed path only. The cases also cover the requested evaluation matrix: Persian clinical speech, Persian/English code-switching, abbreviations, drugs and dosages, laboratory values, BP/SpO2/pulse/temperature, ages, percentages, decimals, ratios, clock times, nursing terminology, fragmented finals, noisy/malformed ASR output, and ordinary non-clinical Persian/English that must stay unchanged.",
+  "description": "Post-processing integrity cases. Every 'segments' value is a transcript Speechmatics recognized CORRECTLY, split the way the realtime API finalizes it. 'expected' is that same clinical content after deterministic normalization. Any mismatch is a defect introduced by our own pipeline, never an ASR error. Cases marked 'streaming_only' reproduce an ASR final boundary inside a written value; joining them with a space (the single-pass view) is not the scenario, so they are scored on the streamed path only. The cases also cover the requested evaluation matrix: Persian clinical speech, Persian/English code-switching, abbreviations, drugs and dosages, laboratory values, BP/SpO2/pulse/temperature, ages, percentages, decimals, ratios, clock times, nursing terminology, fragmented finals, noisy/malformed ASR output, and ordinary non-clinical Persian/English that must stay unchanged. Also covered: canonical spans that must survive the live narrative path unchanged (a phrase the dictionary itself defines as correct output is never rewritten from the inside), a single dictated value split across finals at its joiner or inside its unit, explicit fraction denominators (\"... و هشت دهم\"), ventilator settings, intake/output, nursing diet/wound/mobility/isolation orders, and three kinds of ordinary non-clinical Persian prose. Two of those prose cases pin deliberate policy rather than a defect: \"<number> سال\" takes chart digits because سال is the age/duration unit (\"5 سال پیش عمل شد\"), while a possessive or adjective spelling (\"سالم\" = my years / healthy) is never treated as that anchor because the word is genuinely ambiguous.",
   "cases": [
     {
       "id": "reference_sentence",
@@ -299,6 +299,123 @@
         "فشار خون صد و بیست روی هشتاد و دوز دو و نیم میلی گرم"
       ],
       "expected": "بیمار 58 ساله با SpO2 98 % در ساعت 8:30 BP 120/80 و دوز 2.5 mg"
+    },
+    {
+      "id": "canonical_spans_survive_the_live_path",
+      "segments": [
+        "blood pH 7.4 و HCO3 22 ثبت شد",
+        "nasogastric tube in place و PEG tube patent"
+      ],
+      "expected": "blood pH 7.4 و bicarbonate 22 ثبت شد nasogastric tube in place و PEG tube patent"
+    },
+    {
+      "id": "canonical_english_phrases_not_rewritten",
+      "segments": [
+        "chronic obstructive pulmonary disease و pulmonary embolism رد شد",
+        "past surgical history و history of present illness مرور شد"
+      ],
+      "expected": "chronic obstructive pulmonary disease و pulmonary embolism رد شد past surgical history و history of present illness مرور شد"
+    },
+    {
+      "id": "canonical_abbreviations_not_duplicated",
+      "segments": [
+        "give vitamin B12 at bedtime و estimated GFR 45",
+        "erythrocyte sedimentation rate و nothing by mouth after midnight"
+      ],
+      "expected": "give vitamin B12 at bedtime و estimated GFR 45 erythrocyte sedimentation rate و nothing by mouth after midnight"
+    },
+    {
+      "id": "canonical_device_names_keep_their_noun",
+      "segments": [
+        "NG tube patent و NGT in situ ثبت شد",
+        "once a day dosing و four times daily"
+      ],
+      "expected": "nasogastric tube patent و nasogastric tube in situ ثبت شد once a day dosing و four times daily"
+    },
+    {
+      "id": "dose_group_split_at_the_joiner",
+      "segments": [
+        "دوز دو هزار و",
+        "پانصد میلی گرم"
+      ],
+      "expected": "دوز 2500 mg"
+    },
+    {
+      "id": "dose_group_split_inside_the_unit",
+      "segments": [
+        "پانصد میلی",
+        "گرم تجویز شد"
+      ],
+      "expected": "500 mg تجویز شد"
+    },
+    {
+      "id": "decimal_split_from_its_unit",
+      "segments": [
+        "دمای بدن سی و هفت و هشت دهم",
+        "درجه ثبت شد"
+      ],
+      "expected": "Temp 37.8 درجه ثبت شد"
+    },
+    {
+      "id": "spoken_half_split_from_its_unit",
+      "segments": [
+        "دو و نیم میلی",
+        "لیتر نرمال سالین"
+      ],
+      "expected": "2.5 mL نرمال سالین"
+    },
+    {
+      "id": "body_temperature_explicit_tenths",
+      "segments": [
+        "دمای بدن سی و هفت و هشت دهم درجه و دمای بدن سی و هشت دهم درجه"
+      ],
+      "expected": "Temp 37.8 درجه و Temp 30.8 درجه"
+    },
+    {
+      "id": "ventilator_settings_peep_stays_spoken",
+      "segments": [
+        "FiO2 چهل درصد و PEEP پنج و حجم جاری پانصد میلی لیتر"
+      ],
+      "expected": "FiO2 40 % و PEEP پنج و حجم جاری 500 mL"
+    },
+    {
+      "id": "intake_and_output_in_cc",
+      "segments": [
+        "ورودی هزار و دویست سی سی و خروجی هشتصد سی سی"
+      ],
+      "expected": "ورودی 1200 mL و خروجی 800 mL"
+    },
+    {
+      "id": "nursing_orders_are_preserved_verbatim",
+      "segments": [
+        "رژیم NPO تا نیمه شب و بعد از آن مایعات روشن",
+        "پانسمان زخم بستر تعویض شد و درن جراحی کشیده شد",
+        "تحمل وزن غیرمجاز و انتقال با کمک دو نفر",
+        "احتیاط تماس و ایزولاسیون تنفسی برقرار شد"
+      ],
+      "expected": "رژیم NPO تا نیمه شب و بعد از آن مایعات روشن پانسمان زخم بستر تعویض شد و درن جراحی کشیده شد تحمل وزن غیرمجاز و انتقال با کمک دو نفر احتیاط تماس و ایزولاسیون تنفسی برقرار شد"
+    },
+    {
+      "id": "prose_numerals_without_a_unit_stay_spoken",
+      "segments": [
+        "هزار بار گفتم که فردا دیر می رسم و ده دقیقه معطل شدم",
+        "روز دهم ماه رمضان بود و هوا خیلی سرد بود"
+      ],
+      "expected": "هزار بار گفتم که فردا دیر می رسم و ده دقیقه معطل شدم روز دهم ماه رمضان بود و هوا خیلی سرد بود"
+    },
+    {
+      "id": "prose_possessive_suffix_is_never_an_anchor",
+      "segments": [
+        "امسال بیست و پنج سالم شد و بیمار سالم است"
+      ],
+      "expected": "امسال بیست و پنج سالم شد و بیمار سالم است"
+    },
+    {
+      "id": "prose_year_duration_uses_chart_digits",
+      "segments": [
+        "سه سال است اینجا کار می کنم و پنج سال پیش عمل شد"
+      ],
+      "expected": "3 سال است اینجا کار می کنم و 5 سال پیش عمل شد"
     }
   ]
 }

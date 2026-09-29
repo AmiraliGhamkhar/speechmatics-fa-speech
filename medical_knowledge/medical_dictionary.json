@@ -3139,7 +3139,9 @@
       "tier": "phrase",
       "forms": [
         "ان جی تیوب",
-        "سوند معده"
+        "سوند معده",
+        "NG tube",
+        "NGT"
       ],
       "speechmatics": false,
       "sounds_like": [],
@@ -9731,12 +9733,10 @@
         "q.d",
         "quotidie",
         "quaque die",
-        "once daily",
         "daily",
         "هرروز",
         "روزی یکبار",
         "روزانه",
-        "once a day",
         "هر روز"
       ],
       "speechmatics": false,
@@ -13423,10 +13423,7 @@
       "forms": [
         "nasogastric",
         "NG",
-        "NGT",
-        "nasogastric tube",
         "لوله بینی معدی",
-        "NG tube",
         "لوله بینی-معدی"
       ],
       "speechmatics": false,

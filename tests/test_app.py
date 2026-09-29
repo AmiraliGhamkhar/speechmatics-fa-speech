@@ -600,6 +600,136 @@ def test_streaming_matches_single_pass_and_loses_nothing(segments):
     assert " ".join(piece.strip() for piece in pieces).strip() == acc.canonical_text
 
 
+# ------------------------------------------- one number group, many finals
+#
+# REGRESSION (D1 + D5). A dictated measurement is ONE all-or-nothing value, but
+# Speechmatics may finalize it in pieces, and two separate bugs let a piece
+# escape early:
+#
+#   D5 - the unit walkback crossed adjacent numerals only, so it stopped at the
+#        joiner "و" and at the magnitude word "هزار". "دوز دو هزار و پانصد میلی
+#        گرم" was cut after "دوز دو هزار و", which folded to "دوز 2000 و", and
+#        the rest arrived as "500 mg": ONE dictated 2500 mg dose was reported as
+#        two numbers, neither of them 2500.
+#   D1 - the walkback asked ``rule_match_at``, which sees COMPLETE forms only.
+#        When Speechmatics split the unit itself ("... پانصد میلی" + "گرم") there
+#        was no complete rule at the cut, so the pending "mg" was invisible and
+#        the number was stranded.
+#
+# Both are fixed by one rule: hold the whole number group with whatever unit -
+# complete or still pending - it belongs to.
+
+#: Spoken measurements covering every group shape the fold supports: plain
+#: numerals, thousands, the joiner, spoken halves, explicit fraction
+#: denominators, ratio values, clock times and a unit split across finals.
+NUMBER_GROUP_STREAM_CORPUS = [
+    "دوز دو هزار و پانصد میلی گرم",
+    "پانصد میلی گرم",
+    "دو هزار و پانصد میلی گرم تجویز شد",
+    "بیست میلی گرم متادون",
+    "دو و نیم میلی لیتر نرمال سالین",
+    "فشار خون صد و بیست روی هشتاد",
+    "سن بیمار پنجاه و هشت ساله است",
+    "دمای بدن سی و هفت و هشت دهم درجه",
+    "دمای بدن سی و هشت و نیم درجه",
+    "ضربان قلب نود و شش بار در دقیقه",
+    "پلاکت صد و پنجاه هزار",
+    "هزار میلی گرم استامینوفن",
+    "سه هزار و دویست واحد انسولین",
+    "صد و هشتاد میلی گرم",
+    "وزن بیمار هفتاد و دو و نیم کیلوگرم",
+    "پانصد سی سی رینگر",
+    "بیست میلی گرم آی وی هر دو ساعت",
+    "اشباع اکسیژن نود و چهار درصد",
+    "گلوکز خون دو و نیم برابر نرمال",
+    "پانصد هزار گلبول قرمز",
+    "دوز بعدی ساعت ده و سی دقیقه",
+    "کراتینین یک و دو دهم میلی گرم",
+]
+
+
+@pytest.mark.parametrize("segments,expected", [
+    # D5: the group must survive a cut anywhere inside it.
+    (("دوز", "دو هزار و پانصد میلی گرم"), "دوز 2500 mg"),
+    (("دوز دو", "هزار و پانصد میلی گرم"), "دوز 2500 mg"),
+    (("دوز دو هزار", "و پانصد میلی گرم"), "دوز 2500 mg"),
+    (("دوز دو هزار و", "پانصد میلی گرم"), "دوز 2500 mg"),
+    (("دوز دو هزار و پانصد", "میلی گرم"), "دوز 2500 mg"),
+    (("دوز", "دو", "هزار", "و", "پانصد", "میلی", "گرم"), "دوز 2500 mg"),
+    # D1: Speechmatics split the UNIT itself, so no complete rule is at the cut.
+    (("دوز دو هزار و پانصد میلی", "گرم"), "دوز 2500 mg"),
+    (("پانصد میلی", "گرم"), "500 mg"),
+    (("پانصد میلی", "لیتر"), "500 mL"),
+    (("بیست میلی", "گرم متادون"), "20 mg متادون"),
+    # a spoken half is part of the group too
+    (("دو و نیم میلی", "لیتر نرمال سالین"), "2.5 mL نرمال سالین"),
+    (("وزن بیمار هفتاد و دو و نیم", "کیلوگرم"), "وزن بیمار 72.5 kg"),
+    # an explicit denominator is part of the group (narrative path: the
+    # Persian analyte name is preserved, only the NUMBER is folded)
+    (("کراتینین یک و دو", "دهم میلی گرم"), "کراتینین 1.2 mg"),
+    (("کراتینین یک", "و دو دهم میلی گرم"), "کراتینین 1.2 mg"),
+    (("کراتینین یک و دو دهم", "میلی گرم"), "کراتینین 1.2 mg"),
+])
+def test_a_number_group_survives_any_segment_boundary(segments, expected):
+    acc, pieces = _stream(*segments)
+    assert acc.canonical_text == expected
+    assert " ".join(piece.strip() for piece in pieces).strip() == acc.canonical_text
+
+
+def test_every_word_boundary_split_of_a_measurement_matches_single_pass():
+    """Exhaustive: no word boundary may split one dictated value.
+
+    Two- and three-way splits at every WORD boundary of every measurement in
+    the corpus. Character-level splits inside a word are not tested: Speechmatics
+    finalizes on word boundaries, and a cut inside a token is not a shape the
+    stream can produce.
+    """
+    broken = []
+    total = 0
+    for text in NUMBER_GROUP_STREAM_CORPUS:
+        from speechmatics_test.text import normalize_text
+
+        tokens = normalize_text(text).split()
+        expected = _single_pass(text)
+        for first in range(1, len(tokens)):
+            splits = [(" ".join(tokens[:first]), " ".join(tokens[first:]))]
+            for second in range(first + 1, len(tokens)):
+                splits.append((
+                    " ".join(tokens[:first]),
+                    " ".join(tokens[first:second]),
+                    " ".join(tokens[second:]),
+                ))
+            for segments in splits:
+                total += 1
+                acc, _ = _stream(*segments)
+                if acc.canonical_text != expected:
+                    broken.append((segments, expected, acc.canonical_text))
+    assert total > 300           # the sweep is meaningful only if it is broad
+    assert broken == []
+
+
+def test_holding_a_number_group_still_drains_the_buffer():
+    """The longer walkback must not be able to hold the stream open forever.
+
+    Holding text back is only safe because it is BOUNDED: a malformed stream of
+    numeral-only finals must still drain instead of accumulating the session.
+    """
+    from speechmatics_test.text import normalize_text
+
+    acc = app_module.FinalStreamCanonicalizer(_shared_layer())
+    emitted = 0
+    longest_buffer = 0
+    for _ in range(40):
+        piece = acc.add(normalize_text("دو هزار و پانصد میلی"), [])
+        longest_buffer = max(longest_buffer, len(acc._buffer.split()))
+        if piece:
+            emitted += 1
+    acc.flush()
+    assert emitted > 0, "a stream of numeral-only finals never emitted anything"
+    # the same 12-token window _numeric_tail_start documents, plus the unit
+    assert longest_buffer <= 12, longest_buffer
+
+
 def test_overlay_close_leaves_no_root_reference_on_the_calling_thread():
     """Regression: the Tcl interpreter must not be deallocated off-thread.
 

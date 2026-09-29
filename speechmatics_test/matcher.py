@@ -61,7 +61,8 @@ __all__ = [
     "MedicalMatcher", "MedicalFST", "FstError", "MedicalRule", "FstRule",
     "AhoAutomaton", "ENGINE_NAME", "TIER_ORDER", "TIER_RANK", "TERM_TYPES",
     "DictionaryTerm", "NUMERIC_CONTEXT", "casefold_preserving",
-    "load_dictionary", "build_matcher",
+    "load_dictionary", "build_matcher", "find_risky_english_aliases",
+    "at_risk_canonicals", "CANONICAL_CLAIM_SOURCE",
 ]
 
 #: Public engine identifier (reported by the app banner and the reports).
@@ -173,6 +174,72 @@ _CONTENT_WORD_ALIASES = frozenset({
     # "antibiotics were started" must not become "antibiotic were started".
     "antibiotics",
 })
+
+
+#: Provenance recorded for the self-mapping rules ``at_risk_canonicals``
+#: adds. They never produce a hit (a span equal to its own canonical is
+#: copied verbatim), so this is only visible while debugging the rule set.
+CANONICAL_CLAIM_SOURCE = "canonical span (idempotence)"
+
+
+def at_risk_canonicals(rules: list["MedicalRule"]) -> list[str]:
+    """Canonicals that another rule can fire INSIDE of (two or more tokens).
+
+    A canonical is the dictionary's own declaration of correct output, so it
+    must survive the layer unchanged. When it contains another rule's form the
+    scan used to rewrite it from the inside: ``PEG tube`` contains ``PEG``,
+    ``blood pH`` contains ``pH``, ``chronic obstructive pulmonary disease``
+    contains ``pulmonary``. The result duplicated words ("vitamin B12" ->
+    "vitamin vitamin B12"), deleted them ("nasogastric tube" ->
+    "nasogastric") and rewrote diagnoses ("pulmonary embolism" ->
+    "respiratory embolism", "blood pH" -> "blood past medical history").
+
+    Only canonicals of two or more whitespace tokens are reported. A
+    single-token canonical rewritten by another single-token rule ("US" ->
+    "ultrasound", "HCO3" -> "bicarbonate", "PLT" -> "platelet count") is the
+    dictionary's deliberate abbreviation expansion, not a span that can be
+    corrupted from inside; narrowing those would be a policy change, and the
+    ambiguous ones are already guarded by ``_AMBIGUOUS_SHORT_FORMS``.
+
+    Forms and canonicals are both normalized, so a token-aligned substring of
+    a canonical is exactly what the boundary-checked scan can match inside it.
+
+    The self-mapping claim rules this function's output produces are excluded
+    from both the scan and the form set, so the audit stays meaningful on an
+    ALREADY-COMPILED rule list: without that, every canonical it flagged would
+    by then be its own rule form and the report would come back empty exactly
+    when the fix is working.
+    """
+    alias_rules = [
+        rule for rule in rules if rule.source != CANONICAL_CLAIM_SOURCE
+    ]
+    forms = {rule.match_form for rule in alias_rules}
+    at_risk: list[str] = []
+    seen: set[str] = set()
+    for rule in alias_rules:
+        folded = casefold_preserving(rule.canonical)
+        # Already a rule form: the loader resolved that conflict, and a second
+        # rule with the same folded form would break the one-rule-per-form
+        # invariant the scan's tie-breaking relies on.
+        if folded in seen or folded in forms:
+            continue
+        parts = folded.split()
+        if len(parts) < 2:
+            continue
+        seen.add(folded)
+        # ``end`` runs to ``len(parts)`` inclusive: the inner rule form is very
+        # often the canonical's LAST token ("at bedtime" contains "bedtime",
+        # "vitamin B12" contains "B12"), which a half-open range would miss.
+        # The whole-span slice is ``folded`` itself, already excluded above.
+        for start in range(len(parts)):
+            for end in range(start + 1, len(parts) + 1):
+                if " ".join(parts[start:end]) in forms:
+                    at_risk.append(rule.canonical)
+                    break
+            else:
+                continue
+            break
+    return at_risk
 
 
 def find_risky_english_aliases(matcher: "MedicalMatcher") -> list[dict[str, Any]]:
@@ -785,6 +852,12 @@ class MedicalMatcher:
     _narrative_strict_form_prefixes: set = field(
         default_factory=set, init=False, repr=False
     )
+    #: Strict rule-form prefix -> first canonical tokens it could grow into
+    #: (see ``strict_prefix_canonical_heads``).
+    _strict_prefix_heads: dict = field(default_factory=dict, init=False, repr=False)
+    _narrative_strict_prefix_heads: dict = field(
+        default_factory=dict, init=False, repr=False
+    )
     #: Complete rule forms (token tuple -> canonical text).
     _complete_forms: dict = field(default_factory=dict, init=False, repr=False)
     _narrative_complete_forms: dict = field(
@@ -923,11 +996,30 @@ class MedicalMatcher:
             best[folded][1] for folded in sorted(best, key=lambda f: best[f][0])
             if best[folded][1].form != best[folded][1].canonical
         ]
-        rules = [
+        alias_rules = [
             MedicalRule(form=r.form, canonical=r.canonical, tier=r.tier,
                         source=r.source, seq=seq, folded=r.folded)
             for seq, r in enumerate(ordered)
         ]
+        # A canonical the dictionary itself defines as correct output must
+        # survive the layer unchanged. When it contains another rule's form the
+        # scan used to rewrite it from the inside, because the no-op check
+        # DISCARDED the longest match instead of claiming its span (see
+        # ``at_risk_canonicals``). Registering those canonicals as self-mapping
+        # rules makes the span claimable, so the scan copies it verbatim and
+        # resumes after it. They are appended last, at the lowest tier and with
+        # the highest ``seq``: they can never outrank a real rule, and by
+        # construction no real rule shares their folded form.
+        claims = at_risk_canonicals(alias_rules)
+        claim_forms = {casefold_preserving(canonical) for canonical in claims}
+        rules = list(alias_rules)
+        for offset, canonical in enumerate(claims):
+            rules.append(MedicalRule(
+                form=canonical, canonical=canonical,
+                tier=len(TIER_ORDER) - 1, source=CANONICAL_CLAIM_SOURCE,
+                seq=len(alias_rules) + offset,
+                folded=casefold_preserving(canonical),
+            ))
 
         by_first: dict[str, list[MedicalRule]] = {}
         for rule in rules:
@@ -948,37 +1040,78 @@ class MedicalMatcher:
         # of any longer rule) is deliberately excluded, so the cross-segment
         # buffer in ``_safe_cut`` does not delay emitting it while waiting
         # for a continuation that no rule defines.
+        #
+        # Canonical-claim rules contribute ONLY their complete form (so the
+        # streaming cut never lands inside an already-canonical span). They
+        # contribute no prefix: holding a buffer back is justified only when a
+        # longer ALIAS could still arrive, and a canonical's leading token is
+        # usually an ordinary English word ("at bedtime", "past surgical
+        # history", "blood pH"), so treating it as a hold trigger would delay
+        # emission of ordinary prose for no gain.
         prefixes: set[tuple[str, ...]] = set()
         strict_prefixes: set[tuple[str, ...]] = set()
         narrative_prefixes: set[tuple[str, ...]] = set()
         narrative_strict_prefixes: set[tuple[str, ...]] = set()
         complete_forms: dict[tuple[str, ...], str] = {}
         narrative_complete_forms: dict[tuple[str, ...], str] = {}
+        # Strict prefix -> the FIRST canonical token of every rule that prefix
+        # could still grow into. ``strict_prefixes`` answers "could this grow",
+        # but not "into what", and the streaming cut needs the second answer:
+        # a held fragment that will become a UNIT ("میلی" -> "میلی گرم" -> mg)
+        # must keep the number in front of it, while one that will become a new
+        # measurement phrase ("اشباع اکسیژن" -> SpO2) must not. Built alongside
+        # the prefix sets so both stay in step; claim rules contribute nothing
+        # because they contribute no prefix either.
+        prefix_heads: dict[tuple[str, ...], set[str]] = {}
+        narrative_prefix_heads: dict[tuple[str, ...], set[str]] = {}
+
+        def _add_head(store: dict, key: tuple[str, ...], canonical: str) -> None:
+            head = canonical.split()[0].casefold() if canonical.split() else ""
+            if head:
+                store.setdefault(key, set()).add(head)
+
         for rule in rules:
             form_tokens = rule.match_form.split()
-            for take in range(1, len(form_tokens) + 1):
-                prefixes.add(tuple(form_tokens[:take]))
-            for take in range(1, len(form_tokens)):
-                strict_prefixes.add(tuple(form_tokens[:take]))
+            is_claim = rule.folded in claim_forms
             complete_forms.setdefault(tuple(form_tokens), rule.canonical)
+            if not is_claim:
+                for take in range(1, len(form_tokens) + 1):
+                    prefixes.add(tuple(form_tokens[:take]))
+                for take in range(1, len(form_tokens)):
+                    key = tuple(form_tokens[:take])
+                    strict_prefixes.add(key)
+                    _add_head(prefix_heads, key, rule.canonical)
 
             if _is_narrative_rule_candidate(rule):
                 narrative_complete_forms.setdefault(
                     tuple(form_tokens), rule.canonical
                 )
+                if is_claim:
+                    continue
                 for take in range(1, len(form_tokens) + 1):
                     narrative_prefixes.add(tuple(form_tokens[:take]))
                 for take in range(1, len(form_tokens)):
-                    narrative_strict_prefixes.add(tuple(form_tokens[:take]))
+                    key = tuple(form_tokens[:take])
+                    narrative_strict_prefixes.add(key)
+                    _add_head(narrative_prefix_heads, key, rule.canonical)
                 # A complete measurement phrase is context-sensitive: retain
                 # it only long enough to see whether the next final begins a
                 # value ("فشار خون" + "صد و بیست ...").
                 if rule.form in _NARRATIVE_MEASUREMENT_FORMS:
                     narrative_strict_prefixes.add(tuple(form_tokens))
+                    _add_head(
+                        narrative_prefix_heads, tuple(form_tokens), rule.canonical
+                    )
         self._form_prefixes = prefixes
         self._strict_form_prefixes = strict_prefixes
         self._narrative_form_prefixes = narrative_prefixes
         self._narrative_strict_form_prefixes = narrative_strict_prefixes
+        self._strict_prefix_heads = {
+            key: frozenset(heads) for key, heads in prefix_heads.items()
+        }
+        self._narrative_strict_prefix_heads = {
+            key: frozenset(heads) for key, heads in narrative_prefix_heads.items()
+        }
         self._complete_forms = complete_forms
         self._narrative_complete_forms = narrative_complete_forms
         return rules
@@ -1194,8 +1327,16 @@ class MedicalMatcher:
             if not (end_excl == length or text[end_excl] in _BOUNDARY_CHARS):
                 continue
             # Case-insensitive matching lets lowercase ASR variants map to
-            # canonical casing, but an already canonical token is not a hit.
+            # canonical casing, but an already canonical span is not a hit.
+            # It still CLAIMS the span, so scanning resumes after it: dropping
+            # the match here instead let a shorter rule fire inside text the
+            # dictionary itself defines as correct output ("vitamin B12" ->
+            # "vitamin vitamin B12", "nasogastric tube" -> "nasogastric",
+            # "pulmonary embolism" -> "respiratory embolism").
             if text[start:end_excl] == rule.canonical:
+                current = best_at.get(start)
+                if current is None or end_excl > current[0]:
+                    best_at[start] = (end_excl, idx)
                 continue
             # Ambiguous short forms (OR/P/NOW/DIFF/AC/PC/HS/OD) collide with
             # common English words and require stronger evidence: the
@@ -1224,6 +1365,13 @@ class MedicalMatcher:
                 continue
             end_excl, idx = found
             rule = rules[idx]
+            if text[i:end_excl] == rule.canonical:
+                # Already canonical (including every canonical-claim rule):
+                # copy the span verbatim, report no hit, and resume after it
+                # so nothing inside it can be rewritten.
+                out.append(text[copied:end_excl])
+                i = copied = end_excl
+                continue
             # Evidence only for the emitted winner: it never changes which
             # candidate wins (length dominates), so this is output-identical
             # to scoring every candidate.
@@ -1259,11 +1407,17 @@ class MedicalMatcher:
 
                 for rule in self._by_first.get(haystack[i], ()):
                     end = i + len(rule.match_form)
-                    if (
+                    if not (
                         haystack.startswith(rule.match_form, i)
                         and self._is_end_boundary(text, end)
-                        and text[i:end] != rule.canonical
-                        and self._passes_ambiguous_short_form_guard(
+                    ):
+                        continue
+                    # An already canonical span bypasses the evidence guards
+                    # exactly as it does in ``_scan``: it produces no rewrite,
+                    # it only claims its text so a shorter rule cannot fire
+                    # inside it.
+                    if text[i:end] != rule.canonical and not (
+                        self._passes_ambiguous_short_form_guard(
                             rule, text[i:end], narrative=preserve_narrative,
                             text=text, start=i,
                         )
@@ -1272,16 +1426,22 @@ class MedicalMatcher:
                             or _passes_narrative_guard(rule, text, i, end)
                         )
                     ):
-                        evidence = self._span_evidence(rule, i, end, word_spans)
-                        if (
-                            best is None
-                            or self._candidate_key(rule, evidence)
-                            < self._candidate_key(*best)
-                        ):
-                            best = (rule, evidence)
+                        continue
+                    evidence = self._span_evidence(rule, i, end, word_spans)
+                    if (
+                        best is None
+                        or self._candidate_key(rule, evidence)
+                        < self._candidate_key(*best)
+                    ):
+                        best = (rule, evidence)
 
                 if best is not None:
                     rule, evidence = best
+                    end = i + len(rule.match_form)
+                    if text[i:end] == rule.canonical:
+                        out.append(text[i:end])
+                        i = end
+                        continue
                     out.append(rule.canonical)
                     hits.append(self._hit(rule, i, evidence))
                     i += len(rule.form)
@@ -1352,6 +1512,41 @@ class MedicalMatcher:
             if preserve_narrative else self._strict_form_prefixes
         )
         return tuple(casefold_preserving(token) for token in tokens) in prefixes
+
+    def strict_prefix_canonical_heads(
+        self, tokens: list[str], *, preserve_narrative: bool = False
+    ) -> frozenset[str]:
+        """First canonical tokens that ``tokens`` could still grow into.
+
+        ``is_strict_rule_token_prefix`` answers *whether* a held fragment can
+        still become a longer rule; this answers *what it would become*, which
+        is what the streaming cut needs. A fragment that will become a UNIT
+        ("میلی" -> "میلی گرم" -> "mg") belongs to the measurement started by
+        the number in front of it, so that number must be held with it; a
+        fragment that will become a new measurement phrase ("اشباع اکسیژن" ->
+        "SpO2") starts its own expression and must not hold the completed
+        value before it.
+
+        Every prefix length is considered, because the held tail may be longer
+        than the rule it starts ("میلی گرم و ..."), and the returned set is the
+        union of the candidate canonical heads. Values are case-folded to match
+        ``NUMERIC_CONTEXT``'s vocabulary. Empty when nothing can grow - the
+        caller then keeps its existing (complete-form-only) decision.
+        """
+        if not tokens:
+            return frozenset()
+        heads = (
+            self._narrative_strict_prefix_heads
+            if preserve_narrative else self._strict_prefix_heads
+        )
+        window = [
+            casefold_preserving(token)
+            for token in tokens[: self.max_rule_tokens]
+        ]
+        found: set[str] = set()
+        for take in range(1, len(window) + 1):
+            found |= heads.get(tuple(window[:take]), frozenset())
+        return frozenset(found)
 
     def rule_match_at(
         self, tokens: list[str], index: int, *, preserve_narrative: bool = False
