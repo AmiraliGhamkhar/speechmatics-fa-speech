@@ -762,7 +762,6 @@ async def main() -> int:
 
     def finish_injection() -> list[dict]:
         """Flush the canonical tail, drain the worker, return its records."""
-        nonlocal worker_armed
         # Flush regardless of injection: the report's canonical stage is
         # built from these emissions, with or without a worker.
         tail = accumulator.flush()
@@ -786,13 +785,23 @@ async def main() -> int:
             return []
         if tail and not worker_armed:
             # Nothing was injected during the session, so no target was ever
-            # armed. Arming HERE would arm whatever has focus at shutdown -
-            # normally the terminal the user just pressed Ctrl+C in - and the
-            # whole transcript would be pasted into it. Leave the guard
-            # unarmed instead: the paste still goes to the focused field (the
+            # armed (arm_target() refused at session start AND at the first
+            # final, e.g. because this app's own console stayed focused).
+            # Arming HERE would arm whatever has focus at shutdown - normally
+            # the terminal the user just pressed Ctrl+C in - and the whole
+            # transcript would be pasted into it. Leave the guard unarmed:
+            # the paste then goes to whatever the user focuses next (the
             # documented behavior when no target was selected), and the report
-            # keeps the text either way.
-            worker_armed = True
+            # keeps the text either way. Do NOT clear the buffer in this
+            # branch: the segment is committed to the accumulator either way,
+            # so dropping it would silently desynchronize the report's
+            # canonical transcript from the injected segments.
+            print("\n[injector] no injection target was armed during the "
+                  "session - the flushed tail was NOT pasted. Click the "
+                  "target field before dictating; the full text stays in the "
+                  "report.")
+            worker.shutdown()
+            return worker.records
         if tail:
             worker.submit(tail)
         worker.shutdown()

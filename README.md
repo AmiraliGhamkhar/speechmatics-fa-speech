@@ -493,10 +493,8 @@ path separately and checks that they agree:
 .\.venv\Scripts\python.exe benchmark\benchmark_postprocess.py --show-failures
 ```
 
-or:
-
 ```powershell
-.\scripts\run_matcher_benchmark.ps1
+.\.venv\Scripts\python.exe benchmark\benchmark_matcher.py
 ```
 
 ## Test Protocol
