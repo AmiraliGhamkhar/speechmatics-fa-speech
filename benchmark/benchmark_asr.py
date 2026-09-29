@@ -40,6 +40,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from speechmatics_test.entity_guard import ClinicalEntityGuard
 from speechmatics_test import entity_guard as _guard_patterns
+from speechmatics_test.evaluation import (
+    number_f1,
+    number_precision,
+    number_recall,
+)
 from speechmatics_test.text import normalize_text, tokens
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -222,6 +227,25 @@ def _metric_ratio(numerator: int, denominator: int) -> float | None:
     return round(numerator / denominator, 6) if denominator else None
 
 
+def _mean(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 6) if values else None
+
+
+def numeric_metrics(reference: str, hypothesis: str) -> dict[str, float | None]:
+    """Precision/recall/F1 over numeric tokens for one transcript pair.
+
+    ``number_accuracy`` (the established report field) is RECALL-only and is
+    kept for compatibility, but it cannot see a fabricated number. These three
+    are reported per case and averaged in the summary so a benchmark cannot
+    claim numeric improvement while silently inventing values.
+    """
+    return {
+        "precision": number_precision(reference, hypothesis),
+        "recall": number_recall(reference, hypothesis),
+        "f1": number_f1(reference, hypothesis),
+    }
+
+
 def score_case(case: dict[str, Any], transcript: str, guard: ClinicalEntityGuard | None = None) -> dict[str, Any]:
     """Score one raw ASR transcript against its reference and expected entities."""
     if not isinstance(case.get("reference"), str):
@@ -270,12 +294,16 @@ def score_case(case: dict[str, Any], transcript: str, guard: ClinicalEntityGuard
     flagged_wrong = wrong & flag_types
     false_positive_types = correct & flag_types
 
+    numbers = numeric_metrics(case["reference"], transcript)
     return {
         "id": case.get("id"),
         "audio_path": case.get("audio_path"),
         "reference": case["reference"],
         "raw_transcript": transcript,
         "raw_wer": word_error_rate(case["reference"], transcript),
+        "number_precision": numbers["precision"],
+        "number_recall": numbers["recall"],
+        "number_f1": numbers["f1"],
         "expected_entities": expected,
         "detected_entities": detected,
         "entity_results": entity_results,
@@ -384,6 +412,24 @@ def _summary(case_reports: list[dict[str, Any]]) -> dict[str, Any]:
             "reference_tokens": wer_references,
             "wer": _metric_ratio(wer_errors, wer_references),
         },
+        # Macro-averaged over the cases that have a numeric token on the
+        # relevant side, so a fabricated number lowers precision and a dropped
+        # value lowers recall. ``number_accuracy`` (recall) is NOT reported as
+        # "accuracy" anywhere in this benchmark.
+        "number_metrics": {
+            "precision": _mean([
+                item["number_precision"] for item in case_reports
+                if item["number_precision"] is not None
+            ]),
+            "recall": _mean([
+                item["number_recall"] for item in case_reports
+                if item["number_recall"] is not None
+            ]),
+            "f1": _mean([
+                item["number_f1"] for item in case_reports
+                if item["number_f1"] is not None
+            ]),
+        },
         "entity_metrics": {
             "correct": correct,
             "detected": detected,
@@ -488,6 +534,12 @@ def main(argv: list[str] | None = None) -> int:
     summary = report["summary"]
     print(f"ASR benchmark: {summary['case_count']} case(s), mode={report['mode']}")
     print(f"RAW WER: {summary['raw_wer']['wer']}")
+    numbers = summary.get("number_metrics", {})
+    print(
+        "Number precision/recall/F1: "
+        f"{numbers.get('precision')} / {numbers.get('recall')} / "
+        f"{numbers.get('f1')}  (recall-only 'number_accuracy' is NOT the score)"
+    )
     print(
         "Entity precision/recall: "
         f"{summary['entity_metrics']['precision']} / {summary['entity_metrics']['recall']}"

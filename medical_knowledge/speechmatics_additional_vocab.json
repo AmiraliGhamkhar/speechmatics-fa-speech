@@ -1001,7 +1001,13 @@
       "پی‌ام"
     ]
   },
-  "Bed Side Up",
+  {
+    "content": "Bed Side Up",
+    "sounds_like": [
+      "بدسایدآپ",
+      "بد ساید آپ"
+    ]
+  },
   "آپاندکتومی",
   "ایسکمی میوکارد",
   "نرمال سالین",
@@ -1013,9 +1019,35 @@
       "پنی سیلین"
     ]
   },
-  "Appendectomy",
-  "Myocardial Ischemia",
-  "Normal Saline",
-  "Pressure Sore",
-  "Skin Turgor"
+  {
+    "content": "Appendectomy",
+    "sounds_like": [
+      "آپاندکتومی"
+    ]
+  },
+  {
+    "content": "Myocardial Ischemia",
+    "sounds_like": [
+      "ایسکمی میوکارد"
+    ]
+  },
+  {
+    "content": "Normal Saline",
+    "sounds_like": [
+      "نرمال سالین"
+    ]
+  },
+  {
+    "content": "Pressure Sore",
+    "sounds_like": [
+      "زخم فشاری",
+      "زخم بستر"
+    ]
+  },
+  {
+    "content": "Skin Turgor",
+    "sounds_like": [
+      "تورگور پوست"
+    ]
+  }
 ]

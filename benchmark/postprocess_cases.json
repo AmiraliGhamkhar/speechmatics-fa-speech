@@ -1,5 +1,5 @@
 {
-  "description": "Post-processing integrity cases. Every 'segments' value is a transcript Speechmatics recognized CORRECTLY, split the way the realtime API finalizes it. 'expected' is that same clinical content after deterministic normalization. Any mismatch is a defect introduced by our own pipeline, never an ASR error. Cases marked 'streaming_only' reproduce an ASR final boundary inside a written value; joining them with a space (the single-pass view) is not the scenario, so they are scored on the streamed path only.",
+  "description": "Post-processing integrity cases. Every 'segments' value is a transcript Speechmatics recognized CORRECTLY, split the way the realtime API finalizes it. 'expected' is that same clinical content after deterministic normalization. Any mismatch is a defect introduced by our own pipeline, never an ASR error. Cases marked 'streaming_only' reproduce an ASR final boundary inside a written value; joining them with a space (the single-pass view) is not the scenario, so they are scored on the streamed path only. The cases also cover the requested evaluation matrix: Persian clinical speech, Persian/English code-switching, abbreviations, drugs and dosages, laboratory values, BP/SpO2/pulse/temperature, ages, percentages, decimals, ratios, clock times, nursing terminology, fragmented finals, noisy/malformed ASR output, and ordinary non-clinical Persian/English that must stay unchanged.",
   "cases": [
     {
       "id": "reference_sentence",
@@ -171,6 +171,134 @@
         "الان میخوام برم ناهار بخورم"
       ],
       "expected": "مددجو آقای 58 ساله الان میخوام برم ناهار بخورم"
+    },
+    {
+      "id": "persian_clinical_dictation",
+      "segments": [
+        "بیمار خانم چهل و دو ساله با تشخیص دیابت نوع دو بستری شد",
+        "قند خون صد و هشتاد و فشار خون صد و سی روی هشتاد و پنج"
+      ],
+      "expected": "بیمار خانم 42 ساله با تشخیص دیابت نوع دو بستری شد glucose 180 و BP 130/85"
+    },
+    {
+      "id": "persian_english_code_switching",
+      "segments": [
+        "در سی بی سی لکوسیتوز دیده شد",
+        "و در سی تی اسکن یک لیژن در ریه راست گزارش شد"
+      ],
+      "expected": "در CBC لکوسیتوز دیده شد و در CT scan یک لیژن در ریه راست گزارش شد"
+    },
+    {
+      "id": "medical_abbreviations",
+      "segments": [
+        "سی بی سی و ای بی جی و پی تی و پی تی تی چک شد",
+        "برای بیمار ان جی تیوب گذاشته شد"
+      ],
+      "expected": "CBC و ABG و PT و PTT چک شد برای بیمار ان جی تیوب گذاشته شد"
+    },
+    {
+      "id": "drugs_and_dosages",
+      "segments": [
+        "مت فورمین پانصد میلی گرم روزی دو بار",
+        "هپارین چهار هزار واحد زیر جلدی"
+      ],
+      "expected": "مت فورمین 500 mg روزی 2 بار هپارین 4000 واحد زیر جلدی"
+    },
+    {
+      "id": "laboratory_values",
+      "segments": [
+        "کراتینین یک و دو دهم و پتاسیم چهار و دو",
+        "سدیم صد و سی و پنج و پلاکت صد و پنجاه هزار"
+      ],
+      "expected": "کراتینین 1.2 و پتاسیم 4.2 سدیم 135 و پلاکت 150000"
+    },
+    {
+      "id": "bp_spo2_pulse_temperature",
+      "segments": [
+        "فشار خون صد و چهل روی نود و اشباع اکسیژن نود و شش درصد",
+        "نبض هشتاد و هشت و دمای بدن سی و هشت و نیم درجه"
+      ],
+      "expected": "BP 140/90 و SpO2 96 % نبض 88 و Temp 38.5 درجه"
+    },
+    {
+      "id": "nursing_scores_and_terms",
+      "segments": [
+        "نمره مورس چهل و پنج و نمره برادن بیست",
+        "زخم فشاری در ناحیه ساکروم مشاهده شد"
+      ],
+      "expected": "نمره مورس 45 و نمره برادن 20 زخم فشاری در ناحیه ساکروم مشاهده شد"
+    },
+    {
+      "id": "fragmented_age_and_clock",
+      "segments": [
+        "مددجو آقای",
+        "پنجاه",
+        "و هشت",
+        "ساله در ساعت ده و سی دقیقه مراجعه کرد"
+      ],
+      "expected": "مددجو آقای 58 ساله در ساعت 10:30 مراجعه کرد"
+    },
+    {
+      "id": "fragmented_thousands",
+      "segments": [
+        "پلاکت صد و پنجاه",
+        "هزار",
+        "ثبت شد"
+      ],
+      "expected": "پلاکت 150000 ثبت شد"
+    },
+    {
+      "id": "noisy_malformed_asr",
+      "segments": [
+        "دوز نهصد سیصد میلی گرم ثبت شد",
+        "فشار خون صد و بیست و هشتاد بود"
+      ],
+      "expected": "دوز نهصد سیصد mg ثبت شد BP صد و بیست و هشتاد بود"
+    },
+    {
+      "id": "malformed_thousand_group",
+      "segments": [
+        "دوز دو هزار هزار میلی گرم"
+      ],
+      "expected": "دوز دو هزار هزار mg"
+    },
+    {
+      "id": "ordinary_non_clinical_persian",
+      "segments": [
+        "امروز هوا خیلی خوب بود و من به بازار رفتم و ناهار خوردم"
+      ],
+      "expected": "امروز هوا خیلی خوب بود و من به بازار رفتم و ناهار خوردم"
+    },
+    {
+      "id": "english_prose_preserved",
+      "segments": [
+        "The doctor told us the results and gave him a glass of water",
+        "It was a long day but the patient is stable"
+      ],
+      "expected": "The doctor told us the results and gave him a glass of water It was a long day but the patient is stable"
+    },
+    {
+      "id": "percentage_clock_and_units",
+      "segments": [
+        "اشباع اکسیژن نود و هشت درصد",
+        "ساعت بیست و سه و پنجاه و نه دقیقه ثبت شد"
+      ],
+      "expected": "SpO2 98 % ساعت 23:59 ثبت شد"
+    },
+    {
+      "id": "decimal_denominators",
+      "segments": [
+        "کراتینین سه و پنج صدم و انسولین دوازده واحد"
+      ],
+      "expected": "کراتینین 3.05 و انسولین 12 واحد"
+    },
+    {
+      "id": "age_percentage_decimal_ratio_clock",
+      "segments": [
+        "بیمار پنجاه و هشت ساله با اشباع اکسیژن نود و هشت درصد در ساعت هشت و نیم",
+        "فشار خون صد و بیست روی هشتاد و دوز دو و نیم میلی گرم"
+      ],
+      "expected": "بیمار 58 ساله با SpO2 98 % در ساعت 8:30 BP 120/80 و دوز 2.5 mg"
     }
   ]
 }
