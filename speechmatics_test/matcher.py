@@ -46,6 +46,7 @@ from typing import Any, Iterator, Optional
 
 from .text import (
     SPOKEN_NUMERALS,
+    SPOKEN_THOUSANDS,
     NumericContext,
     fold_numeric_expressions,
     normalize_text,
@@ -125,7 +126,103 @@ _LOW_CONFIDENCE_THRESHOLD = 0.75
 #: underlying terms (e.g. "قبل از غذا", "ante cibum", "before food") are a
 #: different ``match_form`` entirely and are therefore unaffected by this
 #: restriction; they were already unambiguous "stronger evidence" per se.
-_AMBIGUOUS_SHORT_FORMS = frozenset({"or", "p", "now", "diff", "ac", "pc", "hs", "od"})
+_AMBIGUOUS_SHORT_FORMS = frozenset({
+    "or", "p", "now", "diff", "ac", "pc", "hs", "od",
+    # Verified English-prose collisions found by auditing every single-token
+    # ASCII rule form against a curated common-word list (see
+    # ``find_risky_english_aliases`` / scripts/validate_dictionary.py). Each of
+    # these rewrote an ordinary sentence: "the doctor told US the results",
+    # "IT was a long day", "the nurse gave HIM a glass of water", "the ID
+    # badge", "BE careful", "Mr Smith" and "TOP of the chart" all changed
+    # meaning. Uppercase charting ("US guided biopsy", "ID badge", "CAT scan")
+    # still fires - only the lowercase ordinary-English occurrence is left
+    # alone, exactly like OR/P/NOW above.
+    "us", "it", "id", "be", "him", "mr", "top", "cat", "cold",
+    # "am" is the ordinary English verb far more often than the meridiem
+    # marker ("I am tired today" -> "I AM tired today"), so it needs the same
+    # uppercase charting evidence ("10 AM", "AM medications").
+    "am",
+})
+
+#: Ordinary English words that the dictionary ALSO lists as an alias for a
+#: different clinical concept, split by how dangerous the collision is:
+#:
+#: * ``_FUNCTION_WORD_ALIASES`` - pronouns, prepositions, verbs and honorifics.
+#:   These appear in almost every English sentence, and rewriting one silently
+#:   changes what the sentence says, so they are REQUIRED to be in
+#:   ``_AMBIGUOUS_SHORT_FORMS`` (uppercase evidence only). A dictionary edit
+#:   that adds another one is caught by the validation script and the tests.
+#: * ``_CONTENT_WORD_ALIASES`` - nouns/adjectives the dictionary deliberately
+#:   expands into a clinical synonym ("skin" -> "dermatologic", "daily" ->
+#:   "every day"). They are reported for review, not blocked: they are a
+#:   dictionary-authoring choice about chart wording, and this layer is not
+#:   allowed to silently narrow established dictionary behavior.
+_FUNCTION_WORD_ALIASES = frozenset({
+    "us", "it", "id", "be", "him", "mr", "top", "cat", "cold", "am",
+    "or", "p", "now", "diff", "ac", "pc", "hs", "od",
+})
+#: Meridiem markers. "pm" is never an ordinary English word, but "am" is, so
+#: both are guarded by the same evidence rule: fully uppercase ("8 AM"), or a
+#: number touching them ("8 am").
+_MERIDIEM_FORMS = frozenset({"am", "pm"})
+_CONTENT_WORD_ALIASES = frozenset({
+    "daily", "post", "prep", "pill", "drops", "drain", "skin", "lab",
+    "tabs", "units", "rect", "lying", "soft", "oral", "stat", "sol",
+    "cap", "caps", "gram", "susp", "syr", "ung", "reg", "ante", "cum",
+    # The only plural->singular alias that reads as ordinary clinical prose:
+    # "antibiotics were started" must not become "antibiotic were started".
+    "antibiotics",
+})
+
+
+def find_risky_english_aliases(matcher: "MedicalMatcher") -> list[dict[str, Any]]:
+    """Report dictionary aliases that can rewrite ordinary English prose.
+
+    An alias is reported when its form is a single ASCII-alphabetic token whose
+    case-folded spelling collides with a common English word and whose canonical
+    is a different term - i.e. saving chart shorthand can corrupt narration.
+    Each row reports ``guarded`` (the uppercase-evidence rule applies) so the
+    report is actionable rather than a list of complaints: every
+    ``_FUNCTION_WORD_ALIASES`` entry must come back guarded, while
+    ``_CONTENT_WORD_ALIASES`` entries are the dictionary's own wording choices
+    and are listed for review only.
+
+    This is an AUDIT function: it never changes matching, and it is what
+    ``scripts/validate_dictionary.py`` and the test suite check after every
+    dictionary edit.
+    """
+    report: list[dict[str, Any]] = []
+    for rule in matcher.rules:
+        form = rule.match_form
+        if not form.isascii() or not form.isalpha() or " " in form:
+            continue
+        if form not in _FUNCTION_WORD_ALIASES and form not in _CONTENT_WORD_ALIASES:
+            continue
+        if rule.canonical == rule.form:
+            # The dictionary maps the form to itself (no rewrite at all).
+            # A case-only rewrite ("am" -> "AM") is still reported: it is a
+            # visible text change in a transcript.
+            continue
+        report.append({
+            "form": rule.form,
+            "canonical": rule.canonical,
+            "tier": TIER_ORDER[rule.tier],
+            "category": (
+                "function_word"
+                if form in _FUNCTION_WORD_ALIASES else "content_word"
+            ),
+            # ``guarded``: needs uppercase evidence in EVERY mode.
+            "guarded": form in _AMBIGUOUS_SHORT_FORMS,
+            # ``narrative_guarded``: the live narrative path additionally
+            # requires charting evidence for the content-word and meridiem
+            # collisions, so these aliases cannot rewrite ordinary prose.
+            "narrative_guarded": (
+                form in _AMBIGUOUS_SHORT_FORMS
+                or form in _CONTENT_WORD_ALIASES
+                or form in _MERIDIEM_FORMS
+            ),
+        })
+    return sorted(report, key=lambda row: row["form"].casefold())
 
 
 # In the application transcript path, ordinary Persian clinical prose must stay
@@ -244,7 +341,11 @@ def _looks_like_number_after(text: str) -> bool:
         return False
     token = re.split(r"\s+", remainder, maxsplit=1)[0]
     bare = token.strip(".,:;!?،؛؟()[]{}")
-    return bool(bare) and (bare[0].isdigit() or bare in SPOKEN_NUMERALS)
+    # A spoken thousand is a value too ("قند خون هزار" = glucose 1000), so the
+    # measurement phrase that introduces it is allowed to canonicalize.
+    return bool(bare) and (bare[0].isdigit()
+                           or bare in SPOKEN_NUMERALS
+                           or bare in SPOKEN_THOUSANDS)
 
 
 def _passes_narrative_guard(rule: "MedicalRule", text: str, start: int, end: int) -> bool:
@@ -324,7 +425,11 @@ NUMERIC_CONTEXT = NumericContext(
     # "%" and "درجه" are deliberately NOT repeated here: "%" already arrives
     # through _DOSAGE_UNIT_TOKENS, and both were measured to change no output.
     # Keeping one source for a token is what stops the anchor sets drifting.
-    after=frozenset({"سال", "ساله", "درصد", "بار", "روی"}) | _DOSAGE_UNIT_TOKENS,
+    # "واحد" (units) is how insulin/heparin/blood doses are dictated in
+    # Persian ("هپارین چهار هزار واحد"), so it anchors the spoken value in
+    # front of it exactly like the written units do.
+    after=frozenset({"سال", "ساله", "درصد", "بار", "روی", "واحد"})
+    | _DOSAGE_UNIT_TOKENS,
     # Persian "روی" ("over"): the only spoken blood-pressure form that is a
     # value and not a diagnosis, e.g. "فشار خون صد و بیست روی هشتاد".
     ratio_connector="روی",
@@ -908,7 +1013,10 @@ class MedicalMatcher:
     # ----------------------------------------------------------- boundaries
 
     @staticmethod
-    def _passes_ambiguous_short_form_guard(rule: "MedicalRule", matched: str) -> bool:
+    def _passes_ambiguous_short_form_guard(
+        rule: "MedicalRule", matched: str, *, narrative: bool = False,
+        text: str = "", start: int = 0,
+    ) -> bool:
         """Ambiguous short forms (see ``_AMBIGUOUS_SHORT_FORMS``) require the
         ORIGINAL matched text to be fully uppercase before they fire; a
         lowercase or mixed-case occurrence is left untouched because it is
@@ -916,10 +1024,29 @@ class MedicalMatcher:
         than clinical shorthand. Every other rule is unaffected (returns
         True unconditionally) - this is a targeted safety narrowing, not a
         general case-sensitivity change.
+
+        In narrative-preserving mode (the live application path) the same
+        evidence requirement extends to ``_CONTENT_WORD_ALIASES``: those are
+        ordinary English content words ("skin", "soft", "drain", "lying",
+        "oral") that the dictionary also lists as chart shorthand, and
+        rewriting them in prose changes what the sentence says ("the skin is
+        pale" -> "the dermatologic is pale", "it was soft" -> "it was soft
+        diet"). ``find_risky_english_aliases`` is the audit that keeps this
+        list honest. The compatibility scan (``preserve_narrative=False``,
+        used by the benchmarks and the pre-migration fixture) keeps the
+        historical case-insensitive behavior.
         """
-        if rule.match_form not in _AMBIGUOUS_SHORT_FORMS:
+        if not (rule.match_form in _AMBIGUOUS_SHORT_FORMS
+                or (narrative and rule.match_form in _CONTENT_WORD_ALIASES)):
             return True
-        return matched.isupper()
+        if matched.isupper():
+            return True
+        if rule.match_form in _MERIDIEM_FORMS:
+            # A number directly in front of it is unambiguous meridiem
+            # evidence ("8 am", "10 pm"), not the English verb "am" - the one
+            # context where the lowercase spelling must keep folding.
+            return text[:start].rstrip(" \t").endswith(tuple("0123456789"))
+        return False
 
     @staticmethod
     def _is_start_boundary(text: str, i: int) -> bool:
@@ -1073,7 +1200,10 @@ class MedicalMatcher:
             # Ambiguous short forms (OR/P/NOW/DIFF/AC/PC/HS/OD) collide with
             # common English words and require stronger evidence: the
             # ORIGINAL matched text must be fully uppercase.
-            if not self._passes_ambiguous_short_form_guard(rule, text[start:end_excl]):
+            if not self._passes_ambiguous_short_form_guard(
+                rule, text[start:end_excl], narrative=preserve_narrative,
+                text=text, start=start,
+            ):
                 continue
             if preserve_narrative and not _passes_narrative_guard(
                 rule, text, start, end_excl
@@ -1133,7 +1263,10 @@ class MedicalMatcher:
                         haystack.startswith(rule.match_form, i)
                         and self._is_end_boundary(text, end)
                         and text[i:end] != rule.canonical
-                        and self._passes_ambiguous_short_form_guard(rule, text[i:end])
+                        and self._passes_ambiguous_short_form_guard(
+                            rule, text[i:end], narrative=preserve_narrative,
+                            text=text, start=i,
+                        )
                         and (
                             not preserve_narrative
                             or _passes_narrative_guard(rule, text, i, end)

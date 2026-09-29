@@ -645,3 +645,180 @@ def test_microphone_failure_cleans_up_and_exits_with_error(
     assert signal.getsignal(signal.SIGINT) is before
     assert fake_overlay.closed is True
     assert "[microphone error]" in capsys.readouterr().out
+
+
+# ------------------------------------------------- shutdown/failure containment
+# Every one of these used to (or could) cost the clinician the dictated text:
+# the deliverable is the accumulated transcript, so a failing canonicalizer,
+# injector, audio teardown or network write must never drop it.
+
+def _session_report_paths():
+    return sorted((app_module.ROOT / "results").glob("session_*.json"))
+
+
+def test_canonicalization_failure_keeps_text_and_flags_it(
+    tmp_path, monkeypatch, capsys
+):
+    """A matcher failure must degrade to VERBATIM text, never to lost text."""
+    import speechmatics_test.medical_layer as medical_layer_module
+
+    def exploding_canonicalize(self, text, words=None, preserve_narrative=True):
+        raise RuntimeError("matcher exploded")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(
+        medical_layer_module.MedicalLayer, "canonicalize", exploding_canonicalize
+    )
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--no-inject",
+        "--save-report",
+    ])
+    install_fake_sdk(monkeypatch, {
+        "script": [("final", "بیمار در سی سی یو است"), ("final", "دوز دو گرم")],
+    })
+
+    reports = _session_report_paths()
+    try:
+        assert asyncio.run(app_module.main()) == 0
+        created = [p for p in _session_report_paths() if p not in reports]
+        assert created, "the report must still be written"
+        report = json.loads(created[-1].read_text(encoding="utf-8"))
+        # Nothing was dropped and nothing was invented: canonical == normalized.
+        assert report["final_transcript_raw"] == "بیمار در سی سی یو است دوز دو گرم"
+        assert report["final_transcript_canonical"] == \
+            report["final_transcript_normalized"]
+        assert "دوز دو گرم" in report["final_transcript_canonical"]
+        assert any(
+            flag["kind"] == "canonicalization_failed"
+            for flag in report["review_flags"]
+        )
+        assert "text emitted verbatim" in capsys.readouterr().out
+    finally:
+        for p in _session_report_paths():
+            if p not in reports:
+                p.unlink(missing_ok=True)
+
+
+def test_failed_injection_paste_keeps_the_transcript(tmp_path, monkeypatch):
+    """A paste that never succeeds is recorded as failed; the text stays."""
+    class FailingInjector:
+        def arm_target(self):
+            return True
+
+        def reset_partial(self):
+            pass
+
+        def paste_text(self, text, add_rtl_mark=False):
+            raise RuntimeError("clipboard is unavailable")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(app_module, "create_injector",
+                        lambda enabled: FailingInjector())
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--save-report",
+    ])
+    install_fake_sdk(monkeypatch, {"script": [("final", "بیمار در سی سی یو است")]})
+
+    reports = _session_report_paths()
+    try:
+        assert asyncio.run(app_module.main()) == 0
+        created = [p for p in _session_report_paths() if p not in reports]
+        assert created
+        report = json.loads(created[-1].read_text(encoding="utf-8"))
+        assert "CCU" in report["final_transcript_canonical"]
+        segments = report["injection"]["segments"]
+        assert segments and all(segment["success"] is False for segment in segments)
+    finally:
+        for p in _session_report_paths():
+            if p not in reports:
+                p.unlink(missing_ok=True)
+
+
+def test_audio_teardown_failure_keeps_the_transcript(
+    tmp_path, monkeypatch, capsys
+):
+    """``audio.aclose()`` raising must not skip the flush/report stages."""
+    class ExplodingAudio:
+        def __init__(self, chunks):
+            self._chunks = list(chunks)
+            self.close_calls = 0
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self._chunks:
+                raise StopAsyncIteration
+            return self._chunks.pop(0)
+
+        async def aclose(self):
+            self.close_calls += 1
+            raise RuntimeError("device already unplugged")
+
+    def exploding_audio_source(recorder, max_seconds, stop_event=None):
+        return ExplodingAudio([b"\x00" * 6400])
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", exploding_audio_source)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--no-inject",
+        "--save-report",
+    ])
+    install_fake_sdk(monkeypatch, {"script": [("final", "بیمار در سی سی یو است")]})
+
+    reports = _session_report_paths()
+    try:
+        assert asyncio.run(app_module.main()) == 0
+        created = [p for p in _session_report_paths() if p not in reports]
+        assert created
+        report = json.loads(created[-1].read_text(encoding="utf-8"))
+        assert "CCU" in report["final_transcript_canonical"]
+        assert "shutdown warning" in capsys.readouterr().out
+    finally:
+        for p in _session_report_paths():
+            if p not in reports:
+                p.unlink(missing_ok=True)
+
+
+def test_stalled_send_keeps_the_transcript_and_names_the_reason(
+    tmp_path, monkeypatch
+):
+    """A half-open socket used to hang the session forever; the bounded send
+    must abort with a clear reason while keeping what was transcribed."""
+    import speechmatics_test.realtime as realtime_module
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "test-key")
+    monkeypatch.setattr(microphone_module, "MicrophoneRecorder", FakeMic)
+    monkeypatch.setattr(app_module, "audio_source", fake_audio_source)
+    monkeypatch.setattr(realtime_module, "SEND_AUDIO_TIMEOUT", 0.05)
+    monkeypatch.setattr(sys, "argv", [
+        "app.py", "--language", "fa", "--no-overlay", "--no-inject",
+        "--save-report",
+    ])
+    install_fake_sdk(monkeypatch, {
+        "script": [("final", "بیمار در سی سی یو است")],
+        "hang_send_after": 1,
+    })
+
+    reports = _session_report_paths()
+    try:
+        assert asyncio.run(app_module.main()) == 0
+        created = [p for p in _session_report_paths() if p not in reports]
+        assert created
+        report = json.loads(created[-1].read_text(encoding="utf-8"))
+        assert "network" in report["session_error"]
+        assert "CCU" in report["final_transcript_canonical"]
+        assert FakeMic.instances[-1].closed is True
+    finally:
+        for p in _session_report_paths():
+            if p not in reports:
+                p.unlink(missing_ok=True)

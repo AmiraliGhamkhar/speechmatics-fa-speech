@@ -637,3 +637,31 @@ def test_overlay_close_leaves_no_root_reference_on_the_calling_thread():
     del root
     gc.collect()
     assert alive() is None
+
+
+def test_injection_worker_survives_an_injector_exception():
+    """A raising ``paste_text`` used to kill the worker thread: the segment
+    was never recorded and every queued segment after it was dropped."""
+    class ExplodingInjector:
+        def __init__(self):
+            self.attempted = []
+
+        def reset_partial(self):
+            pass
+
+        def paste_text(self, text, add_rtl_mark=False):
+            self.attempted.append(text)
+            if len(self.attempted) == 1:
+                raise RuntimeError("clipboard locked")
+            return True
+
+    injector = ExplodingInjector()
+    worker = app_module.InjectionWorker(injector)
+    worker.submit("یک")
+    worker.submit("دو")
+    worker.shutdown()
+
+    assert injector.attempted == ["یک ", "دو "]   # the queue kept draining
+    assert worker.records[0]["success"] is False
+    assert "clipboard locked" in worker.records[0]["error"]
+    assert worker.records[1] == {"text": "دو", "success": True}

@@ -26,3 +26,29 @@ def test_live_mode_requires_explicit_api_key():
         assert "SPEECHMATICS_API_KEY" in str(exc)
     else:  # pragma: no cover - avoids silently accepting an unsafe live default
         raise AssertionError("live benchmark unexpectedly ran without a key")
+
+
+def test_case_report_exposes_unambiguous_number_metrics():
+    """``number_accuracy`` is recall-only; the benchmark must also expose
+    precision/F1 so a fabricated value cannot pass unnoticed."""
+    report = run_benchmark(DEFAULT_TEST_CASES, mode="offline", dry_run=True)
+    case = report["cases"][0]
+    for key in ("number_precision", "number_recall", "number_f1"):
+        assert key in case, key
+        assert case[key] is None or 0.0 <= case[key] <= 1.0
+    summary = report["summary"]["number_metrics"]
+    assert set(summary) == {"precision", "recall", "f1"}
+    assert summary["f1"] is not None
+
+
+def test_summary_numbers_cannot_hide_a_fabricated_value():
+    """End-to-end guard for the metric itself: a hypothesis with an extra
+    number keeps recall at 1.0 but must lose precision and F1."""
+    from benchmark.benchmark_asr import numeric_metrics
+
+    honest = numeric_metrics("دوز 20 mg", "دوز 20 mg")
+    fabricated = numeric_metrics("دوز 20 mg", "دوز 20 mg 50 mg")
+    assert honest["precision"] == 1.0 and honest["f1"] == 1.0
+    assert fabricated["recall"] == 1.0
+    assert fabricated["precision"] < 1.0
+    assert fabricated["f1"] < 1.0

@@ -36,6 +36,7 @@ from speechmatics_test.realtime import (
 from speechmatics_test.text import (
     SPOKEN_NUMERAL_JOINER,
     SPOKEN_NUMERALS,
+    SPOKEN_THOUSANDS,
     normalize_text,
 )
 
@@ -409,16 +410,21 @@ class FinalStreamCanonicalizer:
     @staticmethod
     def _numeric_tail_start(tokens: list[str]) -> int | None:
         """Start of a potentially extendable numeric suffix (maximum 12 tokens)."""
-        number_tokens = set(SPOKEN_NUMERALS) | {
+        # Spoken thousands belong to the numeric tail too: a final ending in
+        # "پلاکت صد و پنجاه" must stay buffered so the "هزار" that gives it its
+        # magnitude (or a continuation like "و دویست") can still arrive.
+        number_tokens = set(SPOKEN_NUMERALS) | set(SPOKEN_THOUSANDS) | {
             SPOKEN_NUMERAL_JOINER, NUMERIC_CONTEXT.ratio_connector,
         }
         # 12 covers a complete bounded BP expression while preventing a stream
         # of malformed numeral-only finals from growing the buffer forever.
         for i in range(max(0, len(tokens) - 12), len(tokens)):
             suffix = tokens[i:]
-            if suffix[0] not in SPOKEN_NUMERALS and not suffix[0].isdigit():
+            if (suffix[0] not in SPOKEN_NUMERALS
+                    and suffix[0] not in SPOKEN_THOUSANDS
+                    and not suffix[0].isdigit()):
                 continue
-            if not any(token in SPOKEN_NUMERALS or token.isdigit()
+            if not any(token in number_tokens or token.isdigit()
                        for token in suffix):
                 continue
             if not all(token in number_tokens or token.isdigit()
@@ -458,12 +464,27 @@ class FinalStreamCanonicalizer:
             # The partial piece's evidence travels with its emitted text.
             words.extend(self._pieces[partial_index]["words"])
 
+        canonicalize_error: str | None = None
         if self._medical is None:
             canonical, hits = emitted_text, []
         else:
-            canonical, hits = self._medical.canonicalize(
-                emitted_text, words, preserve_narrative=True
-            )
+            try:
+                canonical, hits = self._medical.canonicalize(
+                    emitted_text, words, preserve_narrative=True
+                )
+            except Exception as exc:
+                # Last line of defense: the medical layer already degrades to
+                # its equivalent reference scanner internally, so reaching this
+                # means post-processing itself failed. The dictated text is
+                # emitted VERBATIM - never corrected, never dropped - and the
+                # failure is recorded for the report. This also covers the
+                # end-of-session ``flush()``: the tail that was still buffered
+                # is the clinician's text and must reach the report even when
+                # canonicalization of it fails.
+                canonical, hits = emitted_text, []
+                canonicalize_error = f"{type(exc).__name__}: {exc}"
+                print(f"\n[medical] canonicalization warning "
+                      f"(text emitted verbatim): {canonicalize_error}")
 
         remaining = self._pieces[consumed:]
         if partial_index is not None:
@@ -486,6 +507,11 @@ class FinalStreamCanonicalizer:
             {"kind": "low_confidence_entity", **entity}
             for entity in summary["low_confidence_entities"]
         ]
+        if canonicalize_error is not None:
+            self.last_flags.append({
+                "kind": "canonicalization_failed",
+                "error": canonicalize_error,
+            })
         self.flags.extend(self.last_flags)
         return canonical
 
@@ -522,14 +548,27 @@ class InjectionWorker:
             item = self._queue.get()
             if item is None:
                 return
-            self._injector.reset_partial()
-            # No ``add_rtl_mark`` here: the live injector is built with
-            # ``add_bidi_marks=False`` so the clipboard keeps clean logical
-            # Unicode, and the panic-mark branch would otherwise prepend a
-            # stray RLM to EVERY RTL segment. Direction controls are a
-            # display concern (the overlay applies its own).
-            ok = self._injector.paste_text(item + " ")
+            # A raising injector (target window closed, clipboard locked,
+            # pyperclip/pyautogui failure) used to kill this thread: the
+            # segment was never recorded and every remaining queued segment
+            # was silently dropped from the document AND from the report.
+            # Failures are recorded per segment and the queue keeps draining.
+            error: str | None = None
+            ok = False
+            try:
+                self._injector.reset_partial()
+                # No ``add_rtl_mark`` here: the live injector is built with
+                # ``add_bidi_marks=False`` so the clipboard keeps clean logical
+                # Unicode, and the panic-mark branch would otherwise prepend a
+                # stray RLM to EVERY RTL segment. Direction controls are a
+                # display concern (the overlay applies its own).
+                ok = self._injector.paste_text(item + " ")
+            except Exception as exc:
+                error = f"{type(exc).__name__}: {exc}"
+                print(f"[injector] paste failed: {error}")
             record = {"text": item, "success": bool(ok)}
+            if error is not None:
+                record["error"] = error
             self.records.append(record)
             try:
                 self._on_result(record)
@@ -761,7 +800,13 @@ async def main() -> int:
             worker.submit(emitted)
 
     def finish_injection() -> list[dict]:
-        """Flush the canonical tail, drain the worker, return its records."""
+        """Flush the canonical tail, drain the worker, return its records.
+
+        Every step is failure-contained: the finalized transcript already
+        accumulated in ``accumulator`` is the deliverable, so a failing worker
+        or a failing paste can never cost it (the caller writes the report from
+        ``accumulator`` either way).
+        """
         # Flush regardless of injection: the report's canonical stage is
         # built from these emissions, with or without a worker.
         tail = accumulator.flush()
@@ -783,6 +828,15 @@ async def main() -> int:
                 )
         if worker is None:
             return []
+        try:
+            return _drain_worker(tail)
+        except Exception as exc:
+            # A worker/injector failure is reported, never fatal: the
+            # transcript is already committed to the accumulator above.
+            print(f"\n[injector] shutdown warning: {type(exc).__name__}: {exc}")
+            return list(worker.records)
+
+    def _drain_worker(tail: str | None) -> list[dict]:
         if tail and not worker_armed:
             # Nothing was injected during the session, so no target was ever
             # armed (arm_target() refused at session start AND at the first
@@ -874,12 +928,24 @@ async def main() -> int:
                 print(f"\n[session error] {type(exc).__name__}: {exc}")
                 result = stt.result
             finally:
-                await audio.aclose()
+                # Audio teardown and injection drain must never be able to
+                # discard the dictated text: each step is contained, and the
+                # report below is written from the accumulated transcript
+                # regardless of what fails here.
+                try:
+                    await audio.aclose()
+                except Exception as exc:
+                    print(f"\n[audio] shutdown warning: "
+                          f"{type(exc).__name__}: {exc}")
                 # Flush the buffered canonical tail even when the session
                 # failed, drain the worker (ordered pastes), and collect the
                 # injection records for the report — before the overlay and
                 # the report are finalized.
-                injected_segments = finish_injection()
+                try:
+                    injected_segments = finish_injection()
+                except Exception as exc:
+                    print(f"\n[session] shutdown warning: "
+                          f"{type(exc).__name__}: {exc}")
     finally:
         if installed_signal_handler:
             try:

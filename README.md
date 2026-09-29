@@ -79,6 +79,8 @@ day-part words (`صبح`, `ظهر`, `عصر`, `شب`) stay Persian.
 | `ساعت هشت صبح`, `ساعت دو بعد از ظهر` | `ساعت 8 صبح`, `ساعت 2 بعد از ظهر` |
 | `مورس چهل و پنج`, `برادن بیست` | `مورس 45`, `برادن 20` |
 | `ای ام`, `پی ام`, `A.M.`, `P.M.` | `AM`, `PM` |
+| `دوز دو هزار میلی گرم`, `پلاکت صد و پنجاه هزار` | `دوز 2000 mg`, `پلاکت 150000` |
+| `هزار و دویست میلی گرم`, `دوز دو هزار و پانصد` | `1200 mg`, `دوز 2500` |
 
 Deliberate limits:
 
@@ -86,7 +88,15 @@ Deliberate limits:
   `BP`, `SpO2`, `درصد`, ...). `vivid`, `ivory`, `درد روی سینه` and
   `یک ضایعه در ریه` are left untouched.
 * A number group is all-or-nothing: `پنج و شش ساله` or `صد و بیست و هشتاد` stay
-  spoken rather than being half-converted, and `هزار` is not in the lexicon.
+  spoken rather than being half-converted, and a malformed thousand group
+  (`دو هزار هزار`) stays spoken in full - no part of it is digitized alone.
+  A bare `هزار` is folded only in front of a measured unit (`هزار میلی لیتر` ->
+  `1000 mL`), never in front of a duration or a count of repetitions
+  (`هزار سال پیش`, `هزار بار گفتم`, `چند هزار تومان`), and `دو هزار سال پیش`
+  -> `2000 سال پیش` behaves exactly like the existing `پنج سال` rule.
+  Larger magnitudes (`میلیون`, `میلیارد`) are deliberately NOT folded, but they
+  still extend the group, so `پلاکت چهار میلیون` stays spoken instead of being
+  half-converted to `پلاکت 4 میلیون` - a value nobody dictated.
   The connector `روی` only anchors a right-hand number when a numeric left
   side exists, so a corrupt ASR fragment such as `MRI روی هشتاد و پنج` is not
   silently reinterpreted as a measurement.
@@ -106,7 +116,21 @@ Deliberate limits:
 * No calendar logic, no 12/24-hour arithmetic, no date math, no dose or
   severity inference. Trailing punctuation is preserved, never consumed.
 
-Clinical abbreviations that collide with common English words require stronger evidence, such as uppercase charting forms.
+Clinical abbreviations and aliases that collide with common English words
+require stronger evidence. `US`, `IT`, `ID`, `BE`, `HIM`, `MR`, `TOP`, `CAT`,
+`COLD`, `AM`/`PM` and the charted dosage forms (`CAP`, `TABS`, `SOL`, `SUSP`,
+`SYR`, `UNG`, `RECT`, `UNITS`, `DROPS`, `PILL`, `LAB`, `POST`, `LYING`,
+`SKIN`, `SOFT`, `DRAIN`, `ORAL`, `DAILY`, `STAT`, `PREP`, `REG`, `ANTE`,
+`CUM`, `ANTIBIOTICS`) count as charting shorthand only when the original text
+is fully uppercase or a number touches it (`8 am`). Lowercase occurrences are
+ordinary English prose and are left byte-identical: `the skin is pale`,
+`it was soft`, `drain the wound`, `the patient is lying in bed`,
+`the lab results`, `I am tired today` and `the nurse gave him a glass of water`
+survive the narrative path unchanged. Two collisions are documented rather
+than solvable without a semantic layer: an all-caps ordinary English word
+(`the US report`, `BE careful`, `the IT department`) is indistinguishable from
+chart notation. `scripts/validate_dictionary.py` and the test suite fail if a
+new alias appears without its guard.
 
 Cross-segment matching is supported for phrases and numeric expressions that span finalized ASR segments. Only a bounded, potentially extendable suffix is retained (for example `پنجاه` + `و هشت` + `ساله`); ordinary text is emitted immediately, and the tail is always flushed at session end.
 
@@ -468,7 +492,24 @@ HbA1c
 
 Persian and Arabic-Indic digits are normalized to ASCII for evaluation.
 
-`number_accuracy` is retained for API compatibility as recall. `number_precision`, `number_recall`, and `number_f1` provide stricter number evaluation.
+`number_accuracy` is retained for API compatibility as recall: it is
+RECALL-only and cannot see a fabricated value, so it is never reported as
+"accuracy" on its own. `number_precision`, `number_recall`, and `number_f1`
+are the unambiguous numeric metrics.
+
+`benchmark/benchmark_postprocess.py` reports the pipeline stages separately, so
+a raw ASR score and a post-processing score are never conflated:
+
+```text
+raw                 - the stored ASR segments verbatim (metric A)
+normalized          - generic normalization only (metric B)
+canonical_single_pass - the deterministic medical layer (metric C)
+canonical_streamed  - the text actually injected, end to end (metric E)
+```
+
+Each stage reports exact match, WER, entity P/R, and number
+precision/recall/F1 (metric D), and the benchmark proves the streamed path is
+byte-identical to the single-pass path for every case.
 
 ## Testing
 
@@ -476,6 +517,14 @@ Run the complete test suite:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
+```
+
+Validate the dictionary (bounded Speechmatics vocabulary, pronunciation
+limits, BiDi-free canonicals, and the guard on every English alias that could
+rewrite ordinary prose):
+
+```powershell
+.\.venv\Scripts\python.exe scripts\validate_dictionary.py
 ```
 
 Run matcher benchmarks:

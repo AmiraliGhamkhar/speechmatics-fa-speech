@@ -46,6 +46,9 @@ def install_fake_sdk(monkeypatch, behavior=None):
       - fail_send_after: fail send_audio after N successful sends
       - fail_stop: exception to raise from stop_session
       - hang_stop: stop_session never completes (silent-server scenario)
+      - hang_send_after: send_audio never completes from send N on
+        (half-open websocket)
+      - callbacks: not used here; callbacks are supplied per test
     """
     behavior = behavior or {}
     registry = {"configs": [], "clients": []}
@@ -135,6 +138,11 @@ def install_fake_sdk(monkeypatch, behavior=None):
                     handler({"message": "Error", "reason": behavior["server_error"]})
 
         async def send_audio(self, chunk):
+            if behavior.get("hang_send_after") is not None and \
+                    len(self.sent) >= behavior["hang_send_after"]:
+                # A write on a half-open TCP connection: the SDK's send has no
+                # timeout of its own, so it would await forever.
+                await asyncio.sleep(3600)
             if behavior.get("fail_send_after") is not None and \
                     len(self.sent) >= behavior["fail_send_after"]:
                 raise RuntimeError("websocket send failed")
@@ -704,3 +712,153 @@ def test_server_error_before_any_audio_still_completes(monkeypatch):
     assert registry["clients"][0].sent == []
     assert result.final_text == ""
     assert result.ended_at is not None
+
+
+# ------------------------------------- stalled send (network half-open, BUG 3)
+
+def test_send_stall_is_bounded_and_preserves_the_transcript(monkeypatch):
+    """A websocket write that never completes must not hang the session.
+
+    The SDK's ``send_audio`` has no timeout of its own, so on a half-open
+    connection it awaited forever: no final, no error, no shutdown, and the
+    microphone kept feeding an iterator nobody consumed. The send is bounded,
+    the failure is reported with a clear reason, and the transcript captured
+    before the stall survives.
+    """
+    import speechmatics_test.realtime as realtime_module
+
+    registry = install_fake_sdk(monkeypatch, {
+        "script": [("final", "بیمار در سی سی یو است")],
+        "hang_send_after": 1,
+    })
+    monkeypatch.setattr(realtime_module, "SEND_AUDIO_TIMEOUT", 0.05)
+    stt = SpeechmaticsRealtime(api_key="k", language="fa")
+    audio = FakeAudio([b"a", b"b", b"c"])
+    finals = []
+    with pytest.raises(RuntimeError, match="network"):
+        asyncio.run(stt.run(audio, lambda t: None, finals.append))
+    assert finals == ["بیمار در سی سی یو است"]
+    assert stt.result.final_text == "بیمار در سی سی یو است"
+    assert "network" in (stt.result.error or "")
+    assert stt.result.ended_at is not None
+    assert audio.closed is True
+    assert registry["clients"][0].closed is True
+
+
+def test_send_timeout_does_not_clobber_a_server_error(monkeypatch):
+    """The service's own reason still wins over the transport symptom."""
+    import speechmatics_test.realtime as realtime_module
+
+    install_fake_sdk(monkeypatch, {
+        "server_error": "quota exceeded",
+        "hang_send_after": 1,
+    })
+    monkeypatch.setattr(realtime_module, "SEND_AUDIO_TIMEOUT", 0.05)
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    result = asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+    assert result.error == "server error: quota exceeded"
+
+
+# ------------------------------------ session-state isolation (BUG 4)
+
+def test_reusing_an_instance_starts_from_a_clean_result(monkeypatch):
+    """No partial, final, word, warning or error may leak between sessions."""
+    registry = install_fake_sdk(monkeypatch, {"script": [
+        ("partial", "first partial"),
+        ("final", "first final"),
+    ]})
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    first = asyncio.run(
+        stt.run(FakeAudio([b"a", b"b"]), lambda t: None, lambda t: None)
+    )
+    assert first.final_text == "first final"
+    assert len(first.partials) == 1
+    assert first.error is None
+
+    # Second session on the SAME instance: a fresh client replays the same
+    # script, so the bookkeeping must hold exactly ONE session's worth of
+    # data. Leaking the previous SessionResult would double every count.
+    registry["clients"].clear()
+    second = asyncio.run(
+        stt.run(FakeAudio([b"b", b"c"]), lambda t: None, lambda t: None)
+    )
+    assert second is stt.result
+    assert second is not first
+    assert len(second.partials) == 1          # not 2: no stale partials
+    assert len(second.final_segments) == 1    # not 2: no stale finals
+    assert second.final_text == "first final"
+    assert second.word_results == []
+    assert second.warnings == []
+    assert second.error is None
+    assert second.partials is not first.partials
+    # the first session's result object is untouched
+    assert len(first.partials) == 1
+    assert first.final_text == "first final"
+
+
+def test_reset_clears_state_and_refuses_while_running(monkeypatch):
+    install_fake_sdk(monkeypatch, {"script": [("final", "text")]})
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    asyncio.run(stt.run(FakeAudio([b"a"]), lambda t: None, lambda t: None))
+    assert stt.result.final_text == "text"
+    assert stt.is_running is False
+    stt.reset()
+    assert stt.result.final_text == ""
+    assert stt.result.started_at is None
+    stt._running = True
+    with pytest.raises(RuntimeError, match="running"):
+        stt.reset()
+    stt._running = False
+
+
+def test_concurrent_run_on_one_instance_is_refused(monkeypatch):
+    install_fake_sdk(monkeypatch, {"script": []})
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    stt._running = True
+    audio = FakeAudio([b"a"])
+    with pytest.raises(RuntimeError, match="already running"):
+        asyncio.run(stt.run(audio, lambda t: None, lambda t: None))
+    # the refused call did not touch the audio stream or the session state
+    assert audio.closed is False
+
+
+# ------------------------------- callback failures (BUG 5)
+
+def test_failing_callbacks_never_cost_the_transcript(monkeypatch):
+    """UI callbacks run on the SDK receive path: a raising one must not kill
+    the session or drop the finalized segment."""
+    install_fake_sdk(monkeypatch, {"script": [
+        ("partial", "partial text"),
+        ("final", "بیمار در سی سی یو است"),
+    ]})
+
+    def explode(_text):
+        raise RuntimeError("overlay is gone")
+
+    stt = SpeechmaticsRealtime(api_key="k", language="fa")
+    result = asyncio.run(stt.run(FakeAudio([b"a", b"b"]), explode, explode))
+    assert result.final_text == "بیمار در سی سی یو است"
+    assert [segment["text"] for segment in result.final_segments] == [
+        "بیمار در سی سی یو است"
+    ]
+    assert result.error is None
+    assert any("partial callback failed" in warning for warning in result.warnings)
+    assert any("final callback failed" in warning for warning in result.warnings)
+
+
+def test_callback_failure_does_not_stop_later_segments(monkeypatch):
+    install_fake_sdk(monkeypatch, {"script": [
+        ("final", "first"),
+        ("final", "second"),
+    ]})
+    seen = []
+
+    def only_first(text):
+        seen.append(text)
+        if len(seen) == 1:
+            raise RuntimeError("boom")
+
+    stt = SpeechmaticsRealtime(api_key="k", language="en")
+    result = asyncio.run(stt.run(FakeAudio([b"a", b"b"]), lambda t: None, only_first))
+    assert seen == ["first", "second"]
+    assert result.final_text == "first second"

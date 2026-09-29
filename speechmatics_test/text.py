@@ -119,8 +119,9 @@ def tokens(text: str) -> list[str]:
 #   * even a valid number is only folded when an anchor word supplied by the
 #     caller touches it, so arbitrary prose numerals stay natural.
 
-#: Spoken numeral words and their values (zero to 999). Values above 999 are
-#: out of scope on purpose: dictated doses/vitals use digits, not words.
+#: Spoken numeral words and their values (zero to 999). ``هزار`` is NOT part of
+#: this table: it is multiplicative (see ``SPOKEN_THOUSANDS``), so it belongs to
+#: the run logic, not to the single-valued lexicon callers iterate over.
 SPOKEN_NUMERALS: dict[str, int] = {
     "صفر": 0, "یک": 1, "دو": 2, "سه": 3, "چهار": 4, "پنج": 5, "شش": 6,
     "هفت": 7, "هشت": 8, "نه": 9, "ده": 10, "یازده": 11, "دوازده": 12,
@@ -136,15 +137,44 @@ SPOKEN_NUMERALS: dict[str, int] = {
 #: The single word joining the parts of a Persian number.
 SPOKEN_NUMERAL_JOINER = "و"
 
-#: Magnitude class of a numeral word: 3 = hundreds, 2 = tens (20-90),
-#: 1 = ten/teens (10-19), 0 = units (0-9).
+#: Spoken THOUSANDS. ``هزار`` multiplies the number group in front of it
+#: ("دو هزار" = 2000, "صد و پنجاه هزار" = 150000 - the ordinary way platelets,
+#: white cells, and large doses are dictated), or opens a group of its own
+#: ("هزار و دویست" = 1200). It is deliberately NOT in ``SPOKEN_NUMERALS``:
+#: that table is the single-valued 0-999 lexicon, and a thousand must always be
+#: folded as part of a WHOLE group. Folding only the count in front of it
+#: produced "دوز 2 هزار mg" for a dictated 2000 mg - a fabricated dose, and
+#: exactly the half-converted number the all-or-nothing rule forbids.
+SPOKEN_THOUSANDS: dict[str, int] = {"هزار": 1000}
+
+#: Larger magnitudes ("میلیون" / "میلیارد"). These are deliberately NOT folded:
+#: this module digitizes the thousands Persian dictation actually uses in
+#: charts, and inventing a million-scale reading is a bigger risk than leaving
+#: the value spoken. They still count as part of the number GROUP, so the
+#: group is either converted whole or left completely alone - folding only the
+#: number in front of them reported "پلاکت 4 میلیون" for a dictated platelet
+#: count of four million, a value nobody said.
+SPOKEN_LARGE_MULTIPLIERS = frozenset({"میلیون", "میلیارد", "تریلیون"})
+
+#: Denominator words that name the fraction of a dictated decimal
+#: ("یک و دو دهم" = 1.2, "سه و پنج صدم" = 3.05). They are consumed with the
+#: value they spell out; leaving them behind wrote the contradictory
+#: "1.2 دهم" for a dictated 1.2.
+SPOKEN_FRACTION_DENOMINATORS: dict[str, int] = {
+    "دهم": 10, "صدم": 100, "هزارم": 1000,
+}
+
+#: Magnitude class of a numeral word: 4 = thousands, 3 = hundreds,
+#: 2 = tens (20-90), 1 = ten/teens (10-19), 0 = units (0-9).
 #:
 #: A Persian number is built by descending magnitude CLASS, not merely by
 #: descending value: "صد و بیست و هشت" is 100 + 20 + 8, while "نهصد سیصد" is
 #: two separate numbers that no speaker ever combines.  Comparing values alone
 #: accepted the second one and silently reported 1200 - a dose/score nobody
 #: dictated.  Only these transitions exist in the language.
-_SPOKEN_NUMERAL_TRANSITIONS = frozenset({(3, 2), (3, 1), (3, 0), (2, 0)})
+_SPOKEN_NUMERAL_TRANSITIONS = frozenset(
+    {(4, 3), (4, 2), (4, 1), (4, 0), (3, 2), (3, 1), (3, 0), (2, 0)}
+)
 
 #: Meaningless as a measurement on their own - never folded as a whole run.
 SPOKEN_NUMERAL_UNSAFE_ALONE = frozenset({"یک", "نه"})
@@ -175,6 +205,62 @@ def _half_tail(tokens: list[str], index: int,
         if head[len(SPOKEN_NUMERAL_JOINER):] in half_words:
             return index + 1
     return None
+
+def _fraction_denominator(tokens: list[str], index: int) -> Optional[tuple[int, int]]:
+    """``(denominator, tokens_consumed)`` of a spoken fraction word, or ``None``.
+
+    Only meaningful straight after a dictated decimal shape, where the
+    denominator names what the spoken digits divide by: "یک و دو دهم" is
+    1 + 2/10, "سه و پنج صدم" is 3 + 5/100.
+    """
+    if index >= len(tokens):
+        return None
+    denominator = SPOKEN_FRACTION_DENOMINATORS.get(_bare(tokens[index]))
+    if denominator is None:
+        return None
+    return denominator, 1
+
+
+#: ``after`` anchors that name a duration or a count of repetitions rather than
+#: a measured quantity. A number that is NOTHING BUT a bare "هزار" is not
+#: digitized in front of them: "هزار سال پیش" and "هزار بار گفتم" are ordinary
+#: Persian prose, not a charted value. A counted thousand is a real number and
+#: is unaffected ("دو هزار سال" -> "2000 سال", like the existing "پنج سال").
+_WEAK_THOUSAND_ANCHORS = frozenset({"سال", "ساله", "بار"})
+
+
+def _number_group_end(tokens: list[str], index: int, end: int) -> int:
+    """End of the number GROUP that starts at ``index`` (folds nothing).
+
+    A group is the run itself plus every ``و <run>`` behind it and every
+    numeral or thousand the run refused to absorb. It is computed separately
+    from ``spoken_number_at`` so a malformed sequence can be skipped as a whole
+    even when the run itself was refused: folding only its head (or leaving its
+    tail for the next loop iteration to fold) would report part of a number
+    nobody dictated - "نمره هشت سه" must not become "نمره 8 سه", and a refused
+    "دو هزار هزار" must not digitize its trailing "هزار".
+    """
+    group_end = end
+    while group_end < len(tokens):
+        if _bare(tokens[group_end]) in SPOKEN_LARGE_MULTIPLIERS:
+            # A million/billion extends the group (and therefore blocks the
+            # fold): "چهار میلیون" must not come out as "4 میلیون".
+            group_end += 1
+            continue
+        if tokens[group_end] == SPOKEN_NUMERAL_JOINER:
+            following = spoken_number_at(tokens, group_end + 1)
+            if following is None:
+                break
+            group_end = group_end + 1 + following[0]
+            continue
+        if (_numeral(tokens[group_end]) is not None
+                or _bare(tokens[group_end]) in SPOKEN_THOUSANDS):
+            following = spoken_number_at(tokens, group_end,
+                                         allow_single_unsafe=True)
+            group_end += following[0] if following else 1
+            continue
+        break
+    return group_end
 
 #: Punctuation stripped from a token before it is compared with a table. The
 #: trimmed characters are never consumed by a replacement, so a sentence stop
@@ -258,6 +344,8 @@ def _numeral(token: str) -> Optional[int]:
 
 def _magnitude(value: int) -> int:
     """Magnitude class of a numeral value (see ``_SPOKEN_NUMERAL_TRANSITIONS``)."""
+    if value >= 1000:
+        return 4
     if value >= 100:
         return 3
     if value >= 20:
@@ -298,9 +386,15 @@ def spoken_number_at(tokens: list[str], index: int, *,
     ``half_words`` so this module keeps no domain vocabulary of its own. A
     value is ``int`` unless a decimal shape was actually consumed, so an
     ordinary integer still renders as "45" and never as "45.0".
+
+    A spoken thousand multiplies the parts in front of it and must stay inside
+    ONE group: a run that meets a thousand it cannot consume refuses the whole
+    run instead of returning a shorter prefix, so a count is never digitized
+    next to the "هزار" that gives it its magnitude.
     """
     parts: list[int] = []
     previous: Optional[int] = None
+    thousand_used = False
     cursor = index
     while cursor < len(tokens):
         token = tokens[cursor]
@@ -309,6 +403,11 @@ def spoken_number_at(tokens: list[str], index: int, *,
                 break
             follower = _numeral(tokens[cursor + 1])
             if follower is None:
+                # "و هزار" is not a number anyone dictates: the joiner is
+                # followed by a pure multiplier, so the group is malformed and
+                # is refused whole rather than folded up to the "و".
+                if _bare(tokens[cursor + 1]) in SPOKEN_THOUSANDS:
+                    return None
                 break
             if previous is None or not _continues_number(previous, follower):
                 # Only a lone unit digit may take a unit tenths digit this
@@ -317,12 +416,41 @@ def spoken_number_at(tokens: list[str], index: int, *,
                 if (len(parts) != 1 or not _is_unit(previous)
                         or not _is_unit(follower)):
                     break
-                return (cursor + 2 - index, parts[0] + follower / 10)
+                value = parts[0] + follower / 10
+                consumed = cursor + 2 - index
+                fraction = _fraction_denominator(tokens, cursor + 2)
+                if fraction is not None:
+                    # "یک و دو دهم" is one and two tenths: the denominator word
+                    # is part of the value and is consumed with it.
+                    denominator, extra = fraction
+                    value = parts[0] + follower / denominator
+                    consumed += extra
+                return (consumed, value)
             value, cursor = follower, cursor + 2
         else:
             value = _numeral(token)
             if value is None:
-                break
+                multiplier = SPOKEN_THOUSANDS.get(_bare(token))
+                if multiplier is None:
+                    break
+                # A thousand is multiplicative and may appear once: "دو هزار"
+                # (2000), "صد و پنجاه هزار" (150000), "هزار و دویست" (1200).
+                # Anything else - a second thousand, a thousand with nothing
+                # to multiply but no continuation - refuses the whole run.
+                if thousand_used:
+                    return None
+                thousand_used = True
+                if not parts:
+                    # "هزار" with nothing in front of it is a value only in a
+                    # measured context; the caller decides that, because a bare
+                    # "هزار" is also the ordinary word for "a thousand" in
+                    # prose ("هزار سال پیش").
+                    parts.append(multiplier)
+                else:
+                    parts = [sum(parts) * multiplier]
+                previous = parts[-1]
+                cursor += 1
+                continue
             if parts and (previous is None or not _continues_number(previous, value)):
                 break
             cursor += 1
@@ -396,7 +524,16 @@ def fold_spoken_numbers(text: str, context: NumericContext) -> str:
     while index < len(tokens):
         run = spoken_number_at(tokens, index, half_words=context.half_words)
         if run is None:
-            index += 1
+            # A refused run is still part of a number GROUP. Advancing a
+            # single token let the remainder be folded on its own: in "دو هزار
+            # هزار" the refused first pair was skipped and the second "هزار"
+            # was digitized as a standalone value. The whole unresolved group
+            # is skipped instead - nothing inside it is folded.
+            if (_numeral(tokens[index]) is not None
+                    or _bare(tokens[index]) in SPOKEN_THOUSANDS):
+                index = _number_group_end(tokens, index, index + 1)
+            else:
+                index += 1
             continue
         count, value = run
         end = index + count
@@ -405,23 +542,7 @@ def fold_spoken_numbers(text: str, context: NumericContext) -> str:
         # group, a dangling "و", or several runs that do not form one valid
         # number are skipped whole, so "پنج و شش" and "بیست و" never come out
         # as "5 و 6" / "20 و", and "نمره هشت سه" never becomes "نمره 8 سه".
-        group_end = end
-        while group_end < len(tokens):
-            if tokens[group_end] == SPOKEN_NUMERAL_JOINER:
-                following = spoken_number_at(tokens, group_end + 1)
-                if following is None:
-                    break
-                group_end = group_end + 1 + following[0]
-                continue
-            if _numeral(tokens[group_end]) is not None:
-                # A numeral the run refused to absorb (two numbers spoken back
-                # to back). The whole sequence is one unresolved group: folding
-                # only its head would report a value next to a spoken one.
-                following = spoken_number_at(tokens, group_end,
-                                             allow_single_unsafe=True)
-                group_end += following[0] if following else 1
-                continue
-            break
+        group_end = _number_group_end(tokens, index, end)
         incomplete = group_end > end
         before_token = tokens[index - 1] if index else None
         anchored_before = _anchor(before_token, context.before)
@@ -437,6 +558,13 @@ def fold_spoken_numbers(text: str, context: NumericContext) -> str:
             context.after,
         )
         if _meridiem_restated(tokens, group_end, context):
+            anchored = False
+        if (count == 1 and _bare(tokens[index]) in SPOKEN_THOUSANDS
+                and _anchor(tokens[group_end] if group_end < len(tokens) else None,
+                            _WEAK_THOUSAND_ANCHORS)):
+            # A group that is nothing but "هزار" is a value only in front of a
+            # measured unit ("هزار میلی گرم" = 1000 mg), never in front of a
+            # duration or a count of repetitions ("هزار سال پیش").
             anchored = False
         if isinstance(value, float) and _anchor(
                 tokens[group_end] if group_end < len(tokens) else None,

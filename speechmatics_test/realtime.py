@@ -35,6 +35,15 @@ DEFAULT_MAX_DELAY = 2.0  # docs-recommended trade-off for most realtime uses
 #: processing, so 30 s is a generous bound.
 STOP_SESSION_TIMEOUT = 30.0
 
+#: Hard bound for ONE ``send_audio`` call. The SDK's send is a websocket write
+#: with no timeout of its own, so on a half-open connection (network cable
+#: pulled, NAT/firewall dropped the mapping, wifi roaming) the write awaits
+#: forever: no final, no error, no shutdown, and the microphone keeps feeding
+#: an iterator nobody consumes. One 200 ms chunk is a few kilobytes, so 10 s is
+#: already far outside any real transport latency; exceeding it is a network
+#: stall, not slow speech.
+SEND_AUDIO_TIMEOUT = 10.0
+
 VALID_MODELS = ("standard", "enhanced")
 DEFAULT_MODEL = "enhanced"
 VALID_MAX_DELAY_MODES = ("fixed", "flexible")
@@ -233,8 +242,31 @@ class SpeechmaticsRealtime:
         #: Enhanced Medical model for the language (or when forced).
         self.effective_domain = resolve_domain(language, self.domain)
         self.result = SessionResult(language=language)
+        #: True while ``run()`` is executing. Guards against a second session
+        #: sharing this instance's result/word buffers.
+        self._running = False
 
     # ------------------------------------------------------------------ util
+
+    @property
+    def is_running(self) -> bool:
+        """Whether a session is currently executing on this instance."""
+        return self._running
+
+    def reset(self) -> None:
+        """Drop ALL per-session state so a new session starts clean.
+
+        ``run()`` calls this itself, so a completed session can never leak its
+        partials, finalized segments, word metadata, warnings or error into the
+        next one (the adapter used to keep appending to the previous
+        ``SessionResult``). Text already handed to the caller is untouched -
+        this only clears bookkeeping.
+        """
+        if self._running:
+            raise RuntimeError(
+                "cannot reset a running Speechmatics session"
+            )
+        self.result = SessionResult(language=self.language)
 
     @staticmethod
     def _clean_vocab(vocab: list) -> list:
@@ -356,7 +388,19 @@ class SpeechmaticsRealtime:
         ``result.error``. Every path after ``started_at`` — including SDK
         import and configuration failures — runs the same ``finally``: the
         audio iterator is always released and ``ended_at`` is always set.
+
+        The instance is reusable but never overlapping: ``run()`` refuses to
+        start while another session is still executing on it and resets all
+        session bookkeeping first, so no partial, finalized segment, word
+        metadata, warning or error can leak from one session into the next.
         """
+        if self._running:
+            raise RuntimeError(
+                "SpeechmaticsRealtime.run() is already running on this "
+                "instance; wait for it to finish or use a new instance"
+            )
+        self.reset()
+        self._running = True
         self.result.started_at = time.perf_counter()
         try:
             try:
@@ -448,7 +492,7 @@ class SpeechmaticsRealtime:
                         "t_ms": round(elapsed_ms, 1),
                         "text": text,
                     })
-                    on_partial(text)
+                    self._invoke_callback(on_partial, text, "partial")
 
                 @client.on(ServerMessageType.ADD_TRANSCRIPT)
                 def handle_final(message):
@@ -471,7 +515,10 @@ class SpeechmaticsRealtime:
                     }
                     segment.update(self._segment_timing(metadata))
                     self.result.final_segments.append(segment)
-                    on_final(text)
+                    # The segment is recorded BEFORE the callback runs, so a
+                    # failing UI/injection callback can never cost the
+                    # clinician a finalized transcript.
+                    self._invoke_callback(on_final, text, "final")
 
                 try:
                     await client.start_session(
@@ -486,7 +533,20 @@ class SpeechmaticsRealtime:
                         if session_error.is_set():
                             break
                         if chunk:
-                            await client.send_audio(chunk)
+                            try:
+                                await asyncio.wait_for(
+                                    client.send_audio(chunk),
+                                    timeout=SEND_AUDIO_TIMEOUT,
+                                )
+                            except asyncio.TimeoutError as exc:
+                                # A stalled write must fail the session with a
+                                # clear reason instead of hanging forever.
+                                raise RuntimeError(
+                                    "Speechmatics did not accept an audio chunk "
+                                    f"within {SEND_AUDIO_TIMEOUT:.0f}s (network "
+                                    "stall); closing the session "
+                                    "(the transcript captured so far is preserved)"
+                                ) from exc
                             if session_error.is_set():
                                 break
                     try:
@@ -514,6 +574,9 @@ class SpeechmaticsRealtime:
 
         finally:
             self.result.ended_at = time.perf_counter()
+            # Released here (not in a nested finally) so the instance can be
+            # reused for a second session after any outcome.
+            self._running = False
             aclose = getattr(audio_iter, "aclose", None)
             if aclose is not None:
                 try:
@@ -524,6 +587,26 @@ class SpeechmaticsRealtime:
         return self.result
 
     # ------------------------------------------------------- final parsing
+
+    def _invoke_callback(self, callback: Callable[[str], None], text: str,
+                         kind: str) -> None:
+        """Run a caller-supplied UI callback without ending the session.
+
+        The callbacks run on the SDK receive path. An exception from one of
+        them used to escape into the SDK's own message loop (killing the
+        session, and with ``stop_session`` then failing, making the remaining
+        audio unreachable). The transcript segment/partial is already stored in
+        ``result`` when this is called, so a failure here costs UI update only -
+        never dictated text - and it is recorded for the report.
+        """
+        try:
+            callback(text)
+        except Exception as exc:
+            self.result.warnings.append(
+                f"{kind} callback failed ({type(exc).__name__}: {exc}); "
+                "the transcript was kept"
+            )
+            print(f"\n[{kind} callback warning] {type(exc).__name__}: {exc}")
 
     @staticmethod
     def _transcript_from_raw_message(message: Any) -> str:

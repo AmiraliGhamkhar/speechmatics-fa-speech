@@ -290,3 +290,83 @@ def test_vocab_export_reproduces_the_committed_artifact(tmp_path):
     # and the derived vocabulary is exactly what the matcher exposes
     matcher = MedicalMatcher(ROOT)
     assert matcher.additional_vocab == committed
+
+
+# ------------------------------------------------- dictionary validation CLI
+# ``scripts/validate_dictionary.py`` is the audit the dictionary must pass
+# before any edit: bounded vocabulary, well-formed pronunciations, clean
+# canonicals, and (critically) no English alias that can rewrite ordinary
+# prose without charting evidence.
+
+def _validate_module():
+    import importlib.util
+    import sys
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "validate_dictionary", root / "scripts" / "validate_dictionary.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["validate_dictionary"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_validate_dictionary_reports_no_problems():
+    module = _validate_module()
+    problems, notes = module.validate(ROOT)
+    assert problems == [], problems
+    assert any("Speechmatics vocab entries" in note for note in notes)
+    assert any("alias collision" in note for note in notes)
+
+
+def test_validate_dictionary_detects_a_lost_guard(monkeypatch):
+    """The audit must FAIL when an alias loses its uppercase-evidence guard.
+
+    This is the load-bearing check: without it a future dictionary edit could
+    silently let "IT"/"US"/"him" rewrite ordinary English prose again.
+    """
+    import speechmatics_test.matcher as matcher_module
+
+    module = _validate_module()
+    monkeypatch.setattr(
+        matcher_module, "_AMBIGUOUS_SHORT_FORMS", frozenset({"or", "p"})
+    )
+    problems, _notes = module.validate(ROOT)
+    assert problems, "an unguarded function-word alias must fail validation"
+    assert any("unguarded English-word alias" in problem for problem in problems)
+    assert any("'IT'" in problem or "'it'" in problem for problem in problems)
+
+
+def test_risky_alias_lists_have_no_stale_entries():
+    """Every name in the curated lists must be a real dictionary alias, so a
+    stale entry cannot hide a new (unguarded) collision."""
+    from speechmatics_test.matcher import (
+        _CONTENT_WORD_ALIASES,
+        _FUNCTION_WORD_ALIASES,
+        MedicalMatcher,
+        find_risky_english_aliases,
+    )
+
+    matcher = MedicalMatcher(ROOT)
+    reported = {row["form"].casefold() for row in find_risky_english_aliases(matcher)}
+    curated = {name.casefold() for name in
+               _FUNCTION_WORD_ALIASES | _CONTENT_WORD_ALIASES}
+    # A curated name may be future-proofing (no current alias) but must never
+    # be a live alias that the audit fails to report.
+    live = {rule.match_form for rule in matcher.rules}
+    assert not (curated & live) - reported, (
+        f"live aliases missing from the audit: "
+        f"{sorted((curated & live) - reported)}"
+    )
+    # ... and every reported collision is covered by one of the two lists.
+    assert reported <= curated
+    # The audit is never empty: the dictionary does contain those collisions.
+    assert len(reported) >= 20
+
+
+def test_validate_dictionary_accepts_the_committed_dictionary():
+    module = _validate_module()
+    problems, notes = module.validate(ROOT)
+    assert problems == []
+    assert any("narrative guard: on" in note for note in notes)

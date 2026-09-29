@@ -13857,7 +13857,10 @@
         "bed side up"
       ],
       "speechmatics": true,
-      "sounds_like": [],
+      "sounds_like": [
+        "بدسایدآپ",
+        "بد ساید آپ"
+      ],
       "source_file": "clinical_entity_guard_dictionary_additions.json",
       "context": "fall_prevention",
       "priority": 1
@@ -13934,7 +13937,9 @@
         "appendectomy"
       ],
       "speechmatics": true,
-      "sounds_like": [],
+      "sounds_like": [
+        "آپاندکتومی"
+      ],
       "source_file": "clinical_entity_guard_dictionary_additions.json"
     },
     {
@@ -13946,7 +13951,9 @@
         "myocardial ischemia"
       ],
       "speechmatics": true,
-      "sounds_like": [],
+      "sounds_like": [
+        "ایسکمی میوکارد"
+      ],
       "source_file": "clinical_entity_guard_dictionary_additions.json"
     },
     {
@@ -13958,7 +13965,9 @@
         "normal saline"
       ],
       "speechmatics": true,
-      "sounds_like": [],
+      "sounds_like": [
+        "نرمال سالین"
+      ],
       "source_file": "clinical_entity_guard_dictionary_additions.json"
     },
     {
@@ -13970,7 +13979,10 @@
         "pressure sore"
       ],
       "speechmatics": true,
-      "sounds_like": [],
+      "sounds_like": [
+        "زخم فشاری",
+        "زخم بستر"
+      ],
       "source_file": "clinical_entity_guard_dictionary_additions.json"
     },
     {
@@ -13982,7 +13994,9 @@
         "skin turgor"
       ],
       "speechmatics": true,
-      "sounds_like": [],
+      "sounds_like": [
+        "تورگور پوست"
+      ],
       "source_file": "clinical_entity_guard_dictionary_additions.json"
     }
   ]

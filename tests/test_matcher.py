@@ -22,8 +22,10 @@ from speechmatics_test.matcher import (
     TIER_ORDER,
 )
 from speechmatics_test.text import (
+    SPOKEN_FRACTION_DENOMINATORS,
     SPOKEN_NUMERAL_JOINER,
     SPOKEN_NUMERALS,
+    SPOKEN_THOUSANDS,
     fold_clock_times,
     fold_numeric_expressions,
     fold_spoken_numbers,
@@ -849,8 +851,23 @@ SAFE_CASES = [
     ("پنج و شش ساله", "پنج و شش ساله"),
     ("دو هفته قبل", "دو هفته قبل"),
     ("ده میلیارد", "ده میلیارد"),
-    # "هزار" is deliberately not in the numeral lexicon: no half-thousands.
-    ("هزار میلی لیتر", "هزار mL"),
+    # "هزار" is multiplicative and is never folded as half a group: without a
+    # measured anchor, or when the group is malformed, the whole number stays
+    # spoken (a bare "2" in front of a spoken "هزار" was a fabricated dose).
+    ("هزار", "هزار"),
+    ("هزار و یک شب", "هزار و یک شب"),
+    ("دو هزار نفر آمدند", "دو هزار نفر آمدند"),
+    ("دو هزار هزار میلی گرم", "دو هزار هزار mg"),
+    ("دوز دو و هزار میلی گرم", "دوز دو و هزار mg"),
+    ("دوز نهصد سیصد هزار میلی گرم", "دوز نهصد سیصد هزار mg"),
+    # A bare thousand in front of a DURATION or a count of repetitions is
+    # ordinary prose, not a charted value.
+    ("هزار سال پیش اینجا بود", "هزار سال پیش اینجا بود"),
+    ("هزار بار گفتم", "هزار بار گفتم"),
+    ("هزار تا کتاب", "هزار تا کتاب"),
+    ("چند هزار تومان", "چند هزار تومان"),
+    # A counted thousand in front of the same words is a real number.
+    ("دو هزار سال پیش", "2000 سال پیش"),
     # A duration is not a clock reading, and half an hour of it stays spoken.
     # "ساعت هشت و نیم ساعت" used to come out as "ساعت 8 و نیم ساعت": the
     # integer head was folded and the half orphaned, which was the decimal
@@ -904,6 +921,78 @@ def test_standalone_fold_stage_matches_the_pipeline():
     assert fold_spoken_ratio("درد روی سینه", NUMERIC_CONTEXT) == "درد روی سینه"
 
 
+# Thousands and decimal denominators are checked in the APPLICATION mode
+# (``preserve_narrative=True``) because that is the live transcript path, and
+# because the dictionary's own alias pass would otherwise rewrite the Persian
+# subject words ("پلاکت" -> "platelet") and hide the numeric behavior under
+# test. The values are identical in both modes - the fold runs after the
+# lexical pass either way.
+THOUSAND_CASES = [
+    # A dictated thousand is ONE group: the count in front of it must never be
+    # digitized on its own (the old output was the fabricated "2 هزار mg").
+    ("دوز دو هزار میلی گرم", "دوز 2000 mg"),
+    ("دوز هزار میلی گرم", "دوز 1000 mg"),
+    ("هزار میلی لیتر", "1000 mL"),
+    # The measurement phrase canonicalizes because a value follows it.
+    ("قند خون دو هزار", "glucose 2000"),
+    ("قند خون هزار", "glucose 1000"),
+    ("پلاکت صد و پنجاه هزار", "پلاکت 150000"),
+    ("دوز چهار هزار واحد هپارین", "دوز 4000 واحد هپارین"),
+    ("هزار و دویست میلی گرم", "1200 mg"),
+    ("دو هزار و پانصد میلی گرم", "2500 mg"),
+    ("سه هزار سیصد میلی گرم", "3300 mg"),
+    ("دوز 2000 میلی گرم", "دوز 2000 mg"),
+    # The thousand must be complete to fold at all: a malformed group keeps
+    # every part spoken.
+    ("دو هزار هزار میلی گرم", "دو هزار هزار mg"),
+    ("دوز دو و هزار میلی گرم", "دوز دو و هزار mg"),
+    # A bare thousand is a value only in front of a measured unit.
+    ("هزار سال پیش اینجا بود", "هزار سال پیش اینجا بود"),
+    ("هزار بار گفتم", "هزار بار گفتم"),
+    ("دو هزار سال پیش", "2000 سال پیش"),
+    # Decimal denominators name the fraction of the dictated digits.
+    ("کراتینین یک و دو دهم", "کراتینین 1.2"),
+    ("کراتینین سه و پنج صدم", "کراتینین 3.05"),
+]
+
+
+@pytest.mark.parametrize("raw,expected", THOUSAND_CASES)
+def test_thousands_fold_as_one_complete_group(fst, raw, expected):
+    out, _ = fst.canonicalize(normalize_text(raw), preserve_narrative=True)
+    assert out == expected
+
+
+@pytest.mark.parametrize("raw,_expected", THOUSAND_CASES)
+def test_thousand_fold_is_idempotent(fst, raw, _expected):
+    once, _ = fst.canonicalize(normalize_text(raw), preserve_narrative=True)
+    twice, _ = fst.canonicalize(normalize_text(once), preserve_narrative=True)
+    assert twice == once
+
+
+def test_thousand_is_never_folded_without_a_valid_group():
+    """A bare "هزار" is the ordinary word; a malformed group folds nothing."""
+    from speechmatics_test.text import SPOKEN_THOUSANDS, spoken_number_at
+    assert SPOKEN_THOUSANDS == {"هزار": 1000}
+    assert "هزار" not in SPOKEN_NUMERALS
+    assert spoken_number_at(["دو", "هزار"], 0) == (2, 2000)
+    # a second thousand, or a joiner in front of one, refuses the whole run
+    assert spoken_number_at(["دو", "هزار", "هزار"], 0) is None
+    assert spoken_number_at(["دو", "و", "هزار"], 0) is None
+    # a bare thousand is a run of its own (the caller requires an anchor)
+    assert spoken_number_at(["هزار"], 0) == (1, 1000)
+
+
+def test_million_scale_groups_are_never_half_converted(fst):
+    """A magnitude this layer does not digitize must not leave a number
+    dangling in front of it: "4 میلیون" reads as four, not four million."""
+    for raw in ("پلاکت چهار میلیون", "دوز دو میلیون و پانصد هزار واحد",
+                "دوز چهار میلیون واحد"):
+        out, _ = fst.canonicalize(normalize_text(raw), preserve_narrative=True)
+        assert "4 میلیون" not in out
+        assert "2 میلیون" not in out
+        assert out == raw
+
+
 def test_minute_word_is_a_tail_marker_not_an_anchor():
     """"دقیقه" must stay out of ``after`` or bare durations get corrupted."""
     assert "دقیقه" not in NUMERIC_CONTEXT.after
@@ -942,10 +1031,11 @@ def test_the_fold_only_rewrites_number_spans(fst, raw, _expected):
     clinical word fails here even if the expected strings above were updated to
     match it.
     """
-    removable = (set(SPOKEN_NUMERALS)
+    removable = (set(SPOKEN_NUMERALS) | set(SPOKEN_THOUSANDS)
                  | {SPOKEN_NUMERAL_JOINER, NUMERIC_CONTEXT.ratio_connector,
                     NUMERIC_CONTEXT.minute_unit}
-                 | NUMERIC_CONTEXT.half_words | NUMERIC_CONTEXT.quarter_words)
+                 | NUMERIC_CONTEXT.half_words | NUMERIC_CONTEXT.quarter_words
+                 | set(SPOKEN_FRACTION_DENOMINATORS))
     removable |= {SPOKEN_NUMERAL_JOINER + word
                   for word in NUMERIC_CONTEXT.half_words | NUMERIC_CONTEXT.quarter_words}
     lexical, _hits = fst._scan(normalize_text(raw))
@@ -1389,3 +1479,126 @@ def test_rule_match_at_reports_the_longest_complete_form(matcher):
     assert (end, canonical) == (7, "ABG")
     # No rule starts at the connector.
     assert matcher.rule_match_at(tokens, 3, preserve_narrative=True) == (3, "")
+
+
+# ------------------------------------------- risky English aliases (audit)
+# The dictionary contains English chart shorthand whose spelling collides with
+# ordinary English words ("us", "it", "skin", "soft", "post", ...). Rewriting
+# such a word inside a sentence changes what the sentence says, so the
+# narrative path (the live transcript path) requires charting evidence.
+
+NARRATIVE_PROSE_CASES = [
+    # (ordinary English sentence, must stay byte-identical)
+    "The doctor told us the results",
+    "It was a long day",
+    "we could not find it",
+    "The nurse gave him a glass of water",
+    "I am tired today",
+    "the id badge is on the table",
+    "be careful with the IV line",
+    "the it department called",
+    "the us report was sent",
+    "the skin is pale and dry",
+    "it was soft to touch",
+    "drain the wound with saline",
+    "the patient is lying in bed",
+    "post operative care was explained",
+    "she takes a pill every morning",
+    "the lab results are back",
+    "two caps of syrup were given",
+    "the drops are falling",
+    "Mr Smith was admitted",
+    "the cat is on the mat",
+    "the patient has a cold",
+    "the top of the chart is torn",
+    "call me at ten",
+]
+
+
+@pytest.mark.parametrize("raw", NARRATIVE_PROSE_CASES)
+def test_narrative_mode_never_rewrites_ordinary_english_prose(fst, raw):
+    """``preserve_narrative=True`` is the live path: prose must survive it.
+
+    Before the guard extension, this produced "the dermatologic is pale",
+    "it was soft diet", "surgical drain the wound", "the PO tablet",
+    "the laboratory results" and "I AM tired today".
+    """
+    out, _ = fst.canonicalize(normalize_text(raw), preserve_narrative=True)
+    assert out == raw
+
+
+@pytest.mark.parametrize("raw,expected", [
+    # Uppercase charting is the evidence the guard asks for, so it still fires.
+    ("US guided biopsy", "ultrasound guided biopsy"),
+    ("CAT scan of the chest", "computed tomography scan of the chest"),
+    ("VS are stable", "vital signs are stable"),
+    ("IV antibiotics were started", "IV antibiotics were started"),
+    ("8 AM medications given", "8 AM medications given"),
+    ("8 am medications given", "8 AM medications given"),
+    ("10 pm dose due", "10 PM dose due"),
+    ("CAP was given", "capsule was given"),
+    ("HIM reviewed the chart", "medical records reviewed the chart"),
+    # Documented tradeoff of the uppercase-evidence rule: an all-caps English
+    # word is indistinguishable from chart shorthand, so it is still treated
+    # as charting ("the US report", "BE careful", "the IT department"). The
+    # dictionary cannot tell them apart without a semantic layer this project
+    # deliberately does not have.
+    ("the ID badge is on the table", "the intradermal badge is on the table"),
+    ("BE careful with the IV line", "barium enema careful with the IV line"),
+    ("the IT department called", "the intrathecal department called"),
+])
+def test_charting_evidence_still_fires_in_narrative_mode(fst, raw, expected):
+    out, _ = fst.canonicalize(normalize_text(raw), preserve_narrative=True)
+    assert out == expected
+
+
+def test_compatibility_mode_keeps_its_documented_behavior(fst):
+    """The non-narrative scan is the benchmark/fixture compatibility path.
+
+    Its behavior is intentionally NOT narrowed by the narrative guard, so the
+    stored pre-migration expectations keep their meaning.
+    """
+    out, _ = fst.canonicalize(normalize_text("the skin is pale"))
+    assert out == "the dermatologic is pale"
+    out, _ = fst.canonicalize(normalize_text("drain the wound"))
+    assert out == "surgical drain the wound"
+
+
+def test_every_function_word_alias_is_guarded():
+    """The audit list and the guard list must not drift apart."""
+    from speechmatics_test.matcher import (
+        _AMBIGUOUS_SHORT_FORMS,
+        _FUNCTION_WORD_ALIASES,
+    )
+
+    assert _FUNCTION_WORD_ALIASES <= _AMBIGUOUS_SHORT_FORMS
+
+
+def test_find_risky_english_aliases_reports_every_collision(fst):
+    from speechmatics_test.matcher import find_risky_english_aliases
+
+    rows = find_risky_english_aliases(fst)
+    by_form = {row["form"].casefold(): row for row in rows}
+    # function words: reported AND guarded
+    for form in ("us", "it", "id", "be", "him", "mr", "top", "cat", "cold",
+                 "now", "am"):
+        assert by_form[form]["guarded"] is True, form
+        assert by_form[form]["category"] == "function_word"
+    # content words: reported for review (narrative guard applies separately)
+    for form in ("skin", "soft", "drain", "post", "lying", "oral", "cap"):
+        assert by_form[form]["category"] == "content_word"
+        assert by_form[form]["guarded"] is False
+
+
+def test_content_word_alias_collisions_are_uppercase_evidence_only(fst):
+    """A content-word alias may only fire with charting evidence in narrative
+    mode - uppercase (or a number for the meridiem markers)."""
+    out, _ = fst.canonicalize(normalize_text("CAP was given"), preserve_narrative=True)
+    assert out == "capsule was given"      # uppercase evidence: fires
+    out, _ = fst.canonicalize(normalize_text("Cap was given"), preserve_narrative=True)
+    assert out == "Cap was given"          # ordinary mixed-case: untouched
+    out, _ = fst.canonicalize(normalize_text("two caps were given"), preserve_narrative=True)
+    assert out == "two caps were given"    # ordinary lowercase: untouched
+    # The compatibility scan is unchanged (it is the benchmark/fixture path).
+    out, _ = fst.canonicalize(normalize_text("two caps were given"))
+    assert out == "two capsule were given"

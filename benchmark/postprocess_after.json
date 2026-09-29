@@ -1,28 +1,96 @@
 {
-  "case_count": 22,
+  "case_count": 38,
   "single_pass": {
-    "case_count": 19,
+    "case_count": 35,
     "exact_match": 1.0,
     "wer": 0.0,
     "errors": 0,
-    "reference_tokens": 130,
+    "reference_tokens": 328,
+    "number_precision": 1.0,
+    "number_recall": 1.0,
+    "number_f1": 1.0,
     "entity_precision": 1.0,
     "entity_recall": 1.0,
-    "entity_correct": 15,
-    "entity_detected": 15,
-    "entity_expected": 15
+    "entity_correct": 28,
+    "entity_detected": 28,
+    "entity_expected": 28
   },
   "streamed": {
-    "case_count": 22,
+    "case_count": 38,
     "exact_match": 1.0,
     "wer": 0.0,
     "errors": 0,
-    "reference_tokens": 140,
+    "reference_tokens": 338,
+    "number_precision": 1.0,
+    "number_recall": 1.0,
+    "number_f1": 1.0,
     "entity_precision": 1.0,
     "entity_recall": 1.0,
-    "entity_correct": 17,
-    "entity_detected": 17,
-    "entity_expected": 17
+    "entity_correct": 30,
+    "entity_detected": 30,
+    "entity_expected": 30
+  },
+  "stages": {
+    "raw": {
+      "case_count": 35,
+      "exact_match": 0.228571,
+      "wer": 0.625,
+      "errors": 205,
+      "reference_tokens": 328,
+      "number_precision": 1.0,
+      "number_recall": 0.285714,
+      "number_f1": 0.285714,
+      "entity_precision": 1.0,
+      "entity_recall": 0.321429,
+      "entity_correct": 9,
+      "entity_detected": 9,
+      "entity_expected": 28
+    },
+    "normalized": {
+      "case_count": 35,
+      "exact_match": 0.257143,
+      "wer": 0.625,
+      "errors": 205,
+      "reference_tokens": 328,
+      "number_precision": 1.0,
+      "number_recall": 0.285714,
+      "number_f1": 0.285714,
+      "entity_precision": 1.0,
+      "entity_recall": 0.321429,
+      "entity_correct": 9,
+      "entity_detected": 9,
+      "entity_expected": 28
+    },
+    "canonical_single_pass": {
+      "case_count": 35,
+      "exact_match": 1.0,
+      "wer": 0.0,
+      "errors": 0,
+      "reference_tokens": 328,
+      "number_precision": 1.0,
+      "number_recall": 1.0,
+      "number_f1": 1.0,
+      "entity_precision": 1.0,
+      "entity_recall": 1.0,
+      "entity_correct": 28,
+      "entity_detected": 28,
+      "entity_expected": 28
+    },
+    "canonical_streamed": {
+      "case_count": 38,
+      "exact_match": 1.0,
+      "wer": 0.0,
+      "errors": 0,
+      "reference_tokens": 338,
+      "number_precision": 1.0,
+      "number_recall": 1.0,
+      "number_f1": 1.0,
+      "entity_precision": 1.0,
+      "entity_recall": 1.0,
+      "entity_correct": 30,
+      "entity_detected": 30,
+      "entity_expected": 30
+    }
   },
   "cases": [
     {
@@ -302,7 +370,215 @@
       "single_pass_ok": true,
       "streamed_ok": true,
       "streaming_only": false
+    },
+    {
+      "id": "persian_clinical_dictation",
+      "segments": [
+        "بیمار خانم چهل و دو ساله با تشخیص دیابت نوع دو بستری شد",
+        "قند خون صد و هشتاد و فشار خون صد و سی روی هشتاد و پنج"
+      ],
+      "expected": "بیمار خانم 42 ساله با تشخیص دیابت نوع دو بستری شد glucose 180 و BP 130/85",
+      "single_pass": "بیمار خانم 42 ساله با تشخیص دیابت نوع دو بستری شد glucose 180 و BP 130/85",
+      "streamed": "بیمار خانم 42 ساله با تشخیص دیابت نوع دو بستری شد glucose 180 و BP 130/85",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "persian_english_code_switching",
+      "segments": [
+        "در سی بی سی لکوسیتوز دیده شد",
+        "و در سی تی اسکن یک لیژن در ریه راست گزارش شد"
+      ],
+      "expected": "در CBC لکوسیتوز دیده شد و در CT scan یک لیژن در ریه راست گزارش شد",
+      "single_pass": "در CBC لکوسیتوز دیده شد و در CT scan یک لیژن در ریه راست گزارش شد",
+      "streamed": "در CBC لکوسیتوز دیده شد و در CT scan یک لیژن در ریه راست گزارش شد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "medical_abbreviations",
+      "segments": [
+        "سی بی سی و ای بی جی و پی تی و پی تی تی چک شد",
+        "برای بیمار ان جی تیوب گذاشته شد"
+      ],
+      "expected": "CBC و ABG و PT و PTT چک شد برای بیمار ان جی تیوب گذاشته شد",
+      "single_pass": "CBC و ABG و PT و PTT چک شد برای بیمار ان جی تیوب گذاشته شد",
+      "streamed": "CBC و ABG و PT و PTT چک شد برای بیمار ان جی تیوب گذاشته شد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "drugs_and_dosages",
+      "segments": [
+        "مت فورمین پانصد میلی گرم روزی دو بار",
+        "هپارین چهار هزار واحد زیر جلدی"
+      ],
+      "expected": "مت فورمین 500 mg روزی 2 بار هپارین 4000 واحد زیر جلدی",
+      "single_pass": "مت فورمین 500 mg روزی 2 بار هپارین 4000 واحد زیر جلدی",
+      "streamed": "مت فورمین 500 mg روزی 2 بار هپارین 4000 واحد زیر جلدی",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "laboratory_values",
+      "segments": [
+        "کراتینین یک و دو دهم و پتاسیم چهار و دو",
+        "سدیم صد و سی و پنج و پلاکت صد و پنجاه هزار"
+      ],
+      "expected": "کراتینین 1.2 و پتاسیم 4.2 سدیم 135 و پلاکت 150000",
+      "single_pass": "کراتینین 1.2 و پتاسیم 4.2 سدیم 135 و پلاکت 150000",
+      "streamed": "کراتینین 1.2 و پتاسیم 4.2 سدیم 135 و پلاکت 150000",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "bp_spo2_pulse_temperature",
+      "segments": [
+        "فشار خون صد و چهل روی نود و اشباع اکسیژن نود و شش درصد",
+        "نبض هشتاد و هشت و دمای بدن سی و هشت و نیم درجه"
+      ],
+      "expected": "BP 140/90 و SpO2 96 % نبض 88 و Temp 38.5 درجه",
+      "single_pass": "BP 140/90 و SpO2 96 % نبض 88 و Temp 38.5 درجه",
+      "streamed": "BP 140/90 و SpO2 96 % نبض 88 و Temp 38.5 درجه",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "nursing_scores_and_terms",
+      "segments": [
+        "نمره مورس چهل و پنج و نمره برادن بیست",
+        "زخم فشاری در ناحیه ساکروم مشاهده شد"
+      ],
+      "expected": "نمره مورس 45 و نمره برادن 20 زخم فشاری در ناحیه ساکروم مشاهده شد",
+      "single_pass": "نمره مورس 45 و نمره برادن 20 زخم فشاری در ناحیه ساکروم مشاهده شد",
+      "streamed": "نمره مورس 45 و نمره برادن 20 زخم فشاری در ناحیه ساکروم مشاهده شد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "fragmented_age_and_clock",
+      "segments": [
+        "مددجو آقای",
+        "پنجاه",
+        "و هشت",
+        "ساله در ساعت ده و سی دقیقه مراجعه کرد"
+      ],
+      "expected": "مددجو آقای 58 ساله در ساعت 10:30 مراجعه کرد",
+      "single_pass": "مددجو آقای 58 ساله در ساعت 10:30 مراجعه کرد",
+      "streamed": "مددجو آقای 58 ساله در ساعت 10:30 مراجعه کرد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "fragmented_thousands",
+      "segments": [
+        "پلاکت صد و پنجاه",
+        "هزار",
+        "ثبت شد"
+      ],
+      "expected": "پلاکت 150000 ثبت شد",
+      "single_pass": "پلاکت 150000 ثبت شد",
+      "streamed": "پلاکت 150000 ثبت شد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "noisy_malformed_asr",
+      "segments": [
+        "دوز نهصد سیصد میلی گرم ثبت شد",
+        "فشار خون صد و بیست و هشتاد بود"
+      ],
+      "expected": "دوز نهصد سیصد mg ثبت شد BP صد و بیست و هشتاد بود",
+      "single_pass": "دوز نهصد سیصد mg ثبت شد BP صد و بیست و هشتاد بود",
+      "streamed": "دوز نهصد سیصد mg ثبت شد BP صد و بیست و هشتاد بود",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "malformed_thousand_group",
+      "segments": [
+        "دوز دو هزار هزار میلی گرم"
+      ],
+      "expected": "دوز دو هزار هزار mg",
+      "single_pass": "دوز دو هزار هزار mg",
+      "streamed": "دوز دو هزار هزار mg",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "ordinary_non_clinical_persian",
+      "segments": [
+        "امروز هوا خیلی خوب بود و من به بازار رفتم و ناهار خوردم"
+      ],
+      "expected": "امروز هوا خیلی خوب بود و من به بازار رفتم و ناهار خوردم",
+      "single_pass": "امروز هوا خیلی خوب بود و من به بازار رفتم و ناهار خوردم",
+      "streamed": "امروز هوا خیلی خوب بود و من به بازار رفتم و ناهار خوردم",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "english_prose_preserved",
+      "segments": [
+        "The doctor told us the results and gave him a glass of water",
+        "It was a long day but the patient is stable"
+      ],
+      "expected": "The doctor told us the results and gave him a glass of water It was a long day but the patient is stable",
+      "single_pass": "The doctor told us the results and gave him a glass of water It was a long day but the patient is stable",
+      "streamed": "The doctor told us the results and gave him a glass of water It was a long day but the patient is stable",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "percentage_clock_and_units",
+      "segments": [
+        "اشباع اکسیژن نود و هشت درصد",
+        "ساعت بیست و سه و پنجاه و نه دقیقه ثبت شد"
+      ],
+      "expected": "SpO2 98 % ساعت 23:59 ثبت شد",
+      "single_pass": "SpO2 98 % ساعت 23:59 ثبت شد",
+      "streamed": "SpO2 98 % ساعت 23:59 ثبت شد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "decimal_denominators",
+      "segments": [
+        "کراتینین سه و پنج صدم و انسولین دوازده واحد"
+      ],
+      "expected": "کراتینین 3.05 و انسولین 12 واحد",
+      "single_pass": "کراتینین 3.05 و انسولین 12 واحد",
+      "streamed": "کراتینین 3.05 و انسولین 12 واحد",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
+    },
+    {
+      "id": "age_percentage_decimal_ratio_clock",
+      "segments": [
+        "بیمار پنجاه و هشت ساله با اشباع اکسیژن نود و هشت درصد در ساعت هشت و نیم",
+        "فشار خون صد و بیست روی هشتاد و دوز دو و نیم میلی گرم"
+      ],
+      "expected": "بیمار 58 ساله با SpO2 98 % در ساعت 8:30 BP 120/80 و دوز 2.5 mg",
+      "single_pass": "بیمار 58 ساله با SpO2 98 % در ساعت 8:30 BP 120/80 و دوز 2.5 mg",
+      "streamed": "بیمار 58 ساله با SpO2 98 % در ساعت 8:30 BP 120/80 و دوز 2.5 mg",
+      "single_pass_ok": true,
+      "streamed_ok": true,
+      "streaming_only": false
     }
   ],
-  "streaming_agrees_with_single_pass": 22
+  "streaming_agrees_with_single_pass": 38
 }
