@@ -9,7 +9,8 @@ thread-safety plumbing.
 import threading
 
 import injector as injector_module
-from injector import RLE, RLM, PDF, TextInjector, clean_payload_spacing, contains_rtl
+from injector import TextInjector, clean_payload_spacing, contains_rtl
+from speechmatics_test.presentation import PDF, RLE, RLM
 
 
 def make_injector(**kwargs):

@@ -65,8 +65,6 @@ _INJECT_SIGNATURE = 0x53545449  # "STTI"
 #: PRESENTATION metadata only: they are added here, on the way out, and are
 #: never part of the canonical medical transcript.
 from speechmatics_test.presentation import (  # noqa: E402  (kept next to use)
-    PDF,
-    RLE,
     RLM,
     contains_rtl,
     strip_bidi_controls,
