@@ -407,7 +407,10 @@ Press Start once with no config to create a template, or create it manually:
 }
 ```
 
-Build the Windows folder bundle from Windows PowerShell:
+## Development
+
+Build the developer folder bundle from Windows PowerShell (fallback packaging;
+quick local tests, no demo expiry, no broker):
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
@@ -420,8 +423,10 @@ Output:
 dist\SwiftMedics\SwiftMedics.exe
 ```
 
-The Speechmatics API key is not embedded in the executable. Logs are written
-to `%APPDATA%\SwiftMedics\logs\swiftmedics.log`.
+This path uses PyInstaller (`scripts/swiftmedics-pyinstaller.spec`), which
+distributes ordinary Python bytecode — fine for development, not for handing
+the app to a hospital. Use the Nuitka demo build below for that. Logs are
+written to `%APPDATA%\SwiftMedics\logs\swiftmedics.log`.
 
 ### Building the .exe from CI
 
@@ -434,12 +439,104 @@ the **build-windows** workflow manually.
 
 Two deployment notes for clinical environments:
 
-* UPX packing is disabled in `packaging/swiftmedics.spec` on purpose. Packed
-  executables are a common source of antivirus false positives and cannot be
-  reliably code-signed.
+* UPX packing is disabled in `scripts/swiftmedics-pyinstaller.spec` on purpose.
+  Packed executables are a common source of antivirus false positives and
+  cannot be reliably code-signed.
 * The bundle is unsigned. Hospitals and EMR desktops often require a signed
-  binary; sign `dist\SwiftMedics\SwiftMedics.exe` with your code-signing
-  certificate before distribution.
+  binary; sign the exe with your code-signing certificate before distribution.
+
+## Hospital Demo Release
+
+The hospital demo is a **Nuitka-compiled** build with the demo expiry and the
+token broker URL compiled in. The long-lived Speechmatics API key never
+reaches the hospital machine:
+
+```text
+Hospital PC
+    │
+    ├── SwiftMedics.exe
+    │     ├── Nuitka-compiled application
+    │     ├── NO long-lived Speechmatics API key
+    │     ├── demo expiry compiled into the build
+    │     └── broker URL compiled into the demo build
+    │
+    └── %APPDATA%\SwiftMedics\config.json
+          └── optional DEMO_TOKEN
+
+                 │ HTTPS
+                 ▼
+
+        Vercel Token Broker  (api/token.py)
+                 │  SPEECHMATICS_API_KEY, server-side only
+                 ▼
+          Speechmatics Realtime
+```
+
+At every Start the app checks the compiled-in expiry (refusing expired builds
+and builds whose system clock was rolled back), then exchanges the broker URL
+for a **short-lived realtime JWT** (default 60 s) and holds it in memory for
+that session only. The websocket endpoint is never taken from the broker — the
+app always connects to Speechmatics directly.
+
+Produce the demo bundle (one command, Windows PowerShell):
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\build_hospital_demo.ps1 `
+    -ExpiryDate 2026-11-30 `
+    -BrokerUrl https://YOUR-BROKER.vercel.app/api/token `
+    -BuildId hospital-x-demo
+```
+
+Optional switches: `-DemoToken <value>` (pre-fills the config template),
+`-ProductVersion 1.0.0.0` (Windows file metadata), `-SkipInstall`,
+`-KeepStamp` (keep the generated stamp for repeated rebuilds).
+
+The script creates `.venv`, installs dependencies + Nuitka, validates the
+broker URL with the app's own runtime rules, generates the temporary stamp
+(`speechmatics_test/demo_build_stamp.py` — git-ignored, compiled into the
+build, deleted afterwards), runs the Nuitka standalone build (no console,
+Windows version metadata embedded), collects
+`dist\SwiftMedics-hospital-demo\`, writes `config-demo-template.json`, and
+**fails the build** if the long-lived API key is found anywhere in the bundle.
+
+The hospital machine needs **no Python, no Nuitka, no repository, and no API
+key** — only the distributed folder and internet access. Before shipping:
+code-sign the exe, and dry-run it on a clean Windows VM. See `DEMO.md` for the
+full checklist and threat model.
+
+Note on protection: Nuitka compiles the Python program to C and machine code,
+so the bundle contains no ordinary Python bytecode of the application and
+cannot be decompiled the way a PyInstaller bundle can. It does **not** make
+reverse engineering impossible — a determined attacker can still analyze
+native code — but it removes the easy path and substantially raises the
+difficulty.
+
+## Vercel Token Broker Deployment
+
+The broker (`api/token.py`, standard library only) holds
+`SPEECHMATICS_API_KEY` server-side and mints short-lived realtime tokens.
+Deploy it before building any demo:
+
+```bash
+npm i -g vercel
+vercel login
+vercel link                      # from the repository root
+vercel env add SPEECHMATICS_API_KEY production   # paste the private key
+vercel env add DEMO_TOKEN production             # optional: shared secret; rotating it revokes shipped demos
+vercel env add TOKEN_TTL production              # optional: seconds (10-300, default 60)
+vercel --prod
+# your broker is now at https://<your-app>.vercel.app/api/token
+```
+
+CORS is **disabled by default** (the client is a native Windows app); set
+`ALLOWED_ORIGIN` only if you also serve a browser client from the same
+broker. For an on-site demo without any cloud dependency, the same module can
+run locally on the presenter machine (the key then stays on that machine):
+`python api/token.py --serve 8787`.
+
+Security flow, in one line: **Speechmatics API key → broker server only;
+hospital EXE → short-lived token only.**
 
 ## Run
 
@@ -679,18 +776,36 @@ The expected transcript must match the speech actually spoken. Do not compare a 
 
 ```text
 app.py
-speechmatics_test/
-    matcher.py
+desktop_app.py
+injector.py
+overlay.py
+
+api/
+    token.py                     # token broker (Vercel /api/token)
 
 medical_knowledge/
     medical_dictionary.json
     speechmatics_additional_vocab.json
 
+speechmatics_test/
+    broker_client.py
+    demo_license.py
+    desktop_config.py
+    matcher.py
+    medical_layer.py
+    realtime.py
+    session_controller.py
+    ...
+
 scripts/
     install.ps1
     run.ps1
-    build_windows.ps1
+    build_windows.ps1            # developer PyInstaller fallback bundle
+    build_hospital_demo.ps1      # hospital demo release (Nuitka + broker)
+    set_demo_expiry.py
+    swiftmedics-pyinstaller.spec
     export_additional_vocab.py
+    validate_dictionary.py
 
 tests/
     fixtures/

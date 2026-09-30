@@ -1,10 +1,10 @@
 name: build-windows
 
-# The .exe is produced with PyInstaller, which cannot cross-compile: the bundle
-# must be built on Windows. This workflow is therefore the reproducible way to
-# get dist/SwiftMedics/SwiftMedics.exe out of the repository.
-#
-# Locally, the same build is one command on Windows:
+# CI keeps the PyInstaller bundle (scripts/swiftmedics-pyinstaller.spec) as a
+# reproducible smoke artifact: PyInstaller cannot cross-compile, so the job
+# must run on Windows. The HOSPITAL DEMO release path is different and stays
+# local: scripts/build_hospital_demo.ps1 (Nuitka + token broker + compiled-in
+# demo expiry). Locally, the same PyInstaller build is one command on Windows:
 #     .\scripts\build_windows.ps1
 
 on:
@@ -40,8 +40,17 @@ jobs:
       - name: Verify the derived Speechmatics vocabulary artifact
         run: python scripts/export_additional_vocab.py --check
 
-      - name: Build the one-folder bundle
-        run: python -m PyInstaller --clean --noconfirm packaging/swiftmedics.spec
+      - name: Verify the Vercel function config matches its location
+        shell: pwsh
+        run: |
+          # The token broker is deployed as a file-based /api function; its
+          # vercel.json config must live at the project root.
+          if (-not (Test-Path api/token.py)) { throw "api/token.py is missing." }
+          if (-not (Test-Path vercel.json)) { throw "vercel.json must be at the project root." }
+          python -c "import pathlib; src=pathlib.Path('api/token.py').read_text(encoding='utf-8'); assert 'def application(' in src, 'WSGI application entry point missing'; assert 'def handler(' not in src, 'legacy Lambda-style handler must not return'"
+
+      - name: Build the one-folder bundle (developer fallback path)
+        run: python -m PyInstaller --clean --noconfirm scripts/swiftmedics-pyinstaller.spec
 
       - name: Verify the executable exists
         run: |

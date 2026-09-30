@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     if broker_url:
         print(f"  broker    : {broker_url}")
     print(
-        "Now build the demo bundle, e.g.:  .\\scripts\\build_demo.ps1 -ExpiryDate "
+        "Now build the hospital demo bundle:  .\\scripts\\build_hospital_demo.ps1 -ExpiryDate "
         + expiry.isoformat()
     )
     return 0

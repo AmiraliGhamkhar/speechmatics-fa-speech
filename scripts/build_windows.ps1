@@ -1,21 +1,23 @@
-<#
-Build the SwiftMedics Windows desktop folder bundle.
+# Build the SwiftMedics Windows desktop bundle with PyInstaller.
 
-Run from the repository root on Windows PowerShell:
+# Run from the repository root on Windows PowerShell:
 
-    Set-ExecutionPolicy -Scope Process Bypass
-    .\scripts\build_windows.ps1
+#     Set-ExecutionPolicy -Scope Process Bypass
+#     .\scripts\build_windows.ps1
 
-Output:
+# This is the DEVELOPER / FALLBACK packaging path. The HOSPITAL DEMO release
+# uses scripts\build_hospital_demo.ps1 (Nuitka + token broker + compiled-in
+# expiry); see README.md for when to use which.
 
-    dist\SwiftMedics\SwiftMedics.exe
+# Output:
 
-The runtime API key is NOT embedded in the exe.  Create:
+#     dist\SwiftMedics\SwiftMedics.exe
 
-    %APPDATA%\SwiftMedics\config.json
+# The runtime API key is NOT embedded in the exe.  Create:
 
-or press Start once after launching the app to let it create a template.
-#>
+#     %APPDATA%\SwiftMedics\config.json
+
+# or press Start once after launching the app to let it create a template.
 [CmdletBinding()]
 param(
     [switch]$SkipInstall
@@ -45,7 +47,7 @@ if (-not $SkipInstall) {
 }
 
 Write-Host "Building SwiftMedics desktop bundle..."
-& $Python -m PyInstaller --clean --noconfirm packaging\swiftmedics.spec
+& $Python -m PyInstaller --clean --noconfirm scripts\swiftmedics-pyinstaller.spec
 
 $Exe = Join-Path $RepoRoot "dist\SwiftMedics\SwiftMedics.exe"
 if (-not (Test-Path $Exe)) {

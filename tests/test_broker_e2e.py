@@ -43,7 +43,7 @@ def broker_server(monkeypatch):
 
     class Handler(BaseHTTPRequestHandler):
         def _dispatch(self):
-            response = api.handler(
+            response = api.handle_api_event(
                 {"httpMethod": self.command, "headers": dict(self.headers)}
             )
             self.send_response(response["statusCode"])

@@ -205,15 +205,45 @@ def test_broker_handler_refuses_bad_demo_token(monkeypatch):
     api = _load_api_token_module()
     monkeypatch.setenv("DEMO_TOKEN", "expected")
     monkeypatch.delenv("SPEECHMATICS_API_KEY", raising=False)
-    response = api.handler({"httpMethod": "GET", "headers": {"authorization": "Bearer wrong"}})
+    response = api.handle_api_event({"httpMethod": "GET", "headers": {"authorization": "Bearer wrong"}})
     assert response["statusCode"] == 403
+
+
+def test_broker_wsgi_application_is_exposed_for_vercel():
+    """Current Vercel file-based /api contract: top-level WSGI ``application``."""
+    api = _load_api_token_module()
+    assert callable(api.application)
+
+    captured = {}
+
+    def start_response(status, headers):
+        captured["status"] = status
+        captured["headers"] = dict(headers)
+
+    import os as _os
+
+    previous = _os.environ.pop("DEMO_TOKEN", None)
+    _os.environ.pop("SPEECHMATICS_API_KEY", None)
+    try:
+        body = b"".join(
+            api.application(
+                {"REQUEST_METHOD": "GET", "HTTP_AUTHORIZATION": "Bearer x"},
+                start_response,
+            )
+        )
+    finally:
+        if previous is not None:
+            _os.environ["DEMO_TOKEN"] = previous
+    assert captured["status"].startswith("500")  # no server-side key configured
+    assert captured["headers"]["Cache-Control"] == "no-store"
+    assert b"SPEECHMATICS_API_KEY" in body
 
 
 def test_broker_handler_requires_server_side_api_key(monkeypatch):
     api = _load_api_token_module()
     monkeypatch.delenv("DEMO_TOKEN", raising=False)
     monkeypatch.delenv("SPEECHMATICS_API_KEY", raising=False)
-    response = api.handler({"httpMethod": "GET", "headers": {}})
+    response = api.handle_api_event({"httpMethod": "GET", "headers": {}})
     assert response["statusCode"] == 500
 
 
@@ -231,7 +261,7 @@ def test_broker_handler_issues_a_short_lived_token(monkeypatch):
         return "minted-jwt"
 
     monkeypatch.setattr(api, "issue_realtime_token", fake_issue)
-    response = api.handler({"httpMethod": "GET", "headers": {}})
+    response = api.handle_api_event({"httpMethod": "GET", "headers": {}})
     assert response["statusCode"] == 200
     body = json.loads(response["body"])
     assert body["token"] == "minted-jwt"
@@ -244,7 +274,7 @@ def test_broker_handler_never_returns_the_api_key(monkeypatch):
     monkeypatch.delenv("DEMO_TOKEN", raising=False)
     monkeypatch.setenv("SPEECHMATICS_API_KEY", "private-key-never-shipped")
     monkeypatch.setattr(api, "issue_realtime_token", lambda key, ttl: "minted-jwt")
-    response = api.handler({"httpMethod": "GET", "headers": {}})
+    response = api.handle_api_event({"httpMethod": "GET", "headers": {}})
     assert "private-key-never-shipped" not in response["body"]
 
 

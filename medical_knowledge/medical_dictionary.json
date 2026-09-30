@@ -8333,13 +8333,15 @@
         "pulse rate",
         "پیآر",
         "پی آر",
-        "پالس ریت"
+        "پالس ریت",
+        "تعداد نبض"
       ],
-      "speechmatics": false,
+      "speechmatics": true,
       "sounds_like": [
         "ضربانقلب",
         "هارتریت",
-        "پالس ریت"
+        "پالس ریت",
+        "تعدادنبض"
       ],
       "source_file": "nursing_terms.json"
     },
@@ -12759,6 +12761,23 @@
       "speechmatics": false,
       "sounds_like": [],
       "source_file": "fst_terms.json"
+    },
+    {
+      "id": "blood-pressure",
+      "canonical": "blood pressure",
+      "type": "vital_sign",
+      "tier": "observed_alias",
+      "forms": [
+        "blood pressure",
+        "B/P",
+        "B.P."
+      ],
+      "speechmatics": true,
+      "sounds_like": [
+        "فشارخون",
+        "بیپی"
+      ],
+      "source_file": "observed_asr_aliases.json"
     },
     {
       "id": "ct-scan",
