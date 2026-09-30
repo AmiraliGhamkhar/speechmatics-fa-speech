@@ -1,0 +1,6 @@
+[tool.vercel]
+# The token broker (api/token.py) is the deployed Python application.
+# The root app.py is the desktop CLI, not a web app - without this pin,
+# Vercel's Python detection picks app.py and fails with
+# "does not export a top-level app/application/handler variable".
+entrypoint = "api.token:application"
