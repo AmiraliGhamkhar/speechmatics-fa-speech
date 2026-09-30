@@ -474,9 +474,17 @@ Hospital PC
 
 At every Start the app checks the compiled-in expiry (refusing expired builds
 and builds whose system clock was rolled back), then exchanges the broker URL
-for a **short-lived realtime JWT** (default 60 s) and holds it in memory for
-that session only. The websocket endpoint is never taken from the broker — the
-app always connects to Speechmatics directly.
+for a **short-lived realtime JWT** and holds it in memory for that session
+only. The websocket endpoint is never taken from the broker — the app always
+connects to Speechmatics directly.
+
+> **Token lifetime matters.** Speechmatics temporary keys expire after
+> `TOKEN_TTL` seconds (default 60). A dictation session is normally longer,
+> and an expired key closes the websocket mid-dictation (the app surfaces it
+> as a transport error). Set `TOKEN_TTL=300` on the broker — the maximum
+> Speechmatics allows. To diagnose any Start failure stage by stage
+> (broker → token → websocket), run
+> `scripts/smoke_demo_chain.py --broker-url ... --demo-token ...`.
 
 Produce the demo bundle (one command, Windows PowerShell):
 
@@ -488,15 +496,20 @@ Set-ExecutionPolicy -Scope Process Bypass
     -BuildId hospital-x-demo
 ```
 
-Optional switches: `-DemoToken <value>` (pre-fills the config template),
-`-ProductVersion 1.0.0.0` (Windows file metadata), `-SkipInstall`,
-`-KeepStamp` (keep the generated stamp for repeated rebuilds).
+Optional switches: `-DemoToken <value>` (baked into the config template —
+must be the value currently set on the broker; rotating it later requires a
+rebuild), `-ProductVersion 1.0.0.0` (Windows file metadata), `-SkipInstall`,
+`-KeepStamp` (keep the generated stamp for repeated rebuilds). The broker
+URL **must be the stable production alias including `/api/token`** — it is
+compiled in, and per-deployment hosts (`...-abc123.vercel.app`) change on
+every deploy.
 
 The script creates `.venv`, installs dependencies + Nuitka, validates the
 broker URL with the app's own runtime rules, generates the temporary stamp
 (`speechmatics_test/demo_build_stamp.py` — git-ignored, compiled into the
 build, deleted afterwards), runs the Nuitka standalone build (no console,
-Windows version metadata embedded), collects
+Windows version metadata embedded, `tk-inter` plugin so the GUI runtime
+ships, medical data and all runtime packages included), collects
 `dist\SwiftMedics-hospital-demo\`, writes `config-demo-template.json`, and
 **fails the build** if the long-lived API key is found anywhere in the bundle.
 
@@ -523,10 +536,32 @@ npm i -g vercel
 vercel login
 vercel link                      # from the repository root
 vercel env add SPEECHMATICS_API_KEY production   # paste the private key
-vercel env add DEMO_TOKEN production             # optional: shared secret; rotating it revokes shipped demos
-vercel env add TOKEN_TTL production              # optional: seconds (10-300, default 60)
+vercel env add DEMO_TOKEN production             # shared secret; rotating it revokes shipped demos
+vercel env add TOKEN_TTL production              # seconds (10-300); use 300 so sessions outlive it
 vercel --prod
 # your broker is now at https://<your-app>.vercel.app/api/token
+```
+
+Two settings that make or break the demo path:
+
+* **Disable Deployment Protection** (Vercel Authentication): the desktop
+  client cannot perform the browser login, so with protection on, every
+  broker request from the hospital machine fails. Project → Settings →
+  Deployment Protection → Disabled.
+* **Use the stable production alias** (`https://<your-app>.vercel.app`), not
+  the per-deployment host `vercel --prod` prints — that one changes on every
+  deploy, and the demo build compiles the URL in.
+
+Verify the deployed broker (no token → 403; with the demo token → a JWT):
+
+```powershell
+curl.exe -i "https://<your-app>.vercel.app/api/token"
+curl.exe -i "https://<your-app>.vercel.app/api/token" -H "Authorization: Bearer <DEMO_TOKEN>"
+
+# or run the whole demo chain, stage by stage:
+.\.venv\Scripts\python.exe scripts\smoke_demo_chain.py `
+    --broker-url https://<your-app>.vercel.app/api/token `
+    --demo-token <DEMO_TOKEN>
 ```
 
 CORS is **disabled by default** (the client is a native Windows app); set
@@ -802,6 +837,7 @@ scripts/
     run.ps1
     build_windows.ps1            # developer PyInstaller fallback bundle
     build_hospital_demo.ps1      # hospital demo release (Nuitka + broker)
+    smoke_demo_chain.py          # stage-by-stage broker/token/websocket test
     set_demo_expiry.py
     swiftmedics-pyinstaller.spec
     export_additional_vocab.py

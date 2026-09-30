@@ -104,6 +104,22 @@ if ($LASTEXITCODE -ne 0) {
     throw "BrokerUrl failed validation (must be https, no credentials/query/fragment, default port)."
 }
 
+# The URL is COMPILED INTO the exe: it must be the STABLE production alias
+# including the /api/token path, never a per-deployment host (every deploy
+# gets a new random host) and never a bare origin (the broker serves only
+# /api/token and 404s everything else).
+if ($BrokerUrl -notmatch "/api/token/?$") {
+    Write-Warning "BrokerUrl does not end with /api/token - the broker serves only that route."
+    Write-Warning "Expected the stable production alias, e.g. https://<project>.vercel.app/api/token"
+}
+
+# Sanity: the demo token is baked into the config template, so it must be
+# the value currently configured on the broker (rotating it later requires
+# a rebuild, or removing %APPDATA%\SwiftMedics\config.json on the machine).
+if (-not $DemoToken) {
+    Write-Warning "No -DemoToken given: the shipped config template will authenticate only if the broker has no DEMO_TOKEN set."
+}
+
 # ------------------------------------------------------------ demo stamp
 
 Write-Host "Generating the temporary demo build stamp..."
@@ -259,6 +275,14 @@ print("secret-scan-ok")
     Write-Host "hospital machine. Optional: copy config-demo-template.json to"
     Write-Host "%APPDATA%\SwiftMedics\config.json to override the compiled-in defaults."
     Write-Host "Sign the exe with your code-signing certificate before distribution."
+    Write-Host ""
+    Write-Host "Pre-ship checklist:"
+    Write-Host "  [ ] Vercel Deployment Protection DISABLED (or the exe cannot reach the broker)"
+    Write-Host "  [ ] TOKEN_TTL raised to 300 on the broker (60 s default expires mid-dictation)"
+    Write-Host "  [ ] Smoke test passed:"
+    Write-Host "        .\.venv\Scripts\python.exe scripts\smoke_demo_chain.py --broker-url $BrokerUrl --demo-token <DEMO_TOKEN>"
+    Write-Host "  [ ] Exe launch tested once on THIS machine and once on a clean Windows VM"
+    Write-Host "  [ ] Exe code-signed"
 }
 finally {
     if (-not $KeepStamp -and (Test-Path (Join-Path $RepoRoot "speechmatics_test\demo_build_stamp.py"))) {

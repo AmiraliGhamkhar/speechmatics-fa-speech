@@ -53,12 +53,19 @@ file-based `/api` functions:
 * Optional `DEMO_TOKEN` env var: the client must send `Authorization: Bearer <DEMO_TOKEN>`;
   rotating/deleting it revokes every shipped demo instantly.
 * `TOKEN_TTL` env var: token lifetime in seconds (clamped 10–300, default 60).
+  **Use 300 in production**: the temporary key expires after this many
+  seconds and Speechmatics closes the websocket mid-dictation when it does
+  (surfaced by the app as a transport error). 60 s is only useful for quick
+  hand-tests.
 * Responses are never cached (`Cache-Control: no-store`); credentials are
   never logged.
 * CORS is **disabled by default** (the client is a native Windows app, not a
   browser). Set `ALLOWED_ORIGIN` to a specific origin only if you also serve
   a web client from the same broker — an open CORS policy on a token mint
   only invites browser-based abuse.
+* Only `/api/token` is served; every other route answers 404 (with Vercel's
+  entrypoint mode the function receives all routes, and only the token mint
+  may be reachable).
 * Local mode for an on-site demo (key stays on the presenter machine):
   `python api/token.py --serve 8787`.
 
@@ -69,14 +76,24 @@ npm i -g vercel
 vercel login
 vercel link                     # from the repository root
 vercel env add SPEECHMATICS_API_KEY production    # paste your private key
-vercel env add DEMO_TOKEN production              # optional: shared secret for revocation
-vercel env add TOKEN_TTL production               # optional: seconds, default 60
+vercel env add DEMO_TOKEN production              # shared secret for revocation
+vercel env add TOKEN_TTL production               # use 300 (seconds)
 vercel --prod
 # your broker is now at https://<your-app>.vercel.app/api/token
 ```
 
-`vercel.json` at the project root configures the function (duration, excluded
-files). Any HTTPS host works — the handler is provider-agnostic.
+`pyproject.toml` pins the deployed entrypoint (`[tool.vercel] entrypoint =
+"api.token:application"` — without it Vercel's Python detection picks the
+root `app.py`, the desktop CLI, and the deploy fails); `vercel.json` at the
+project root configures the function (duration, excluded files).
+
+**Disable Deployment Protection** for this project (Project → Settings →
+Deployment Protection → Disabled): the demo exe is a native client and
+cannot pass Vercel Authentication, so with protection on it can never reach
+`/api/token`.
+
+Verify with `curl.exe` (not PowerShell's `curl` alias — it cannot send
+headers): no token → `403`; with the demo token → `200` and a JWT.
 
 ### Desktop side
 
@@ -108,6 +125,13 @@ Set-ExecutionPolicy -Scope Process Bypass
     [-ProductVersion 1.0.0.0] [-SkipInstall] [-KeepStamp]
 ```
 
+The broker URL is **compiled into the exe**: always pass the stable
+production alias with the `/api/token` path — never a per-deployment host
+(`...-abc123.vercel.app`), which changes on every deploy, and never a bare
+origin, which 404s. The `-DemoToken` value is baked into the shipped config
+template; rotating the broker's `DEMO_TOKEN` afterwards requires a rebuild
+(or deleting `%APPDATA%\SwiftMedics\config.json` on the machine).
+
 What it does:
 
 1. Creates `.venv` and installs dependencies + Nuitka (`-SkipInstall` to skip).
@@ -127,6 +151,28 @@ given date) **and** after a detected system-clock rollback (a per-user
 high-water mark of UTC time with a 24 h NTP-travel tolerance, stored next to
 the config). This is tamper-resistant for honest users; it is not a
 substitute for compiled protection — the Nuitka layer is.
+
+### Diagnosing Start failures: smoke_demo_chain.py
+
+`scripts/smoke_demo_chain.py` runs the same chain the exe runs, one stage at
+a time, and names the failing stage with the provider's own reason:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\smoke_demo_chain.py `
+    --broker-url https://<your-app>.vercel.app/api/token `
+    --demo-token <DEMO_TOKEN>
+```
+
+1. Broker URL rules (the client's own validation)
+2. `GET /api/token` — 403 here = `DEMO_TOKEN` mismatch; anything else =
+   reachability/server config
+3. JWT claim decode (shows `exp` seconds remaining without printing the token)
+4. Real websocket handshake to Speechmatics (reports the server's close
+   code/reason verbatim)
+
+A "transport closed"-style failure mid-dictation with all four stages passing
+almost always means the temporary key expired: raise `TOKEN_TTL` to 300 and
+rebuild/redeploy.
 
 Client-side hardening on every Start: the broker URL must parse as https
 (loopback http allowed for local mode), without embedded credentials, query,
@@ -154,8 +200,13 @@ gate (the broker is exactly that gate for the dictation capability).
 ## Hospital demo checklist
 
 - [ ] Broker deployed; `SPEECHMATICS_API_KEY` set on the broker only.
-- [ ] `DEMO_TOKEN` set (enables instant revocation).
-- [ ] Demo build created with `build_hospital_demo.ps1 -ExpiryDate ... -BrokerUrl ...`.
+- [ ] `DEMO_TOKEN` set (enables instant revocation) — and treated as a secret:
+  it must never appear in screenshots, terminal transcripts, or tickets.
+- [ ] `TOKEN_TTL=300` set (the 60 s default expires mid-dictation).
+- [ ] Deployment Protection disabled on the Vercel project.
+- [ ] Demo build created with `build_hospital_demo.ps1 -ExpiryDate ... -BrokerUrl ...`
+      using the **stable production alias + `/api/token`**.
+- [ ] `smoke_demo_chain.py` passed on the build machine (all four stages).
 - [ ] Exe **code-signed**; give hospital IT the vendor name + SHA-256 hash.
 - [ ] Demo machine has no config file (compiled-in defaults) or ships
       `config-demo-template.json` copied to `%APPDATA%\SwiftMedics\config.json`.
