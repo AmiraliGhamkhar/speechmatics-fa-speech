@@ -76,10 +76,19 @@ def issue_realtime_token(api_key: str, ttl: int) -> str:
 
 
 def _cors_headers() -> dict[str, str]:
+    """CORS is OFF by default. This endpoint serves native Windows clients
+    (Tkinter/urllib), which are not subject to browser same-origin policy, so
+    a wide-open ``Access-Control-Allow-Origin: *`` only invites browser-based
+    abuse of the token mint. Set ``ALLOWED_ORIGIN`` to a specific origin only
+    if you also serve a web client from the same broker."""
+    allowed_origin = (os.getenv("ALLOWED_ORIGIN") or "").strip()
+    if not allowed_origin:
+        return {}
     return {
-        "Access-Control-Allow-Origin": os.getenv("ALLOWED_ORIGIN", "*"),
+        "Access-Control-Allow-Origin": allowed_origin,
         "Access-Control-Allow-Headers": "Authorization, Content-Type",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Vary": "Origin",
     }
 
 
@@ -112,7 +121,12 @@ def handler(event: dict, context=None) -> dict:
         for key, value in (event.get("headers") or {}).items()
     }
     if method == "OPTIONS":
-        return _response(204, extra={"Content-Length": "0"})
+        cors = _cors_headers()
+        if not cors:
+            return _response(204, extra={"Content-Length": "0"})
+        return _response(204, extra={"Content-Length": "0", **cors})
+    # Only the token mint is exposed; anything else is refused before auth so
+    # the endpoint cannot be probed for behavior.
     if method != "GET":
         return _response(405, {"error": "method not allowed"})
 

@@ -1,4 +1,4 @@
-"""Desktop-app configuration stored under the user's AppData directory.
+r"""Desktop-app configuration stored under the user's AppData directory.
 
 The bundled Windows application deliberately keeps secrets out of the
 executable.  Operators provision the Speechmatics API key in a small JSON file
@@ -69,7 +69,7 @@ class ConfigLoadResult:
 
 
 def app_data_dir() -> Path:
-    """Return the per-user directory for desktop-app config/logs.
+    r"""Return the per-user directory for desktop-app config/logs.
 
     On Windows this is exactly ``%APPDATA%\SwiftMedics``.  A non-Windows
     fallback keeps the module importable and testable in CI/development.

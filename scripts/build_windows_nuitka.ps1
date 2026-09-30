@@ -15,20 +15,28 @@ Output:
 
     dist\SwiftMedics-nuitka\SwiftMedics.exe   (one-folder bundle)
 
+Flags verified against `python -m nuitka --help` (Nuitka 4.2.2): the
+compilation mode is selected with --mode=standalone, the window type with
+--windows-console-mode=disable, and the ccache object cache is on by default.
+
 Notes:
 
 * The first build takes significantly longer than PyInstaller (a full C
-  compile); later builds reuse the ccache-like object cache.
+  compile); later builds reuse Nuitka's ccache object cache.
 * PyAudio ships a compiled extension and is picked up automatically; the
   pure-Python pyahocorasick fallback keeps the medical matcher working even
   if a C extension is missed - the parity tests prove identical output.
 * The runtime API key is still NOT embedded. Demo builds additionally use
   scripts\build_demo.ps1 for the compiled-in expiry + token broker.
+* The embedded version metadata (product name/version) is what hospital IT
+  sees in file Properties and allowlisting tools.
 * Code-sign the result before distributing to a hospital (unsigned exes are
   blocked or warned about by SmartScreen and enterprise policy).
 #>
 [CmdletBinding()]
 param(
+    [string]$CompanyName = "SwiftMedics",
+    [string]$ProductVersion = "1.0.0",
     [switch]$SkipInstall
 )
 
@@ -54,23 +62,24 @@ if (-not $SkipInstall) {
     & $Python -m pip install --upgrade nuitka ordered-set
 }
 
-# Exclude the test/benchmark-only modules so nothing beyond the runtime ships.
+# Nuitka follows imports from desktop_app.py automatically; only extension
+# modules loaded dynamically need to be named explicitly.
 $nuitkaArgs = @(
-    "--standalone",
+    "--mode=standalone",
     "--assume-yes-for-downloads",
     "--output-dir=build-nuitka",
     "--output-filename=SwiftMedics.exe",
     "--include-package=speechmatics_test",
-    "--include-package-data=medical_knowledge",
+    "--include-data-dir=medical_knowledge=medical_knowledge",
     "--include-data-files=.env.example=.env.example",
-    "--noinclude-default-mode=error",
-    "--windows-disable-console",
-    "--windows-icon=NONE",
-    "--disable-ccache=NO"
+    "--windows-console-mode=disable",
+    "--company-name=$CompanyName",
+    "--product-name=SwiftMedics",
+    "--product-version=$ProductVersion",
+    "--file-version=$ProductVersion",
+    "--file-description=SwiftMedics medical dictation"
 )
 
-# Nuitka follows imports from desktop_app.py automatically; only extension
-# modules loaded dynamically need to be named explicitly.
 foreach ($pkg in @("speechmatics.rt", "pyaudio", "pyperclip", "ahocorasick")) {
     $nuitkaArgs += "--include-package=$pkg"
 }
@@ -79,8 +88,8 @@ Write-Host "Compiling SwiftMedics with Nuitka (this can take many minutes on the
 & $Python -m nuitka $nuitkaArgs desktop_app.py
 if ($LASTEXITCODE -ne 0) { throw "Nuitka build failed." }
 
-# Nuitka emits desktop_app.dist next to the build directory output; normalize
-# it into dist\SwiftMedics-nuitka so the two build paths have parallel shapes.
+# Nuitka emits desktop_app.dist inside the output directory; normalize it into
+# dist\SwiftMedics-nuitka so the two build paths have parallel shapes.
 $distDir = Join-Path $RepoRoot "dist\SwiftMedics-nuitka"
 $productDir = Get-ChildItem -Path (Join-Path $RepoRoot "build-nuitka") -Directory -Filter "desktop_app.dist" |
     Select-Object -First 1
