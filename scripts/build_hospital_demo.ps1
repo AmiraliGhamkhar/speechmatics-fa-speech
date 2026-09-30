@@ -141,11 +141,10 @@ try {
         "--file-version=$ProductVersion",
         "--file-description=SwiftMedics medical dictation",
         # Explicit keeps for modules/data that are only reached dynamically:
-        "--include-package=speechmatics.rt",
-        "--include-package=pyaudio",
-        "--include-package=pyperclip",
-        "--include-package=ahocorasick",
-        "--include-package-data=ahocorasick"
+        # ahocorasick is a single C-extension MODULE (not a package), so it
+        # needs --include-module; --include-package-data on it is a fatal
+        # error ("is a module not a package, cannot have package data").
+        "--include-module=ahocorasick"
     )
 
     Write-Host "Compiling SwiftMedics with Nuitka (first build can take many minutes)..."
