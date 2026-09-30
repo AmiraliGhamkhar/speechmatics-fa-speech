@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from .desktop_config import DesktopConfig, app_data_dir
+from .demo_license import check_demo_license, days_remaining
 from .entity_guard import ClinicalEntityGuard
 from .medical_layer import MedicalLayer
 from .realtime import SpeechmaticsRealtime, confidence_summary, resolve_domain
@@ -38,6 +39,12 @@ class DictationSettings:
     """Runtime settings for one desktop dictation session."""
 
     api_key: str
+    #: Demo builds: URL of the token broker (api/token.py). When set and the
+    #: API key is empty, the session fetches a short-lived realtime JWT at
+    #: start instead of holding a long-lived key.
+    token_broker_url: str | None = None
+    #: Optional shared secret the broker may require (NOT the Speechmatics key).
+    demo_token: str | None = None
     language: str = "fa"
     model: str = "enhanced"
     max_delay: float = 2.0
@@ -56,6 +63,8 @@ class DictationSettings:
     def from_desktop_config(cls, config: DesktopConfig) -> "DictationSettings":
         return cls(
             api_key=config.speechmatics_api_key,
+            token_broker_url=config.token_broker_url,
+            demo_token=config.demo_token,
             language=config.language,
             model=config.model,
             max_delay=config.max_delay,
@@ -175,7 +184,25 @@ class DictationSession:
 
     async def _run_async(self) -> SessionSummary:
         settings = self.settings
-        if not settings.api_key.strip():
+        check_demo_license()  # no-op outside generated demo builds
+
+        # Demo/broker path: exchange the broker URL for a short-lived JWT.
+        # The token lives in memory only, for the duration of this session.
+        credential = (settings.api_key or "").strip()
+        if not credential and settings.token_broker_url:
+            self._emit_status("requesting_token")
+            from .broker_client import BrokerError, fetch_realtime_token
+
+            try:
+                credential = fetch_realtime_token(
+                    settings.token_broker_url,
+                    demo_token=settings.demo_token,
+                )
+            except BrokerError as exc:
+                raise RuntimeError(
+                    f"Could not obtain a dictation token from the broker: {exc}"
+                ) from exc
+        if not credential:
             raise RuntimeError("Speechmatics API key is missing")
 
         self._emit_status("starting")
@@ -279,7 +306,7 @@ class DictationSession:
 
             with recorder:
                 stt = SpeechmaticsRealtime(
-                    api_key=settings.api_key,
+                    api_key=credential,
                     language=settings.language,
                     additional_vocab=vocab,
                     max_delay=settings.max_delay,

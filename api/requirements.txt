@@ -1,0 +1,2 @@
+# The token broker uses only the Python standard library.
+# No third-party packages are required.

@@ -7,3 +7,6 @@ __pycache__/
 build/
 dist/
 results/*.json
+
+# Generated demo stamp: compiled into demo builds, never committed.
+speechmatics_test/demo_build_stamp.py
