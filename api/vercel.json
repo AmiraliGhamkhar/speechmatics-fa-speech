@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/token.py": {
+      "maxDuration": 15
+    }
+  }
+}
