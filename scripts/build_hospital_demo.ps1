@@ -125,6 +125,7 @@ if (-not $DemoToken) {
 Write-Host "Generating the temporary demo build stamp..."
 $stampArgs = @("scripts\set_demo_expiry.py", "--date", $ExpiryDate, "--broker-url", $BrokerUrl)
 if ($BuildId) { $stampArgs += @("--build-id", $BuildId) }
+if ($DemoToken) { $stampArgs += @("--demo-token", $DemoToken) }
 & $Python @stampArgs
 if ($LASTEXITCODE -ne 0) { throw "set_demo_expiry.py failed." }
 $stampPath = Join-Path $RepoRoot "speechmatics_test\demo_build_stamp.py"

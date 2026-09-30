@@ -26,10 +26,11 @@ TEMPLATE = (
     "DEMO_EXPIRY = datetime.datetime({y}, {m}, {d}, 23, 59, 59)\n"
     "DEMO_BUILD_ID = {build_id!r}\n"
     "DEMO_BROKER_URL = {broker_url!r}\n"
+    "DEMO_DEMO_TOKEN = {demo_token!r}\n"
 )
 
 
-def write_stamp(expiry: dt.date, build_id: str, broker_url: str) -> Path:
+def write_stamp(expiry: dt.date, build_id: str, broker_url: str, demo_token: str = "") -> Path:
     STAMP_PATH.parent.mkdir(parents=True, exist_ok=True)
     STAMP_PATH.write_text(
         TEMPLATE.format(
@@ -38,6 +39,7 @@ def write_stamp(expiry: dt.date, build_id: str, broker_url: str) -> Path:
             d=expiry.day,
             build_id=build_id,
             broker_url=broker_url,
+            demo_token=demo_token,
         ),
         encoding="utf-8",
     )
@@ -54,6 +56,13 @@ def main(argv: list[str] | None = None) -> int:
         help="default token broker URL compiled into the demo build "
         "(the demo config does not need a long-lived API key)",
     )
+    parser.add_argument(
+        "--demo-token",
+        default="",
+        help="DEMO_TOKEN shared secret compiled into the demo build so a "
+        "fresh machine works without a config file. Rotating the broker's "
+        "DEMO_TOKEN revokes every build that shipped with the old value.",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -67,12 +76,15 @@ def main(argv: list[str] | None = None) -> int:
     if broker_url and not broker_url.lower().startswith("https://"):
         parser.error("--broker-url must be an https URL")
         return 2
-    path = write_stamp(expiry, build_id, broker_url)
+    demo_token = args.demo_token.strip()
+    path = write_stamp(expiry, build_id, broker_url, demo_token)
     print(f"Demo stamp written: {path}")
     print(f"  expiry    : {expiry.isoformat()} (23:59:59 local time)")
     print(f"  build id  : {build_id}")
     if broker_url:
         print(f"  broker    : {broker_url}")
+    if demo_token:
+        print("  demo token: compiled in")
     print(
         "Now build the hospital demo bundle:  .\\scripts\\build_hospital_demo.ps1 -ExpiryDate "
         + expiry.isoformat()

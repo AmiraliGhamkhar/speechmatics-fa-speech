@@ -146,3 +146,24 @@ def broker_url_from_env() -> str | None:
     except Exception:  # pragma: no cover - defensive
         return None
     return (DEMO_BROKER_URL or "").strip() or None
+
+
+def demo_token_from_env() -> str | None:
+    """Default demo token: ``SWIFTMEDICS_DEMO_TOKEN`` or the demo stamp.
+
+    A demo build works on a fresh machine with NO config file: the token
+    compiled into the stamp authenticates it against the broker. An explicit
+    ``demo_token`` in %APPDATA%\\SwiftMedics\\config.json still overrides
+    it, and rotating the broker's ``DEMO_TOKEN`` revokes every build that
+    shipped with the old value.
+    """
+    import os
+
+    value = (os.getenv("SWIFTMEDICS_DEMO_TOKEN") or "").strip()
+    if value:
+        return value
+    try:
+        from .demo_license import DEMO_DEMO_TOKEN
+    except Exception:  # pragma: no cover - defensive
+        return None
+    return (DEMO_DEMO_TOKEN or "").strip() or None
