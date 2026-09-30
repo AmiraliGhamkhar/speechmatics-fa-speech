@@ -80,16 +80,16 @@ def test_client_requires_https_outside_localhost():
 def test_client_allows_localhost_http():
     with mock.patch.object(urllib.request, "urlopen") as fake:
         fake.return_value.__enter__.return_value.read.return_value = json.dumps(
-            {"token": "jwt-abc", "ttl": 60}
+            {"token": "a.b.c", "ttl": 60}
         ).encode()
         token = broker_client.fetch_realtime_token("http://127.0.0.1:8787/token")
-    assert token == "jwt-abc"
+    assert token == "a.b.c"
 
 
 def test_client_sends_demo_token_header():
     with mock.patch.object(urllib.request, "urlopen") as fake:
         fake.return_value.__enter__.return_value.read.return_value = json.dumps(
-            {"token": "jwt-abc", "ttl": 60}
+            {"token": "a.b.c", "ttl": 60}
         ).encode()
         broker_client.fetch_realtime_token(
             "https://broker.example.com/api/token", demo_token="secret-demo-token"
@@ -118,6 +118,84 @@ def test_client_rejects_response_without_token():
         fake.return_value.__enter__.return_value.read.return_value = b'{"nope": 1}'
         with pytest.raises(broker_client.BrokerError, match="token"):
             broker_client.fetch_realtime_token("https://broker.example.com/api/token")
+
+
+# ------------------------------------------------------------- URL hardening
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://broker.example.com/api/token",  # non-loopback plain http
+        "ftp://broker.example.com/api/token",  # wrong scheme entirely
+        "https://user:pass@broker.example.com/api/token",  # embedded credentials
+        "https://broker.example.com/api/token?x=1",  # query smuggling
+        "https://broker.example.com/api/token#frag",  # fragment
+        "https://broker.example.com:8443/api/token",  # non-standard https port
+    ],
+)
+def test_client_rejects_unsafe_broker_urls(url):
+    with pytest.raises(broker_client.BrokerError):
+        broker_client.validate_broker_url(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://broker.example.com/api/token",
+        "https://broker.example.com:443/api/token",  # explicit default is fine
+        "http://localhost:8787/api/token",  # presenter-machine local mode
+        "http://127.0.0.1:8787/api/token",
+    ],
+)
+def test_client_accepts_safe_broker_urls(url):
+    assert broker_client.validate_broker_url(url) == url
+
+
+def test_client_rejects_empty_jwt_and_missing_segments():
+    with pytest.raises(broker_client.BrokerError, match="empty"):
+        broker_client.validate_token_shape("")
+    with pytest.raises(broker_client.BrokerError, match="JWT"):
+        broker_client.validate_token_shape("only-two.segments")
+    broker_client.validate_token_shape("a.b.c")  # shape-valid
+
+
+# ------------------------------------------------------- clock rollback gate
+
+
+def test_clock_rollback_is_detected(monkeypatch, tmp_path):
+    import time as time_module
+
+    future = dt.datetime.now() + dt.timedelta(days=10)
+    monkeypatch.setattr(demo_license, "DEMO_EXPIRY", future)
+    monkeypatch.setattr(
+        demo_license, "_state_path", lambda: tmp_path / "demo_state.json"
+    )
+
+    real_time = time_module.time()
+    # First run records the watermark.
+    monkeypatch.setattr(time_module, "time", lambda: real_time)
+    demo_license.check_demo_license()
+    # Clock moved back by a week: refused.
+    monkeypatch.setattr(time_module, "time", lambda: real_time - 7 * 86400)
+    with pytest.raises(demo_license.DemoLicenseExpired, match="clock"):
+        demo_license.check_demo_license()
+    # Small NTP-style correction (under tolerance): accepted and re-watermarked.
+    monkeypatch.setattr(time_module, "time", lambda: real_time - 3600)
+    demo_license.check_demo_license()
+
+
+def test_clock_gate_is_inert_outside_demo_builds(monkeypatch, tmp_path):
+    import time as time_module
+
+    monkeypatch.setattr(demo_license, "DEMO_EXPIRY", None)
+    monkeypatch.setattr(
+        demo_license, "_state_path", lambda: tmp_path / "demo_state.json"
+    )
+    monkeypatch.setattr(time_module, "time", lambda: 1000.0)
+    demo_license.check_demo_license()
+    demo_license.check_demo_license()  # watermark never written, never trips
+    assert not (tmp_path / "demo_state.json").exists()
 
 
 # ------------------------------------------------------------------- broker

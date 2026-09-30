@@ -281,8 +281,10 @@ class SpeechmaticsRealtime:
             )
         self.api_key = api_key
         self.language = language
-        #: Short-lived realtime JWT (demo/broker path). When set, the session
-        #: authenticates with ``?jwt=<token>`` instead of the API-key header.
+        #: Short-lived realtime JWT (demo/broker path). When set, the JWT is
+        #: used IN PLACE OF the API key in the Authorization header, exactly
+        #: as the Speechmatics authentication docs prescribe for temporary
+        #: keys (AsyncClient has no separate jwt parameter).
         self.auth_jwt = auth_jwt
         self.additional_vocab = additional_vocab or []
         self.max_delay = float(max_delay)
