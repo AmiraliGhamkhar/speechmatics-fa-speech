@@ -1,4 +1,4 @@
-"""Desktop-app configuration stored under the user's AppData directory.
+r"""Desktop-app configuration stored under the user's AppData directory.
 
 The bundled Windows application deliberately keeps secrets out of the
 executable.  Operators provision the Speechmatics API key in a small JSON file
@@ -39,6 +39,12 @@ class DesktopConfig:
     """Validated settings consumed by the floating desktop app."""
 
     speechmatics_api_key: str
+    #: Demo builds authenticate through the token broker instead of holding a
+    #: long-lived API key. When ``token_broker_url`` is set and the API key is
+    #: empty, the app fetches a short-lived JWT from the broker on Start.
+    token_broker_url: str | None = None
+    #: Optional shared secret the broker may require (NOT the API key).
+    demo_token: str | None = None
     language: str = "fa"
     model: str = DEFAULT_MODEL
     max_delay: float = DEFAULT_MAX_DELAY
@@ -63,7 +69,7 @@ class ConfigLoadResult:
 
 
 def app_data_dir() -> Path:
-    """Return the per-user directory for desktop-app config/logs.
+    r"""Return the per-user directory for desktop-app config/logs.
 
     On Windows this is exactly ``%APPDATA%\SwiftMedics``.  A non-Windows
     fallback keeps the module importable and testable in CI/development.
@@ -97,6 +103,8 @@ def default_config_payload() -> dict[str, Any]:
 
     return {
         "speechmatics_api_key": "YOUR_SPEECHMATICS_API_KEY",
+        "token_broker_url": "",
+        "demo_token": "",
         "language": "fa",
         "model": DEFAULT_MODEL,
         "max_delay": DEFAULT_MAX_DELAY,
@@ -180,9 +188,26 @@ def parse_config(data: dict[str, Any]) -> DesktopConfig:
     """Validate raw JSON and return a ``DesktopConfig``."""
 
     api_key = data.get("speechmatics_api_key")
-    if not isinstance(api_key, str) or not api_key.strip() or api_key.strip() == "YOUR_SPEECHMATICS_API_KEY":
+    has_key = (
+        isinstance(api_key, str)
+        and api_key.strip()
+        and api_key.strip() != "YOUR_SPEECHMATICS_API_KEY"
+    )
+
+    def _optional_str(key: str) -> str | None:
+        value = data.get(key, None)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        if not isinstance(value, str):
+            raise ConfigError(f"Config key '{key}' must be a string.")
+        return value.strip()
+
+    token_broker_url = _optional_str("token_broker_url")
+    demo_token = _optional_str("demo_token")
+    if not has_key and not token_broker_url:
         raise ConfigError(
-            "speechmatics_api_key is missing. Set it in the SwiftMedics config file."
+            "speechmatics_api_key is missing. Set it in the SwiftMedics config file "
+            "(demo builds set token_broker_url instead)."
         )
 
     language = data.get("language", "fa")
@@ -208,7 +233,9 @@ def parse_config(data: dict[str, Any]) -> DesktopConfig:
         )
 
     return DesktopConfig(
-        speechmatics_api_key=api_key.strip(),
+        speechmatics_api_key=api_key.strip() if has_key else "",
+        token_broker_url=token_broker_url,
+        demo_token=demo_token,
         language=language,
         model=model,
         max_delay=max_delay,

@@ -257,6 +257,8 @@ class SpeechmaticsRealtime:
         self,
         api_key: str,
         language: str,
+        *,
+        auth_jwt: Optional[str] = None,
         additional_vocab: Optional[list] = None,
         max_delay: float = DEFAULT_MAX_DELAY,
         model: str = DEFAULT_MODEL,
@@ -279,6 +281,11 @@ class SpeechmaticsRealtime:
             )
         self.api_key = api_key
         self.language = language
+        #: Short-lived realtime JWT (demo/broker path). When set, the JWT is
+        #: used IN PLACE OF the API key in the Authorization header, exactly
+        #: as the Speechmatics authentication docs prescribe for temporary
+        #: keys (AsyncClient has no separate jwt parameter).
+        self.auth_jwt = auth_jwt
         self.additional_vocab = additional_vocab or []
         self.max_delay = float(max_delay)
         self.model = model
@@ -532,7 +539,17 @@ class SpeechmaticsRealtime:
                     f"Original error: {exc}"
                 ) from exc
 
-            async with AsyncClient(api_key=self.api_key) as client:
+            # Demo/broker path: the short-lived JWT is used in place of the
+            # API key in the Authorization header, exactly as the Speechmatics
+            # authentication docs prescribe for temporary keys (verified
+            # against speechmatics-rt 1.1.1: AsyncClient has no separate jwt
+            # parameter - StaticKeyAuth just wraps the bearer value).
+            client_kwargs = (
+                {"api_key": self.auth_jwt}
+                if self.auth_jwt
+                else {"api_key": self.api_key}
+            )
+            async with AsyncClient(**client_kwargs) as client:
                 # Set when the service sends an Error message (expired key,
                 # quota, rejected session). The SDK itself only logs the
                 # reason and marks its session done, so the adapter records
