@@ -24,6 +24,8 @@
         "بی پی",
         "بیپی",
         "فشار خون",
+        "بلد پرشر",
+        "بلاد پرشر",
         "فشارخون"
       ],
       "speechmatics": true,
@@ -8321,19 +8323,23 @@
     },
     {
       "id": "heart-rate",
-      "canonical": "heart rate",
+      "canonical": "PR",
       "type": "vital_sign",
       "tier": "validated_term",
       "forms": [
-        "HR",
+        "PR",
         "هارت ریت",
         "heart rate",
-        "pulse rate"
+        "pulse rate",
+        "پیآر",
+        "پی آر",
+        "پالس ریت"
       ],
       "speechmatics": false,
       "sounds_like": [
         "ضربانقلب",
-        "هارتریت"
+        "هارتریت",
+        "پالس ریت"
       ],
       "source_file": "nursing_terms.json"
     },
@@ -12742,19 +12748,6 @@
       "source_file": "fst_terms.json"
     },
     {
-      "id": "bpm",
-      "canonical": "bpm",
-      "type": "dosage_unit",
-      "tier": "unit",
-      "forms": [
-        "ضربان در دقیقه",
-        "بی پی ام"
-      ],
-      "speechmatics": false,
-      "sounds_like": [],
-      "source_file": "fst_terms.json"
-    },
-    {
       "id": "celsius",
       "canonical": "°C",
       "type": "dosage_unit",
@@ -12766,26 +12759,6 @@
       "speechmatics": false,
       "sounds_like": [],
       "source_file": "fst_terms.json"
-    },
-    {
-      "id": "blood-pressure",
-      "canonical": "blood pressure",
-      "type": "vital_sign",
-      "tier": "observed_alias",
-      "forms": [
-        "BP",
-        "blood pressure",
-        "B/P",
-        "B.P.",
-        "بلد پرشر",
-        "بلاد پرشر"
-      ],
-      "speechmatics": true,
-      "sounds_like": [
-        "فشارخون",
-        "بیپی"
-      ],
-      "source_file": "observed_asr_aliases.json"
     },
     {
       "id": "ct-scan",
@@ -13520,23 +13493,6 @@
       "speechmatics": false,
       "sounds_like": [],
       "source_file": "fst_terms.json"
-    },
-    {
-      "id": "pr",
-      "canonical": "PR",
-      "type": "abbreviation",
-      "tier": "abbreviation",
-      "forms": [
-        "پیآر",
-        "پی آر",
-        "تعداد نبض"
-      ],
-      "speechmatics": true,
-      "sounds_like": [
-        "پیآر",
-        "تعدادنبض"
-      ],
-      "source_file": "nursing_terms.json"
     },
     {
       "id": "iv_line",
