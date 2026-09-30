@@ -130,6 +130,7 @@ try {
     $nuitkaArgs = @(
         "--mode=standalone",
         "--assume-yes-for-downloads",
+        "--enable-plugin=tk-inter",
         "--output-dir=build-nuitka",
         "--output-filename=SwiftMedics.exe",
         "--include-package=speechmatics_test",
@@ -140,10 +141,14 @@ try {
         "--product-version=$ProductVersion",
         "--file-version=$ProductVersion",
         "--file-description=SwiftMedics medical dictation",
-        # Explicit keeps for modules/data that are only reached dynamically:
+        # Explicit keeps for modules/packages that are only reached
+        # dynamically (imports are otherwise followed from desktop_app.py):
         # ahocorasick is a single C-extension MODULE (not a package), so it
         # needs --include-module; --include-package-data on it is a fatal
         # error ("is a module not a package, cannot have package data").
+        "--include-package=speechmatics.rt",
+        "--include-package=pyaudio",
+        "--include-package=pyperclip",
         "--include-module=ahocorasick"
     )
 
