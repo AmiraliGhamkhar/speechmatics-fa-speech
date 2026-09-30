@@ -1,5 +1,8 @@
 speechmatics-rt
-PyAudio
+# Windows-only: PyAudio publishes no Linux wheels (needs portaudio system
+# headers), so the marker keeps Vercel's Linux builder from failing on it
+# while Windows developers still get it from a plain `pip install -r`.
+PyAudio; sys_platform == "win32"
 python-dotenv
 pytest
 
