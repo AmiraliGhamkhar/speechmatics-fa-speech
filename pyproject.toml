@@ -1,3 +1,14 @@
+[project]
+# Minimal project table so Vercel's uv-based Python builder can run
+# `uv lock` (it fails with "No `project` table found" when pyproject.toml
+# exists without one). The token broker is standard-library only, so the
+# deployed function needs no third-party dependencies; Windows developers
+# install the desktop app's dependencies with requirements.txt instead.
+name = "swiftmedics-token-broker"
+version = "1.0.0"
+requires-python = ">=3.12"
+dependencies = []
+
 [tool.vercel]
 # The token broker (api/token.py) is the deployed Python application.
 # The root app.py is the desktop CLI, not a web app - without this pin,
