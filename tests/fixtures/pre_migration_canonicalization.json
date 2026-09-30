@@ -1,5 +1,5 @@
 {
- "description": "Behavioral snapshot of the pre-consolidation matcher (fst_terms.json era). tests/test_matcher.py asserts the consolidated dictionary reproduces these outputs exactly.",
+ "description": "Behavioral snapshot of the pre-consolidation matcher (fst_terms.json era). tests/test_matcher.py asserts the consolidated dictionary reproduces these outputs exactly. The blood-pressure/pulse-rate alias cases were re-baselined to the consolidated chart notation (BP/PR) after the author's 'fix : PR & BP' dictionary change; the spoken aliases themselves (بلاد پرشر/بلد پرشر/هارت ریت و…) are unchanged.",
  "cases": [
   {
    "raw": "سی تی",
@@ -3963,120 +3963,120 @@
   },
   {
    "raw": "بلاد پرشر",
-   "canonical": "blood pressure",
+   "canonical": "BP",
    "hits": [
     {
      "form": "بلاد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 0
     }
    ]
   },
   {
    "raw": "بلاد پرشر دارد",
-   "canonical": "blood pressure دارد",
+   "canonical": "BP دارد",
    "hits": [
     {
      "form": "بلاد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 0
     }
    ]
   },
   {
    "raw": "بیمار بلاد پرشر است",
-   "canonical": "بیمار blood pressure است",
+   "canonical": "بیمار BP است",
    "hits": [
     {
      "form": "بلاد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 6
     }
    ]
   },
   {
    "raw": "بلاد پرشر و بلاد پرشر",
-   "canonical": "blood pressure و blood pressure",
+   "canonical": "BP و BP",
    "hits": [
     {
      "form": "بلاد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 0
     },
     {
      "form": "بلاد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 12
     }
    ]
   },
   {
    "raw": "دوز 20 بلاد پرشر داده شود",
-   "canonical": "دوز 20 blood pressure داده شود",
+   "canonical": "دوز 20 BP داده شود",
    "hits": [
     {
      "form": "بلاد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 7
     }
    ]
   },
   {
    "raw": "بلد پرشر",
-   "canonical": "blood pressure",
+   "canonical": "BP",
    "hits": [
     {
      "form": "بلد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 0
     }
    ]
   },
   {
    "raw": "بلد پرشر دارد",
-   "canonical": "blood pressure دارد",
+   "canonical": "BP دارد",
    "hits": [
     {
      "form": "بلد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 0
     }
    ]
   },
   {
    "raw": "بیمار بلد پرشر است",
-   "canonical": "بیمار blood pressure است",
+   "canonical": "بیمار BP است",
    "hits": [
     {
      "form": "بلد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 6
     }
    ]
   },
   {
    "raw": "بلد پرشر و بلد پرشر",
-   "canonical": "blood pressure و blood pressure",
+   "canonical": "BP و BP",
    "hits": [
     {
      "form": "بلد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 0
     },
     {
      "form": "بلد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 11
     }
    ]
   },
   {
    "raw": "دوز 20 بلد پرشر داده شود",
-   "canonical": "دوز 20 blood pressure داده شود",
+   "canonical": "دوز 20 BP داده شود",
    "hits": [
     {
      "form": "بلد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 7
     }
    ]
@@ -4143,60 +4143,60 @@
   },
   {
    "raw": "هارت ریت",
-   "canonical": "heart rate",
+   "canonical": "PR",
    "hits": [
     {
      "form": "هارت ریت",
-     "canonical": "heart rate",
+     "canonical": "PR",
      "position": 0
     }
    ]
   },
   {
    "raw": "هارت ریت دارد",
-   "canonical": "heart rate دارد",
+   "canonical": "PR دارد",
    "hits": [
     {
      "form": "هارت ریت",
-     "canonical": "heart rate",
+     "canonical": "PR",
      "position": 0
     }
    ]
   },
   {
    "raw": "بیمار هارت ریت است",
-   "canonical": "بیمار heart rate است",
+   "canonical": "بیمار PR است",
    "hits": [
     {
      "form": "هارت ریت",
-     "canonical": "heart rate",
+     "canonical": "PR",
      "position": 6
     }
    ]
   },
   {
    "raw": "هارت ریت و هارت ریت",
-   "canonical": "heart rate و heart rate",
+   "canonical": "PR و PR",
    "hits": [
     {
      "form": "هارت ریت",
-     "canonical": "heart rate",
+     "canonical": "PR",
      "position": 0
     },
     {
      "form": "هارت ریت",
-     "canonical": "heart rate",
+     "canonical": "PR",
      "position": 11
     }
    ]
   },
   {
    "raw": "دوز 20 هارت ریت داده شود",
-   "canonical": "دوز 20 heart rate داده شود",
+   "canonical": "دوز 20 PR داده شود",
    "hits": [
     {
      "form": "هارت ریت",
-     "canonical": "heart rate",
+     "canonical": "PR",
      "position": 7
     }
    ]
@@ -4573,8 +4573,14 @@
   },
   {
    "raw": "heart rate",
-   "canonical": "heart rate",
-   "hits": []
+   "canonical": "PR",
+   "hits": [
+    {
+     "form": "heart rate",
+     "canonical": "PR",
+     "position": 0
+    }
+   ]
   },
   {
    "raw": "oxygen saturation",
@@ -4771,7 +4777,7 @@
   },
   {
    "raw": "علائم حیاتی و هارت ریت و اکسیژن ساتوریشن و ساتوریشن",
-   "canonical": "vital signs و heart rate و oxygen saturation و oxygen saturation",
+   "canonical": "vital signs و PR و oxygen saturation و oxygen saturation",
    "hits": [
     {
      "form": "علائم حیاتی",
@@ -4780,7 +4786,7 @@
     },
     {
      "form": "هارت ریت",
-     "canonical": "heart rate",
+     "canonical": "PR",
      "position": 14
     },
     {
@@ -4797,16 +4803,16 @@
   },
   {
    "raw": "بلاد پرشر و بلد پرشر و کشت خون",
-   "canonical": "blood pressure و blood pressure و کشت خون",
+   "canonical": "BP و BP و کشت خون",
    "hits": [
     {
      "form": "بلاد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 0
     },
     {
      "form": "بلد پرشر",
-     "canonical": "blood pressure",
+     "canonical": "BP",
      "position": 12
     }
    ]

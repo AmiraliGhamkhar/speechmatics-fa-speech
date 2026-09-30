@@ -1,8 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 r"""PyInstaller one-folder build for the SwiftMedics desktop app.
 
+This is the DEVELOPER / FALLBACK packaging path. The HOSPITAL DEMO release is
+produced by ``scripts/build_hospital_demo.ps1`` (Nuitka standalone + token
+broker + compiled-in demo expiry); this spec keeps the plain developer bundle
+available for quick local testing and as a fallback when a C compiler is not
+available.
+
 Build from the repository root on Windows with:
-    pyinstaller --clean --noconfirm packaging\swiftmedics.spec
+    .\scripts\build_windows.ps1
+    (equivalently: pyinstaller --clean --noconfirm scripts\swiftmedics-pyinstaller.spec)
 """
 
 from pathlib import Path
@@ -16,7 +23,7 @@ def _find_root() -> Path:
 
     PyInstaller injects the path globals ``SPEC`` / ``SPECPATH`` (and sets
     ``__file__``), but their exact meaning has shifted between releases, and
-    the spec may be run from the repository root or from ``packaging\``.
+    the spec may be run from the repository root or from ``scripts\``.
     Assuming one of them put the analysis one level off and surfaced only as
     ``ERROR: script ...\desktop_app.py not found``, so the root is resolved
     by walking up from every plausible starting point and confirming the
@@ -54,7 +61,6 @@ a = Analysis(
     binaries=[],
     datas=[
         data("medical_knowledge", "medical_knowledge"),
-        data(".env.example", "."),
     ],
     hiddenimports=[
         "speechmatics.rt",

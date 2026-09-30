@@ -10,23 +10,30 @@ Response shape (HTTP 200)::
 
     {"token": "<jwt>", "ttl": 60}
 
+Vercel deployment contract (verified against
+https://vercel.com/docs/functions/runtimes/python and
+.../python/api-directory, updated 2026-08): a file-based Python function in
+``/api`` must expose a top-level ``app`` (ASGI/WSGI), ``application`` (WSGI)
+or ``handler`` (``BaseHTTPRequestHandler`` subclass). The legacy AWS-Lambda
+``handler(event, context)`` signature is NOT supported by the current
+runtime. This module therefore exposes the WSGI ``application`` below; the
+``handler``/``event``-dict surface is kept only as ``handle_api_event`` for
+tests and reuse.
+
 Optional access control: set ``DEMO_TOKEN`` and the client must send
 ``Authorization: Bearer <DEMO_TOKEN>``. Rotating or deleting that value
 revokes access for every demo build that was shipped with it.
 
-Deployment (Vercel example, free Hobby tier):
-
-    vercel            # from the repository root; api/token.py becomes /api/token
-    # then set env vars in the dashboard:
-    #   SPEECHMATICS_API_KEY  (required, the private key)
-    #   DEMO_TOKEN            (optional, shared secret for demo revocation)
-    #   TOKEN_TTL             (optional, seconds, default 60)
+HTTPS in production is enforced by the platform (all Vercel traffic is
+terminated on TLS at the edge) and by the client (``broker_client.py``
+refuses non-loopback plain-http broker URLs); this function additionally
+never caches responses and never logs credentials.
 
 Local mode for an on-site demo (the key stays on the presenter machine):
 
     python api/token.py --serve 8787
 
-This module is deliberately standard-library only.
+This module is deliberately standard-library only (see api/requirements.txt).
 """
 from __future__ import annotations
 
@@ -45,6 +52,15 @@ SPEECHMATICS_KEYS_URL = os.getenv(
 MIN_TTL = 10
 MAX_TTL = 300
 DEFAULT_TTL = 60
+
+_STATUS_REASONS = {
+    200: "OK",
+    204: "No Content",
+    403: "Forbidden",
+    405: "Method Not Allowed",
+    500: "Internal Server Error",
+    502: "Bad Gateway",
+}
 
 
 def _clamp_ttl(raw: str | None) -> int:
@@ -92,19 +108,6 @@ def _cors_headers() -> dict[str, str]:
     }
 
 
-def _response(
-    status: int, payload: dict | None = None, *, extra: dict[str, str] | None = None
-) -> dict:
-    headers = {"Content-Type": "application/json", "Cache-Control": "no-store"}
-    headers.update(_cors_headers())
-    headers.update(extra or {})
-    return {
-        "statusCode": status,
-        "headers": headers,
-        "body": "" if payload is None else json.dumps(payload),
-    }
-
-
 def _authorized(headers: dict) -> bool:
     demo_token = (os.getenv("DEMO_TOKEN") or "").strip()
     if not demo_token:
@@ -113,44 +116,103 @@ def _authorized(headers: dict) -> bool:
     return hmac.compare_digest(supplied, f"Bearer {demo_token}")
 
 
-def handler(event: dict, context=None) -> dict:
-    """HTTP entry point (Vercel-style). GET /api/token -> one short-lived JWT."""
-    method = str(event.get("httpMethod") or "GET").upper()
+def _dispatch(method: str, headers: dict | None) -> tuple[int, dict[str, str], bytes]:
+    """Core ``GET /api/token`` logic shared by every entry point below.
+
+    Returns ``(status, headers, body)`` and never logs the request: the
+    ``Authorization`` header carries a credential.
+    """
     headers = {
-        str(key).lower(): value
-        for key, value in (event.get("headers") or {}).items()
+        str(key).lower(): value for key, value in (headers or {}).items()
     }
+    method = str(method or "GET").upper()
+    response_headers = {"Cache-Control": "no-store"}
+
     if method == "OPTIONS":
-        cors = _cors_headers()
-        if not cors:
-            return _response(204, extra={"Content-Length": "0"})
-        return _response(204, extra={"Content-Length": "0", **cors})
+        response_headers.update(_cors_headers())
+        response_headers["Content-Length"] = "0"
+        return 204, response_headers, b""
     # Only the token mint is exposed; anything else is refused before auth so
     # the endpoint cannot be probed for behavior.
     if method != "GET":
-        return _response(405, {"error": "method not allowed"})
+        response_headers["Content-Type"] = "application/json"
+        return 405, response_headers, json.dumps({"error": "method not allowed"}).encode("utf-8")
 
     if not _authorized(headers):
-        return _response(403, {"error": "invalid demo token"})
+        response_headers["Content-Type"] = "application/json"
+        return 403, response_headers, json.dumps({"error": "invalid demo token"}).encode("utf-8")
 
     api_key = (os.getenv("SPEECHMATICS_API_KEY") or "").strip()
+    response_headers["Content-Type"] = "application/json"
     if not api_key:
-        return _response(
-            500, {"error": "SPEECHMATICS_API_KEY is not configured on the broker"}
-        )
+        return 500, response_headers, json.dumps(
+            {"error": "SPEECHMATICS_API_KEY is not configured on the broker"}
+        ).encode("utf-8")
 
     ttl = _clamp_ttl(os.getenv("TOKEN_TTL"))
     try:
         token = issue_realtime_token(api_key, ttl)
     except urllib.error.HTTPError as exc:
         # Surface only the status code: the body could echo request context.
-        return _response(
-            502, {"error": f"Speechmatics rejected the token request (HTTP {exc.code})"}
-        )
+        return 502, response_headers, json.dumps(
+            {"error": f"Speechmatics rejected the token request (HTTP {exc.code})"}
+        ).encode("utf-8")
     except Exception as exc:  # defensive: never leak request details to the demo
-        return _response(502, {"error": f"token request failed: {type(exc).__name__}"})
+        return 502, response_headers, json.dumps(
+            {"error": f"token request failed: {type(exc).__name__}"}
+        ).encode("utf-8")
 
-    return _response(200, {"token": token, "ttl": ttl})
+    return 200, response_headers, json.dumps({"token": token, "ttl": ttl}).encode("utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Vercel entry point: WSGI application (current file-based /api contract).
+# ---------------------------------------------------------------------------
+
+def application(environ, start_response):  # noqa: ANN001 - WSGI signature
+    """WSGI entry point loaded by Vercel for ``api/token.py``.
+
+    HTTPS is guaranteed by the platform edge (Vercel terminates TLS and only
+    serves the function over TLS); behind the edge the request arrives with
+    whatever internal scheme the platform uses, so the scheme is not checked
+    here. Client-side, ``broker_client.py`` refuses non-loopback plain http.
+    """
+    headers = {
+        key[5:].replace("_", "-"): value
+        for key, value in environ.items()
+        if isinstance(key, str) and key.startswith("HTTP_")
+    }
+    if isinstance(environ.get("AUTHORIZATION"), str):
+        # Some WSGI servers expose Authorization directly rather than as
+        # HTTP_AUTHORIZATION; accept both.
+        headers.setdefault("Authorization", environ["AUTHORIZATION"])
+    status, response_headers, body = _dispatch(
+        environ.get("REQUEST_METHOD", "GET"), headers
+    )
+    start_response(
+        f"{status} {_STATUS_REASONS.get(status, 'OK')}",
+        list(response_headers.items()),
+    )
+    return [body]
+
+
+# ---------------------------------------------------------------------------
+# Local mode + event-style shim (tests / other hosts)
+# ---------------------------------------------------------------------------
+
+def handle_api_event(event: dict, context=None) -> dict:
+    """Adapter for event/dict-style hosts and tests: ``{"httpMethod", "headers"}``
+    in, ``{"statusCode", "headers", "body"}`` out. The current Vercel Python
+    runtime does NOT load this shape; use ``application`` there."""
+    status, response_headers, body = _dispatch(
+        event.get("httpMethod") if isinstance(event, dict) else None,
+        event.get("headers") if isinstance(event, dict) else None,
+    )
+    return {
+        "statusCode": status,
+        "headers": response_headers,
+        "body": body.decode("utf-8"),
+    }
 
 
 def _serve_locally(port: int) -> None:  # pragma: no cover - interactive use
@@ -159,13 +221,12 @@ def _serve_locally(port: int) -> None:  # pragma: no cover - interactive use
 
     class BrokerHTTP(BaseHTTPRequestHandler):
         def _dispatch(self) -> None:
-            response = handler(
-                {"httpMethod": self.command, "headers": dict(self.headers)}
+            status, response_headers, body = _dispatch(
+                self.command, dict(self.headers)
             )
-            self.send_response(response["statusCode"])
-            for key, value in response["headers"].items():
+            self.send_response(status)
+            for key, value in response_headers.items():
                 self.send_header(key, value)
-            body = response["body"].encode("utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if body:

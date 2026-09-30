@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/token.py": {
+      "maxDuration": 15,
+      "excludeFiles": "{tests/**,benchmark/**,dist/**,build-nuitka/**,scripts/**,packaging/**,.github/**,medical_knowledge/**}"
+    }
+  }
+}

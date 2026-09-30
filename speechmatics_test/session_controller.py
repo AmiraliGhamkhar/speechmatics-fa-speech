@@ -475,8 +475,20 @@ class DictationSession:
 
 
 def default_resource_root() -> Path:
-    """Return the directory containing bundled project data."""
+    """Return the directory containing bundled project data.
+
+    PyInstaller sets ``sys.frozen`` + ``sys._MEIPASS``; Nuitka standalone does
+    NEITHER (it injects the ``__nuitka_binary_dir`` builtin instead, verified
+    against the Nuitka 4.2.2 runtime sources), so that must be checked too.
+    Both point at the directory holding ``medical_knowledge/`` next to the
+    executable; in development the repository root is used.
+    """
 
     if getattr(sys, "frozen", False):  # PyInstaller
         return Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    import builtins
+
+    nuitka_dir = getattr(builtins, "__nuitka_binary_dir", None)  # Nuitka standalone
+    if nuitka_dir:
+        return Path(str(nuitka_dir))
     return Path(__file__).resolve().parents[1]

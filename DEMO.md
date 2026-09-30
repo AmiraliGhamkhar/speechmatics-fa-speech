@@ -28,23 +28,33 @@ Demo machine (hospital)                            Your side
 | What stops the demo being used forever? | A compiled-in expiry stamp (`scripts/set_demo_expiry.py`) checked on every Start. |
 | Will hospital IT run an unknown exe? | Only if signed. Code-sign the exe (OV certificate); note that even EV-signed builds must accrue SmartScreen reputation since 2024. |
 
-## The three layers this repo now ships
+## The two release paths this repo ships
 
-1. **Credential protection** — `api/token.py` broker + JWT path in the desktop app.
-2. **Demo control** — compiled-in expiry via `scripts/set_demo_expiry.py` (+ `build_demo.ps1`).
-3. **Code protection** — Nuitka machine-code build via `scripts/build_windows_nuitka.ps1`.
+1. **Hospital demo (the one true demo path)** —
+   `scripts/build_hospital_demo.ps1`: Nuitka machine-code build with the
+   compiled-in expiry + broker URL (Layer 1 + Layer 2 + Layer 3 combined).
+2. **Developer fallback** — `scripts/build_windows.ps1` (PyInstaller):
+   quick local bundle for development machines only. It contains ordinary
+   Python bytecode, so it is **not** for hospital distribution.
+
+Credential protection (the broker) is part of the demo path by construction:
+the demo build cannot exist without `-BrokerUrl`.
 
 ---
 
 ## Layer 1 — the token broker (credentials never ship)
 
-`api/token.py` is a dependency-free serverless function:
+`api/token.py` is a dependency-free serverless function exposing the WSGI
+`application` entry point that the current Vercel Python runtime loads for
+file-based `/api` functions:
 
 * `GET /api/token` → `{"token": "<jwt>", "ttl": 60}`.
 * The Speechmatics API key lives **only** in the broker's environment.
 * Optional `DEMO_TOKEN` env var: the client must send `Authorization: Bearer <DEMO_TOKEN>`;
   rotating/deleting it revokes every shipped demo instantly.
 * `TOKEN_TTL` env var: token lifetime in seconds (clamped 10–300, default 60).
+* Responses are never cached (`Cache-Control: no-store`); credentials are
+  never logged.
 * CORS is **disabled by default** (the client is a native Windows app, not a
   browser). Set `ALLOWED_ORIGIN` to a specific origin only if you also serve
   a web client from the same broker — an open CORS policy on a token mint
@@ -56,19 +66,22 @@ Demo machine (hospital)                            Your side
 
 ```bash
 npm i -g vercel
-vercel                 # from the repository root; api/token.py auto-routes
-vercel env add SPEECHMATICS_API_KEY    # paste your private key
-vercel env add DEMO_TOKEN              # optional: shared secret for revocation
+vercel login
+vercel link                     # from the repository root
+vercel env add SPEECHMATICS_API_KEY production    # paste your private key
+vercel env add DEMO_TOKEN production              # optional: shared secret for revocation
+vercel env add TOKEN_TTL production               # optional: seconds, default 60
 vercel --prod
 # your broker is now at https://<your-app>.vercel.app/api/token
 ```
 
-Any HTTPS host works (the handler is provider-agnostic); the repo includes
-`api/vercel.json` for one-command deployment.
+`vercel.json` at the project root configures the function (duration, excluded
+files). Any HTTPS host works — the handler is provider-agnostic.
 
 ### Desktop side
 
-`%APPDATA%\SwiftMedics\config.json` on a demo machine:
+`%APPDATA%\SwiftMedics\config.json` on a demo machine (optional; demo builds
+already carry the broker URL compiled in — the file can override it):
 
 ```json
 {
@@ -85,29 +98,35 @@ session only. Operator-provided full API keys keep working unchanged.
 
 ---
 
-## Layer 2 — the demo build (expiry + one command)
+## Layer 2 + 3 — the hospital demo build (one command)
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\build_demo.ps1 -ExpiryDate 2026-11-30 `
+.\scripts\build_hospital_demo.ps1 -ExpiryDate 2026-11-30 `
     -BrokerUrl https://<your-app>.vercel.app/api/token `
-    [-DemoToken <DEMO_TOKEN>] [-BuildId hospital-x-demo] [-KeepStamp]
+    [-BuildId hospital-x-demo] [-DemoToken <DEMO_TOKEN>] `
+    [-ProductVersion 1.0.0.0] [-SkipInstall] [-KeepStamp]
 ```
 
 What it does:
 
-1. Generates `speechmatics_test/demo_build_stamp.py` (expiry + broker URL;
-   git-ignored, never committed).
-2. Runs the normal PyInstaller bundle.
-3. Writes `dist\SwiftMedics\config-demo-template.json` pre-filled with the
-   broker URL.
-4. Removes the stamp afterwards (use `-KeepStamp` to rebuild repeatedly).
+1. Creates `.venv` and installs dependencies + Nuitka (`-SkipInstall` to skip).
+2. Validates the broker URL with the app's own runtime rules.
+3. Generates `speechmatics_test/demo_build_stamp.py` (expiry + build ID +
+   broker URL; git-ignored, never committed) and compiles it **into** the
+   build via Nuitka — no `.py` stamp ships beside the exe.
+4. Builds a standalone, no-console `SwiftMedics.exe` with embedded Windows
+   product metadata, `medical_knowledge` data files and all runtime packages.
+5. Writes `dist\SwiftMedics-hospital-demo\config-demo-template.json`.
+6. Runs the secret-safety gate: the build **fails** if the long-lived API key
+   appears anywhere in the bundle (the value itself is never printed).
+7. Removes the temporary stamp afterwards (use `-KeepStamp` to rebuild).
 
 At Start the app refuses to run after expiry (`23:59:59` local time on the
 given date) **and** after a detected system-clock rollback (a per-user
 high-water mark of UTC time with a 24 h NTP-travel tolerance, stored next to
 the config). This is tamper-resistant for honest users; it is not a
-substitute for compiled protection — combine with Layer 3.
+substitute for compiled protection — the Nuitka layer is.
 
 Client-side hardening on every Start: the broker URL must parse as https
 (loopback http allowed for local mode), without embedded credentials, query,
@@ -116,31 +135,19 @@ and the websocket endpoint is never taken from the broker — the app always
 connects to Speechmatics directly, so even a compromised broker cannot
 redirect the audio stream.
 
-To remove demo state entirely: delete `speechmatics_test/demo_build_stamp.py`.
+To remove demo state from a developer checkout entirely: delete
+`speechmatics_test/demo_build_stamp.py` (the build script does this for you).
 
----
+### What Nuitka does and does not protect
 
-## Layer 3 — code protection (Nuitka machine-code build)
-
-```powershell
-.\scripts\build_windows_nuitka.ps1
-# → dist\SwiftMedics-nuitka\SwiftMedics.exe
-```
-
-* First build is slow (full C compile); later builds are faster.
-* Flags verified against Nuitka 4.2.2 (`--mode=standalone`,
-  `--windows-console-mode=disable`); the script embeds product
-  name/version metadata so hospital IT allowlisting tools see a proper
-  vendor identity in file Properties.
-* Output is a standalone folder; `SwiftMedics.exe` plus runtime `.pyd`s.
-  There is no `.pyc` of your code anywhere in it — reverse engineering means
-  reading x86 assembly.
-* Combine layers: run `build_demo.ps1` logic, then build with Nuitka, or add
-  `--expiry`/broker handling as needed. The demo stamp works identically in a
-  Nuitka build because `demo_license.py` is compiled along with everything else.
-* The pure-Python pyahocorasick fallback keeps the medical matcher fully
-  functional even if a C extension is missed (parity-tested).
-* **Sign the exe** (`signtool sign /fd SHA256 /tr ...`) before distribution.
+The distributed bundle contains compiled machine code, not Python bytecode:
+there is no `.pyc` of the application to decompile with `pyinstxtractor`/
+`pycdc`, which removes the trivial extraction path. Reverse engineering is
+**still possible** for a determined attacker — native code can be disassembled
+and string constants (including the compiled-in broker URL and expiry date)
+can be recovered. Nuitka substantially raises the difficulty; it does not make
+it impossible. For production licensing, combine with a server-side feature
+gate (the broker is exactly that gate for the dictation capability).
 
 ---
 
@@ -148,13 +155,14 @@ To remove demo state entirely: delete `speechmatics_test/demo_build_stamp.py`.
 
 - [ ] Broker deployed; `SPEECHMATICS_API_KEY` set on the broker only.
 - [ ] `DEMO_TOKEN` set (enables instant revocation).
-- [ ] Demo build created with `build_demo.ps1 -ExpiryDate ... -BrokerUrl ...`.
+- [ ] Demo build created with `build_hospital_demo.ps1 -ExpiryDate ... -BrokerUrl ...`.
 - [ ] Exe **code-signed**; give hospital IT the vendor name + SHA-256 hash.
-- [ ] Demo machine has `%APPDATA%\SwiftMedics\config.json` (or ship the
-      included `config-demo-template.json`).
+- [ ] Demo machine has no config file (compiled-in defaults) or ships
+      `config-demo-template.json` copied to `%APPDATA%\SwiftMedics\config.json`.
 - [ ] Dry-run on a clean Windows VM **without** your real key present —
       confirm the app works via broker and that no key appears anywhere
-      (`strings` the bundle, check the config, check the log).
+      (the build's secret gate already scans the bundle; check the config
+      and the log too).
 - [ ] PHI policy: the app already keeps audio in memory only and no
       transcription is uploaded anywhere except Speechmatics; for the demo,
       dictate synthetic/fictional patient data only.
