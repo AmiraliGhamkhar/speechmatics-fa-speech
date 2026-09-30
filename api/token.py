@@ -57,6 +57,7 @@ _STATUS_REASONS = {
     200: "OK",
     204: "No Content",
     403: "Forbidden",
+    404: "Not Found",
     405: "Method Not Allowed",
     500: "Internal Server Error",
     502: "Bad Gateway",
@@ -116,17 +117,31 @@ def _authorized(headers: dict) -> bool:
     return hmac.compare_digest(supplied, f"Bearer {demo_token}")
 
 
-def _dispatch(method: str, headers: dict | None) -> tuple[int, dict[str, str], bytes]:
+def _dispatch(
+    method: str, headers: dict | None, path: str | None = None
+) -> tuple[int, dict[str, str], bytes]:
     """Core ``GET /api/token`` logic shared by every entry point below.
 
     Returns ``(status, headers, body)`` and never logs the request: the
-    ``Authorization`` header carries a credential.
+    ``Authorization`` header carries a credential. When ``path`` is given
+    (WSGI and the local server always provide it), any route other than
+    ``/api/token`` is refused with 404 - with Vercel's entrypoint mode the
+    app receives every request, and only the token mint may be reachable.
+    Event-style shims that carry no path keep working.
     """
     headers = {
         str(key).lower(): value for key, value in (headers or {}).items()
     }
     method = str(method or "GET").upper()
     response_headers = {"Cache-Control": "no-store"}
+
+    if path:
+        route = path.split("?", 1)[0].rstrip("/") or "/"
+        if route != "/api/token":
+            response_headers["Content-Type"] = "application/json"
+            return 404, response_headers, json.dumps(
+                {"error": "not found; use /api/token"}
+            ).encode("utf-8")
 
     if method == "OPTIONS":
         response_headers.update(_cors_headers())
@@ -187,7 +202,9 @@ def application(environ, start_response):  # noqa: ANN001 - WSGI signature
         # HTTP_AUTHORIZATION; accept both.
         headers.setdefault("Authorization", environ["AUTHORIZATION"])
     status, response_headers, body = _dispatch(
-        environ.get("REQUEST_METHOD", "GET"), headers
+        environ.get("REQUEST_METHOD", "GET"),
+        headers,
+        path=str(environ.get("PATH_INFO") or environ.get("SCRIPT_NAME") or ""),
     )
     start_response(
         f"{status} {_STATUS_REASONS.get(status, 'OK')}",
@@ -222,7 +239,7 @@ def _serve_locally(port: int) -> None:  # pragma: no cover - interactive use
     class BrokerHTTP(BaseHTTPRequestHandler):
         def _dispatch(self) -> None:
             status, response_headers, body = _dispatch(
-                self.command, dict(self.headers)
+                self.command, dict(self.headers), path=self.path
             )
             self.send_response(status)
             for key, value in response_headers.items():
