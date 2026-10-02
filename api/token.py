@@ -27,7 +27,15 @@ revokes access for every demo build that was shipped with it.
 HTTPS in production is enforced by the platform (all Vercel traffic is
 terminated on TLS at the edge) and by the client (``broker_client.py``
 refuses non-loopback plain-http broker URLs); this function additionally
-never caches responses and never logs credentials.
+marks every response ``no-store`` and never logs credentials.
+
+A realtime temporary key can start "any number of Realtime transcription
+sessions" within its TTL (Speechmatics documentation), so minting a fresh
+key on every Start is pure churn: one extra upstream call and one more live
+key per dictation session. The broker therefore reuses a still-valid key
+across Starts (see ``realtime_token``). Reuse is strictly an optimisation -
+on a cold serverless instance the cache is empty and a key is minted exactly
+as before, so correctness never depends on it.
 
 Local mode for an on-site demo (the key stays on the presenter machine):
 
@@ -37,9 +45,12 @@ This module is deliberately standard-library only (see api/requirements.txt).
 """
 from __future__ import annotations
 
+import base64
 import hmac
 import json
 import os
+import threading
+import time
 import urllib.error
 import urllib.request
 
@@ -52,6 +63,17 @@ SPEECHMATICS_KEYS_URL = os.getenv(
 MIN_TTL = 10
 MAX_TTL = 300
 DEFAULT_TTL = 60
+
+#: A cached key is reused only while at least this many seconds of life remain,
+#: so a client never receives a token that could expire mid-dictation.
+TOKEN_REUSE_MARGIN_SECONDS = 30
+
+#: Best-effort per-instance cache of minted keys, keyed by the API key that
+#: minted them so a rotated ``SPEECHMATICS_API_KEY`` never serves a token
+#: derived from the old one. Guarded by a lock so two Starts arriving together
+#: cannot stampede the upstream endpoint.
+_TOKEN_CACHE: dict[str, tuple[str, float]] = {}
+_TOKEN_CACHE_LOCK = threading.Lock()
 
 _STATUS_REASONS = {
     200: "OK",
@@ -89,6 +111,50 @@ def issue_realtime_token(api_key: str, ttl: int) -> str:
     token = payload.get("key_value") if isinstance(payload, dict) else None
     if not isinstance(token, str) or not token:
         raise RuntimeError("Speechmatics response did not contain 'key_value'")
+    return token
+
+
+def _jwt_expires_at(token: str) -> float | None:
+    """Return a JWT's ``exp`` claim as a UTC epoch, or ``None`` if unreadable.
+
+    The signature is deliberately NOT verified: this token was just minted by
+    us with our own key, and all we need from the claim is the lifetime that
+    decides reuse. An unreadable claim means "do not cache" - never a guess.
+    """
+    parts = (token or "").split(".")
+    if len(parts) != 3:
+        return None
+    payload = parts[1] + "=" * (-len(parts[1]) % 4)
+    try:
+        claims = json.loads(
+            base64.urlsafe_b64decode(payload.encode("ascii")).decode("utf-8")
+        )
+    except Exception:
+        return None
+    exp = claims.get("exp") if isinstance(claims, dict) else None
+    return float(exp) if isinstance(exp, (int, float)) and not isinstance(exp, bool) else None
+
+
+def realtime_token(api_key: str, ttl: int) -> str:
+    """Return a usable realtime key, reusing a cached one when it still lives.
+
+    Reuse is bounded by the key's own ``exp`` claim minus
+    ``TOKEN_REUSE_MARGIN_SECONDS``, so the returned key always outlives a short
+    dictation burst. Anything unreadable, expired, or close to expiry falls
+    through to a fresh mint.
+    """
+    with _TOKEN_CACHE_LOCK:
+        entry = _TOKEN_CACHE.get(api_key)
+    if entry is not None:
+        token, expires_at = entry
+        if time.time() <= expires_at - TOKEN_REUSE_MARGIN_SECONDS:
+            return token
+
+    token = issue_realtime_token(api_key, ttl)
+    expires_at = _jwt_expires_at(token)
+    if expires_at is not None:
+        with _TOKEN_CACHE_LOCK:
+            _TOKEN_CACHE[api_key] = (token, expires_at)
     return token
 
 
@@ -166,7 +232,7 @@ def _dispatch(
 
     ttl = _clamp_ttl(os.getenv("TOKEN_TTL"))
     try:
-        token = issue_realtime_token(api_key, ttl)
+        token = realtime_token(api_key, ttl)
     except urllib.error.HTTPError as exc:
         # Surface only the status code: the body could echo request context.
         return 502, response_headers, json.dumps(

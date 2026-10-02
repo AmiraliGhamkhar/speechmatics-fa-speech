@@ -24,6 +24,7 @@ from speechmatics_test.desktop_config import (
     log_dir,
 )
 from speechmatics_test.demo_license import days_remaining
+from speechmatics_test.single_instance import acquire as acquire_single_instance
 from speechmatics_test.session_controller import (
     DictationSession,
     DictationSettings,
@@ -76,13 +77,17 @@ def _user32():
 class FloatingDictationApp:
     """Small always-on-top control for starting/stopping dictation."""
 
-    def __init__(self) -> None:
+    def __init__(self, instance=None) -> None:
         if tk is None:
             raise RuntimeError(f"Tkinter is required for the desktop app: {_TK_IMPORT_ERROR}")
         self.root = tk.Tk()
         self.root.title("SwiftMedics")
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
+        #: Single-instance handle for this process, or ``None`` when running
+        #: unguarded (non-Windows). Held so the mutex stays open for the whole
+        #: lifetime of the window and so focus permission can be re-asserted.
+        self._instance = instance
 
         self._font_family = self._best_font()
         self._session: DictationSession | None = None
@@ -106,7 +111,21 @@ class FloatingDictationApp:
         self._ui_queue.start()
         self.root.after(100, self._apply_nonactivating_styles)
         self.root.after(150, self._remember_foreground_target)
+        self.root.after(200, self._reassert_foreground_permission)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _reassert_foreground_permission(self) -> None:
+        """Keep ``AllowSetForegroundWindow(ASFW_ANY)`` in force.
+
+        Windows revokes the permission whenever foreground changes hands. The
+        borderless control is never activated by a click (``WS_EX_NOACTIVATE``),
+        so without a standing grant a second launch could not raise this
+        window at all - the user would see nothing happen and assume the app
+        is broken.
+        """
+        if self._instance is not None:
+            self._instance.allow_foreground_grab()
+        self.root.after(3000, self._reassert_foreground_permission)
 
     # ------------------------------------------------------------------ setup
 
@@ -542,8 +561,21 @@ def main() -> int:
     if tk is None:
         raise SystemExit(f"Tkinter is required for the desktop app: {_TK_IMPORT_ERROR}")
     setup_logging()
-    app = FloatingDictationApp()
-    app.root.mainloop()
+
+    # Only one copy of the exe may own the microphone. The floating control has
+    # no taskbar button, so a second copy would be invisible while it fights
+    # the first for the input device and injects over it. A launcher that finds
+    # the primary raises its window and exits 0 without starting a session.
+    instance = acquire_single_instance()
+    if instance is None:
+        log.info("Exiting: another instance owns the single-instance lock")
+        return 0
+
+    try:
+        app = FloatingDictationApp(instance=instance)
+        app.root.mainloop()
+    finally:
+        instance.release()
     return 0
 
 
