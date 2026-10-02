@@ -57,6 +57,13 @@ file-based `/api` functions:
   seconds and Speechmatics closes the websocket mid-dictation when it does
   (surfaced by the app as a transport error). 60 s is only useful for quick
   hand-tests.
+* A realtime temporary key can start *any number* of sessions within its TTL,
+  so the broker **reuses a still-valid key across Starts** instead of minting
+  one per dictation session. Reuse stops 30 s before the key's own `exp`, so
+  a token is never handed out while it is close to expiring; a cold serverless
+  instance simply mints as before, so this is an optimisation only. The cache
+  is keyed by `SPEECHMATICS_API_KEY` (a rotated key never inherits the old
+  token) and is consulted only *after* `DEMO_TOKEN` is accepted.
 * Responses are never cached (`Cache-Control: no-store`); credentials are
   never logged.
 * CORS is **disabled by default** (the client is a native Windows app, not a

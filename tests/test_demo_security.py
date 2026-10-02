@@ -269,6 +269,135 @@ def test_broker_handler_issues_a_short_lived_token(monkeypatch):
     assert captured == {"api_key": "private-key-never-shipped", "ttl": 60}
 
 
+def _fake_jwt(exp: float) -> str:
+    """A JWT-shaped token whose payload carries ``exp`` (signature unused)."""
+    import base64
+
+    def seg(obj) -> str:
+        raw = json.dumps(obj).encode("utf-8")
+        return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+    return f"{seg({'alg': 'none'})}.{seg({'exp': exp})}.signature"
+
+
+def _get_broker_token(api, headers=None) -> str:
+    response = api.handle_api_event({"httpMethod": "GET", "headers": headers or {}})
+    assert response["statusCode"] == 200
+    return json.loads(response["body"])["token"]
+
+
+def test_broker_reuses_a_key_across_starts(monkeypatch):
+    """One upstream mint serves several Starts while the key still lives.
+
+    A realtime temporary key can start any number of sessions within its TTL,
+    so minting per Start is pure churn. Reuse is bounded by exp minus the
+    margin, so a key is never handed out while it is close to expiring.
+    """
+    import time as time_module
+
+    api = _load_api_token_module()
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "private-key-never-shipped")
+    monkeypatch.setenv("TOKEN_TTL", "300")
+
+    mints = []
+    live = _fake_jwt(time_module.time() + 300)
+    monkeypatch.setattr(
+        api,
+        "issue_realtime_token",
+        lambda key, ttl: (mints.append((key, ttl)), live)[1],
+    )
+
+    first = _get_broker_token(api)
+    second = _get_broker_token(api)
+    third = _get_broker_token(api)
+
+    assert first == second == third == live
+    assert len(mints) == 1, "a still-valid key must be reused, not re-minted"
+
+
+def test_broker_remints_when_the_cached_key_is_near_expiry(monkeypatch):
+    """The reuse margin is a hard floor, not a hint."""
+    import time as time_module
+
+    api = _load_api_token_module()
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "private-key-never-shipped")
+
+    barely_alive = _fake_jwt(time_module.time() + api.TOKEN_REUSE_MARGIN_SECONDS - 1)
+    fresh = _fake_jwt(time_module.time() + 300)
+    minted = [barely_alive, fresh]
+    monkeypatch.setattr(api, "issue_realtime_token", lambda key, ttl: minted.pop(0))
+
+    assert _get_broker_token(api) == barely_alive
+    # Too little life left to hand out: mint again rather than risk a token
+    # that dies mid-dictation.
+    assert _get_broker_token(api) == fresh
+
+
+def test_broker_never_reuses_a_token_from_a_rotated_api_key(monkeypatch):
+    """A rotated SPEECHMATICS_API_KEY must not inherit the old key's token."""
+    import time as time_module
+
+    api = _load_api_token_module()
+    live = _fake_jwt(time_module.time() + 300)
+    monkeypatch.setattr(api, "issue_realtime_token", lambda key, ttl: live)
+
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "old-key")
+    assert _get_broker_token(api) == live
+
+    # Different key, same reusable token value: still a fresh mint, because the
+    # cache is keyed by the API key that produced the token.
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "new-key")
+    assert _get_broker_token(api) == live
+    assert set(api._TOKEN_CACHE) == {"old-key", "new-key"}
+
+
+def test_broker_never_caches_an_unreadable_token(monkeypatch):
+    """No readable ``exp`` means no reuse - expiry can never be guessed."""
+    api = _load_api_token_module()
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "private-key-never-shipped")
+
+    mints = []
+    monkeypatch.setattr(
+        api,
+        "issue_realtime_token",
+        lambda key, ttl: (mints.append(ttl), "not-a-jwt")[1],
+    )
+
+    assert _get_broker_token(api) == "not-a-jwt"
+    assert _get_broker_token(api) == "not-a-jwt"
+    assert len(mints) == 2
+    assert api._TOKEN_CACHE == {}
+
+
+def test_broker_reuse_does_not_enable_http_caching(monkeypatch):
+    """Server-side reuse must never become a client/proxy HTTP cache."""
+    api = _load_api_token_module()
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "private-key-never-shipped")
+    monkeypatch.setattr(api, "issue_realtime_token", lambda key, ttl: _fake_jwt(1e12))
+
+    response = api.handle_api_event({"httpMethod": "GET", "headers": {}})
+    assert response["headers"]["Cache-Control"] == "no-store"
+
+
+def test_broker_reuse_never_bypasses_authentication(monkeypatch):
+    """The cache is consulted only after the demo token is accepted."""
+    api = _load_api_token_module()
+    monkeypatch.setenv("SPEECHMATICS_API_KEY", "private-key-never-shipped")
+    monkeypatch.setenv("DEMO_TOKEN", "the-shared-secret")
+    monkeypatch.setattr(api, "issue_realtime_token", lambda key, ttl: _fake_jwt(1e12))
+
+    authorized = {"Authorization": "Bearer the-shared-secret"}
+    warm = _get_broker_token(api, authorized)
+    assert _get_broker_token(api, authorized) == warm  # cache is now warm
+
+    refused = api.handle_api_event({"httpMethod": "GET", "headers": {}})
+    assert refused["statusCode"] == 403
+    wrong = api.handle_api_event(
+        {"httpMethod": "GET", "headers": {"Authorization": "Bearer wrong"}}
+    )
+    assert wrong["statusCode"] == 403
+
+
 def test_broker_handler_never_returns_the_api_key(monkeypatch):
     api = _load_api_token_module()
     monkeypatch.delenv("DEMO_TOKEN", raising=False)
