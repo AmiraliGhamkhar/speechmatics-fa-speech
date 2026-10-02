@@ -381,6 +381,20 @@ button. While recording it expands to show **Stop** plus a live transcript;
 clicking Stop ends recording, drains already-finalized injection jobs, and
 returns to the Start state.
 
+Only one copy of the app may run at a time. The floating control is borderless
+with no taskbar button, so a second copy would be invisible while it competed
+for the **same microphone** and injected over the first — which degrades
+recognition and garbles typed text *without raising an error*. A named
+`Local\` mutex (`speechmatics_test/single_instance.py`) makes a second launch
+raise the already-running window to the foreground and exit 0 instead of
+starting a rival dictation session. The primary grants
+`AllowSetForegroundWindow(ASFW_ANY)` and keeps re-asserting it, because
+Windows revokes that grant whenever focus changes hands and `WS_EX_NOACTIVATE`
+means a click alone would never surface the window. The kernel drops the mutex
+name when the last handle closes, so a crashed primary cannot lock the app
+out; a mutex that cannot be *created* (locked-down hospital desktop) also
+fails open rather than refusing to start.
+
 Desktop configuration is read from:
 
 ```text
